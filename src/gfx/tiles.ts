@@ -1,4 +1,4 @@
-import { fillRect, newGrid, setPx, type Grid } from "./pixelart";
+import { fillCircle, fillRect, newGrid, setPx, type Grid } from "./pixelart";
 
 const TS = 16;
 
@@ -17,12 +17,15 @@ export const TILE_KEYS = [
   "fence",
   "cave_entrance",
   "flower_patch",
+  "sunflower_patch",
+  "fountain",
+  "ore_deposit",
   "bridge",
 ] as const;
 export type TileKey = (typeof TILE_KEYS)[number];
 
 // Tile indices for solidity checks (must not be walkable).
-export const SOLID_TILES = new Set<TileKey>(["wall", "fence", "water"]);
+export const SOLID_TILES = new Set<TileKey>(["wall", "fence", "water", "fountain"]);
 
 function speckle(g: Grid, base: string, spots: string, density: number, seed: number): void {
   fillRect(g, 0, 0, TS, TS, base);
@@ -160,6 +163,44 @@ function buildFlowerPatch(): Grid {
   return g;
 }
 
+function buildSunflowerPatch(): Grid {
+  const g = buildGrass(63);
+  // big sunflower: brown/black seed center ringed by yellow petals
+  fillCircle(g, 8, 8, 5, "#e8a93c");
+  fillCircle(g, 8, 8, 3, "#5a3a1e");
+  fillCircle(g, 8, 8, 2, "#3d2814");
+  setPx(g, 3, 3, "#c97f2a");
+  setPx(g, 13, 4, "#c97f2a");
+  setPx(g, 4, 13, "#c97f2a");
+  setPx(g, 12, 12, "#c97f2a");
+  return g;
+}
+
+function buildFountain(): Grid {
+  const g = newGrid(TS);
+  fillRect(g, 0, 0, TS, TS, "#8fc4d8");
+  fillCircle(g, 8, 8, 7, "#7ec0e0");
+  fillCircle(g, 8, 8, 5, "#a8dcf0");
+  for (let x = 2; x < TS; x += 5) setPx(g, x, (x * 3) % TS, "#e6f5fb");
+  fillRect(g, 0, 0, TS, 1, "#5f96ab");
+  fillRect(g, 0, TS - 1, TS, 1, "#5f96ab");
+  fillRect(g, 0, 0, 1, TS, "#5f96ab");
+  fillRect(g, TS - 1, 0, 1, TS, "#5f96ab");
+  return g;
+}
+
+function buildOreDeposit(): Grid {
+  const g = buildStoneFloor();
+  fillCircle(g, 5, 6, 3, "#8f8296");
+  fillCircle(g, 5, 6, 2, "#6f6478");
+  setPx(g, 10, 9, "#f2d24a");
+  setPx(g, 11, 9, "#e8b82c");
+  setPx(g, 10, 10, "#e8b82c");
+  setPx(g, 4, 11, "#a4e8e0");
+  setPx(g, 5, 11, "#7ec9c0");
+  return g;
+}
+
 function buildBridge(): Grid {
   const g = newGrid(TS);
   fillRect(g, 0, 0, TS, TS, "#a9805a");
@@ -185,6 +226,9 @@ export function buildTileGrids(): Record<TileKey, Grid> {
     fence: buildFence(),
     cave_entrance: buildCaveEntrance(),
     flower_patch: buildFlowerPatch(),
+    sunflower_patch: buildSunflowerPatch(),
+    fountain: buildFountain(),
+    ore_deposit: buildOreDeposit(),
     bridge: buildBridge(),
   };
 }

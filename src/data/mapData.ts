@@ -53,10 +53,15 @@ export function buildMap(): MapInfo {
   // --- Plaza (center hub): 중앙 해바라기 광장 ---
   const plaza = { x0: 24, y0: 12, x1: 38, y1: 27 };
   rect(plaza.x0, plaza.y0, plaza.x1, plaza.y1, "path");
-  rect(plaza.x0 + 3, plaza.y0 + 2, plaza.x0 + 4, plaza.y0 + 3, "flower_patch");
-  rect(plaza.x1 - 4, plaza.y0 + 2, plaza.x1 - 3, plaza.y0 + 3, "flower_patch");
-  rect(plaza.x0 + 3, plaza.y1 - 3, plaza.x0 + 4, plaza.y1 - 2, "flower_patch");
-  rect(plaza.x1 - 4, plaza.y1 - 3, plaza.x1 - 3, plaza.y1 - 2, "flower_patch");
+  rect(plaza.x0 + 3, plaza.y0 + 2, plaza.x0 + 4, plaza.y0 + 3, "sunflower_patch");
+  rect(plaza.x1 - 4, plaza.y0 + 2, plaza.x1 - 3, plaza.y0 + 3, "sunflower_patch");
+  rect(plaza.x0 + 3, plaza.y1 - 3, plaza.x0 + 4, plaza.y1 - 2, "sunflower_patch");
+  rect(plaza.x1 - 4, plaza.y1 - 3, plaza.x1 - 3, plaza.y1 - 2, "sunflower_patch");
+  // central fountain landmark, ringed by a sunflower bed
+  const plazaCx = Math.floor((plaza.x0 + plaza.x1) / 2);
+  const plazaCy = Math.floor((plaza.y0 + plaza.y1) / 2);
+  rect(plazaCx - 3, plazaCy - 3, plazaCx + 3, plazaCy + 3, "sunflower_patch");
+  rect(plazaCx - 1, plazaCy - 1, plazaCx + 1, plazaCy + 1, "fountain");
 
   // --- Farm zone: 멍멍 흙빛 농장 ---
   const farm = { x0: 4, y0: 5, x1: 20, y1: 33 };
@@ -104,6 +109,11 @@ export function buildMap(): MapInfo {
   set(mine.x0 - 1, mineGateY0, "path");
   const mineEntrance = { x: 47, y: mine.y0 + 3 };
   set(mineEntrance.x, mineEntrance.y, "cave_entrance");
+  // decorative ore veins scattered around the cave floor
+  const oreSpots: [number, number][] = [
+    [43, 26], [44, 33], [49, 24], [52, 30], [56, 27], [46, 36], [55, 35], [50, 22],
+  ];
+  for (const [ox, oy] of oreSpots) set(ox, oy, "ore_deposit");
 
   // --- connecting paths ---
   rect(21, farmGateY0, 24, farmGateY0 + 1, "path"); // farm -> plaza
@@ -119,7 +129,7 @@ export function buildMap(): MapInfo {
   const bed = { x: plaza.x0 + 1, y: plaza.y1 - 1 };
   set(bed.x, bed.y, "wood_floor");
 
-  const spawn = { x: (plaza.x0 + plaza.x1) / 2, y: (plaza.y0 + plaza.y1) / 2 };
+  const spawn = { x: plazaCx, y: plazaCy + 5 };
 
   return {
     tiles,

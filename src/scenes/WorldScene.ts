@@ -14,7 +14,7 @@ type Facing = "down" | "up" | "left" | "right";
 // Target on-screen width (in world pixels, pre-camera-zoom) for every
 // character regardless of their art's native resolution — keeps a 64px
 // procedural sprite and a ~130px extracted photo sprite the same size.
-const TARGET_CHAR_WIDTH = 16;
+const TARGET_CHAR_WIDTH = 13;
 
 const SEED_FOR_TOOL: Partial<Record<ToolId, string>> = {
   seed_carrot: "SEED_BONE_CARROT",
