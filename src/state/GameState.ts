@@ -2,6 +2,7 @@ import type { Species } from "../gfx/characters";
 import { ITEMS, getItem } from "../data/items";
 import { QUESTS, questsForStage } from "../data/quests";
 import type { NpcId } from "../data/npcs";
+import type { ZoneId } from "../data/rooms";
 
 export const DAY_START_MIN = 6 * 60; // 06:00
 export const DAY_END_MIN = 24 * 60; // 24:00
@@ -19,6 +20,7 @@ export type ToolId = "hoe" | "water" | "seed_carrot" | "seed_straw";
 export interface SaveData {
   species: Species;
   breed: string;
+  zone: ZoneId;
   x: number;
   y: number;
   gold: number;
@@ -42,8 +44,9 @@ function freshSave(species: Species, breed: string): SaveData {
   return {
     species,
     breed,
-    x: 400,
-    y: 420,
+    zone: "plaza",
+    x: 1140,
+    y: 900,
     gold: 300,
     stamina: 100,
     maxStamina: 100,

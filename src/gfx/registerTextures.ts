@@ -1,37 +1,12 @@
-import { flipGridX, gridToCanvas, registerGrid, type Grid } from "./pixelart";
-import { buildTileGrids, TILE_KEYS, type TileKey } from "./tiles";
+import { flipGridX, registerGrid, type Grid } from "./pixelart";
 import { buildIconGrids } from "./icons";
 import { addApron, addBandana, addVest, buildCharacter } from "./characters";
 import { BREEDS, getBreed } from "../data/breeds";
 import { NPCS } from "../data/npcs";
 import { hasImageArt, IMAGE_BREEDS } from "./spriteAssets";
-import { registerProps } from "./props";
 
-export const TILESET_KEY = "tileset";
 const DIRS = ["down", "up", "left", "right"] as const;
 type Dir = (typeof DIRS)[number];
-
-export function tileIndex(key: TileKey): number {
-  return TILE_KEYS.indexOf(key);
-}
-
-export function registerTileset(scene: Phaser.Scene): void {
-  const grids = buildTileGrids();
-  const canvas = document.createElement("canvas");
-  canvas.width = 16 * TILE_KEYS.length;
-  canvas.height = 16;
-  const ctx = canvas.getContext("2d")!;
-  ctx.imageSmoothingEnabled = false;
-  TILE_KEYS.forEach((key, i) => {
-    const tileCanvas = gridToCanvas(grids[key]);
-    ctx.drawImage(tileCanvas, i * 16, 0);
-  });
-  if (scene.textures.exists(TILESET_KEY)) scene.textures.remove(TILESET_KEY);
-  const texture = scene.textures.addCanvas(TILESET_KEY, canvas)!;
-  TILE_KEYS.forEach((_key, i) => {
-    texture.add(i, 0, i * 16, 0, 16, 16);
-  });
-}
 
 export function registerIcons(scene: Phaser.Scene): void {
   const grids = buildIconGrids();
@@ -137,11 +112,9 @@ export function createAnimations(scene: Phaser.Scene): void {
 }
 
 export function registerAllArt(scene: Phaser.Scene): void {
-  registerTileset(scene);
   registerIcons(scene);
   registerCharacters(scene);
   createAnimations(scene);
-  registerProps(scene);
 }
 
 /**

@@ -2,6 +2,10 @@ import Phaser from "phaser";
 import { registerAllArt } from "../gfx/registerTextures";
 import { IMAGE_BREEDS } from "../gfx/spriteAssets";
 import { PIXEL_FONT } from "../ui/theme";
+import bgPlaza from "../assets/scenes/plaza.webp";
+import bgFarm from "../assets/scenes/farm.webp";
+import bgHarbor from "../assets/scenes/harbor.webp";
+import bgMine from "../assets/scenes/mine.webp";
 
 const DIRS = ["down", "up", "left", "right"] as const;
 
@@ -29,6 +33,11 @@ export class BootScene extends Phaser.Scene {
         });
       }
     }
+
+    this.load.image("bg_plaza", bgPlaza);
+    this.load.image("bg_farm", bgFarm);
+    this.load.image("bg_harbor", bgHarbor);
+    this.load.image("bg_mine", bgMine);
   }
 
   create(): void {

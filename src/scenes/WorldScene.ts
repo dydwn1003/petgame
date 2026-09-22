@@ -1,8 +1,6 @@
 import Phaser from "phaser";
-import { buildMap, MAP_H, MAP_W, TILE_SIZE, type MapInfo } from "../data/mapData";
-import { TILE_KEYS, SOLID_TILES } from "../gfx/tiles";
-import { fitScale, spritePrefixFor, tileIndex, TILESET_KEY } from "../gfx/registerTextures";
-import { PROPS } from "../gfx/props";
+import { ROOMS, type RoomDef, type ZoneId } from "../data/rooms";
+import { fitScale, spritePrefixFor } from "../gfx/registerTextures";
 import { NPCS, type NpcDef } from "../data/npcs";
 import { GameState } from "../state/GameState";
 import { getItem, ITEMS } from "../data/items";
@@ -16,6 +14,7 @@ type Facing = "down" | "up" | "left" | "right";
 // character regardless of their art's native resolution — keeps a 64px
 // procedural sprite and a ~130px extracted photo sprite the same size.
 const TARGET_CHAR_WIDTH = 17;
+const INTERACT_RADIUS = 34;
 
 const SEED_FOR_TOOL: Partial<Record<ToolId, string>> = {
   seed_carrot: "SEED_BONE_CARROT",
@@ -26,9 +25,13 @@ const CROP_FOR_SEED: Record<string, string> = {
   SEED_STRAWBERRY: "CROP_STRAWBERRY",
 };
 
+interface EnterPayload {
+  zone?: ZoneId;
+  spawn?: { x: number; y: number };
+}
+
 export class WorldScene extends Phaser.Scene {
-  private map!: MapInfo;
-  private layer!: Phaser.Tilemaps.TilemapLayer;
+  private room!: RoomDef;
   private player!: Phaser.Physics.Arcade.Sprite;
   private wasd!: Record<string, Phaser.Input.Keyboard.Key>;
   private npcSprites = new Map<string, Phaser.GameObjects.Sprite>();
@@ -37,6 +40,7 @@ export class WorldScene extends Phaser.Scene {
   private facing: Facing = "down";
   private mineCooldown = false;
   private sleeping = false;
+  private transitioning = false;
   private playerBaseScale = 1;
   private walkT = 0;
   private propColliders: Phaser.GameObjects.Rectangle[] = [];
@@ -45,22 +49,33 @@ export class WorldScene extends Phaser.Scene {
     super("World");
   }
 
+  init(data: EnterPayload): void {
+    const zone = data?.zone ?? GameState.data.zone ?? "plaza";
+    this.room = ROOMS[zone];
+    GameState.data.zone = zone;
+    if (data?.spawn) {
+      GameState.data.x = data.spawn.x;
+      GameState.data.y = data.spawn.y;
+    }
+  }
+
   create(): void {
     this.sleeping = false;
-    this.map = buildMap();
-    this.buildTilemap();
-    this.buildProps();
+    this.transitioning = false;
+    this.buildBackground();
+    this.buildSolids();
     this.buildPlayer();
     this.physics.add.collider(this.player, this.propColliders);
     this.buildNpcs();
     this.refreshFarmTiles();
 
-    this.cameras.main.setBounds(0, 0, MAP_W * TILE_SIZE, MAP_H * TILE_SIZE);
+    this.cameras.main.setBounds(0, 0, this.room.w, this.room.h);
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
     this.cameras.main.setZoom(2.4);
     this.cameras.main.setRoundPixels(true);
+    this.cameras.main.fadeIn(300, 20, 15, 25);
 
-    this.physics.world.setBounds(0, 0, MAP_W * TILE_SIZE, MAP_H * TILE_SIZE);
+    this.physics.world.setBounds(0, 0, this.room.w, this.room.h);
 
     this.wasd = this.input.keyboard!.addKeys("W,A,S,D,UP,LEFT,DOWN,RIGHT") as Record<
       string,
@@ -81,44 +96,24 @@ export class WorldScene extends Phaser.Scene {
 
   // ---------------- setup ----------------
 
-  private buildTilemap(): void {
-    const data = this.map.tiles.map((row) => row.map((t) => tileIndex(t)));
-    const map = this.make.tilemap({ data, tileWidth: TILE_SIZE, tileHeight: TILE_SIZE });
-    const tileset = map.addTilesetImage(TILESET_KEY, TILESET_KEY, TILE_SIZE, TILE_SIZE)!;
-    const layer = map.createLayer(0, tileset, 0, 0)!;
-    const solidIndices = TILE_KEYS.filter((k) => SOLID_TILES.has(k)).map((k) => tileIndex(k));
-    layer.setCollision(solidIndices);
-    layer.setDepth(0);
-    this.layer = layer;
+  private buildBackground(): void {
+    this.add.image(0, 0, this.room.bg).setOrigin(0, 0).setDepth(-1000);
   }
 
-  private buildProps(): void {
+  private buildSolids(): void {
     this.propColliders = [];
-    for (const placement of this.map.props) {
-      const def = PROPS[placement.key];
-      if (!def) continue;
-      const px = placement.x * TILE_SIZE;
-      const py = placement.y * TILE_SIZE;
-      const img = this.add.image(px, py, placement.key).setOrigin(0.5, 1);
-      img.setDepth(py - 1);
-      if (def.solid) {
-        // Collide only against a shallow strip at the base of the sprite
-        // (its "feet"), so tall props like trees/buildings still let the
-        // player walk visually in front of/behind their upper portion.
-        const baseH = Math.max(6, Math.round(def.h * 0.22));
-        const baseW = Math.round(def.w * 0.7);
-        const collider = this.add.rectangle(px, py - baseH / 2, baseW, baseH);
-        collider.setVisible(false);
-        this.physics.add.existing(collider, true);
-        this.propColliders.push(collider);
-      }
+    for (const r of this.room.solids) {
+      const rect = this.add.rectangle(r.x + r.w / 2, r.y + r.h / 2, r.w, r.h);
+      rect.setVisible(false);
+      this.physics.add.existing(rect, true);
+      this.propColliders.push(rect);
     }
   }
 
   private buildPlayer(): void {
     const breed = GameState.data.breed;
-    const startX = GameState.data.x || this.map.spawn.x * TILE_SIZE;
-    const startY = GameState.data.y || this.map.spawn.y * TILE_SIZE;
+    const startX = GameState.data.x || this.room.defaultSpawn.x;
+    const startY = GameState.data.y || this.room.defaultSpawn.y;
     const textureKey = `char_${breed}_down_0`;
     const sprite = this.physics.add.sprite(startX, startY, textureKey);
     const scale = fitScale(this, textureKey, TARGET_CHAR_WIDTH);
@@ -132,13 +127,14 @@ export class WorldScene extends Phaser.Scene {
     sprite.setSize(fw * 0.5, fh * 0.28).setOffset(fw * 0.25, fh * 0.66);
     sprite.setDepth(startY);
     this.player = sprite;
-    this.physics.add.collider(this.player, this.layer);
   }
 
   private buildNpcs(): void {
+    this.npcSprites.clear();
     for (const npc of NPCS) {
-      const x = npc.tileX * TILE_SIZE + TILE_SIZE / 2;
-      const y = npc.tileY * TILE_SIZE + TILE_SIZE / 2;
+      if (!this.room.npcIds.includes(npc.npc_id)) continue;
+      const x = npc.tileX;
+      const y = npc.tileY;
       const prefix = spritePrefixFor(npc.npc_id, npc.breedId);
       const textureKey = `${prefix}_down_0`;
       const sprite = this.add.sprite(x, y, textureKey);
@@ -160,13 +156,18 @@ export class WorldScene extends Phaser.Scene {
 
   // ---------------- farm tile rendering ----------------
 
+  private plotWorldPos(col: number, row: number): { x: number; y: number } {
+    const g = this.room.farmGrid!;
+    return { x: g.x0 + col * g.cell + g.cell / 2, y: g.y0 + row * g.cell + g.cell / 2 };
+  }
+
   private refreshFarmTiles(): void {
+    if (!this.room.farmGrid) return;
     for (const [key, plot] of Object.entries(GameState.data.farmPlots)) {
       const [txs, tys] = key.split(",");
       const tx = parseInt(txs, 10);
       const ty = parseInt(tys, 10);
       if (!plot.tilled) continue;
-      this.layer.putTileAt(tileIndex(plot.watered ? "tilled_wet" : "tilled_dry"), tx, ty);
       this.updateCropIcon(tx, ty, plot);
     }
   }
@@ -188,13 +189,10 @@ export class WorldScene extends Phaser.Scene {
           : stage === 1
             ? "icon_spr_sprout1"
             : "icon_spr_sprout0";
-    const px = tx * TILE_SIZE + TILE_SIZE / 2;
-    const py = ty * TILE_SIZE + TILE_SIZE / 2;
+    const { x: px, y: py } = this.plotWorldPos(tx, ty);
     if (existing) {
       existing.setTexture(iconKey);
     } else {
-      // Fixed low depth (above the ground layer, always below any character)
-      // so ripe crops never render on top of the player standing on them.
       const img = this.add.image(px, py, iconKey).setDepth(2);
       this.cropIcons.set(key, img);
     }
@@ -214,7 +212,7 @@ export class WorldScene extends Phaser.Scene {
   private static readonly GAME_MINUTES_PER_MS = 1080 / (6 * 60 * 1000); // full 06:00-24:00 day in ~6 real minutes
 
   update(_time: number, delta: number): void {
-    if (!this.player.body) return;
+    if (!this.player.body || this.transitioning) return;
 
     if (this.sleeping) {
       this.player.setVelocity(0, 0);
@@ -243,6 +241,7 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
+    this.checkPortals();
     this.checkMineEntrance();
   }
 
@@ -289,47 +288,65 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  private targetTile(): { tx: number; ty: number } {
-    const tx = Math.floor(this.player.x / TILE_SIZE);
-    const ty = Math.floor(this.player.y / TILE_SIZE);
-    switch (this.facing) {
-      case "left":
-        return { tx: tx - 1, ty };
-      case "right":
-        return { tx: tx + 1, ty };
-      case "up":
-        return { tx, ty: ty - 1 };
-      default:
-        return { tx, ty: ty + 1 };
+  private dist(x: number, y: number): number {
+    return Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y);
+  }
+
+  private nearestFarmPlot(): { col: number; row: number } | null {
+    const g = this.room.farmGrid;
+    if (!g) return null;
+    const col = Math.floor((this.player.x - g.x0) / g.cell);
+    const row = Math.floor((this.player.y - g.y0) / g.cell);
+    if (col < 0 || col >= g.cols || row < 0 || row >= g.rows) return null;
+    const { x, y } = this.plotWorldPos(col, row);
+    if (this.dist(x, y) > g.cell * 0.9) return null;
+    return { col, row };
+  }
+
+  private nearestNpc(): NpcDef | undefined {
+    let best: NpcDef | undefined;
+    let bestDist = INTERACT_RADIUS;
+    for (const npc of NPCS) {
+      if (!this.room.npcIds.includes(npc.npc_id)) continue;
+      const d = this.dist(npc.tileX, npc.tileY);
+      if (d < bestDist) {
+        bestDist = d;
+        best = npc;
+      }
     }
+    return best;
+  }
+
+  private nearFishingSpot(): boolean {
+    return (this.room.fishingSpots ?? []).some((f) => this.dist(f.x, f.y) < INTERACT_RADIUS);
   }
 
   private updateHint(): void {
-    const { tx, ty } = this.targetTile();
-    const npc = this.npcAt(tx, ty);
+    const npc = this.nearestNpc();
     if (npc) {
       this.ui.setHint(`[E] ${npc.name}와 대화하기`);
       return;
     }
-    if (tx === this.map.questBoard.x && ty === this.map.questBoard.y) {
+    if (this.room.questBoard && this.dist(this.room.questBoard.x, this.room.questBoard.y) < INTERACT_RADIUS) {
       this.ui.setHint("[E] 게시판 확인하기");
       return;
     }
-    if (tx === this.map.shippingBin.x && ty === this.map.shippingBin.y) {
+    if (this.room.shippingBin && this.dist(this.room.shippingBin.x, this.room.shippingBin.y) < INTERACT_RADIUS) {
       this.ui.setHint("[E] 출하 상자 열기");
       return;
     }
-    if (tx === this.map.bed.x && ty === this.map.bed.y) {
+    if (this.room.bed && this.dist(this.room.bed.x, this.room.bed.y) < INTERACT_RADIUS) {
       this.ui.setHint("[E] 잠자리에 들기");
       return;
     }
-    if (this.isWater(tx, ty) && this.isNearFishingSpot(tx, ty)) {
+    if (this.nearFishingSpot()) {
       this.ui.setHint("[E] 낚시하기");
       return;
     }
-    if (this.inFarmArea(tx, ty)) {
-      const plot = GameState.getPlot(tx, ty);
-      if (plot?.cropId && GameState.cropGrowthStage(plot) >= 3) {
+    const plot = this.nearestFarmPlot();
+    if (plot) {
+      const state = GameState.getPlot(plot.col, plot.row);
+      if (state?.cropId && GameState.cropGrowthStage(state) >= 3) {
         this.ui.setHint("[E] 수확하기");
         return;
       }
@@ -340,39 +357,27 @@ export class WorldScene extends Phaser.Scene {
     this.ui.setHint("");
   }
 
-  private npcAt(tx: number, ty: number): NpcDef | undefined {
-    return NPCS.find((n) => Math.abs(n.tileX - tx) <= 0 && Math.abs(n.tileY - ty) <= 0);
-  }
-
-  private isWater(tx: number, ty: number): boolean {
-    return this.map.tiles[ty]?.[tx] === "water";
-  }
-
-  private isNearFishingSpot(tx: number, ty: number): boolean {
-    return this.map.fishingSpots.some((f) => Math.abs(f.x - tx) <= 1 && Math.abs(f.y - ty) <= 1);
-  }
-
-  private inFarmArea(tx: number, ty: number): boolean {
-    const f = this.map.farmArea;
-    return tx >= f.x0 && tx <= f.x1 && ty >= f.y0 && ty <= f.y1;
-  }
-
   // ---------------- interaction ----------------
 
   private tryInteract(): void {
     if (this.ui.modal.visible || this.sleeping) return;
-    const { tx, ty } = this.targetTile();
 
-    const npc = this.npcAt(tx, ty);
+    const npc = this.nearestNpc();
     if (npc) return this.openNpcDialogue(npc);
 
-    if (tx === this.map.questBoard.x && ty === this.map.questBoard.y) return this.openQuestBoard();
-    if (tx === this.map.shippingBin.x && ty === this.map.shippingBin.y) return this.openShippingBin();
-    if (tx === this.map.bed.x && ty === this.map.bed.y) return this.openSleepConfirm();
+    if (this.room.questBoard && this.dist(this.room.questBoard.x, this.room.questBoard.y) < INTERACT_RADIUS) {
+      return this.openQuestBoard();
+    }
+    if (this.room.shippingBin && this.dist(this.room.shippingBin.x, this.room.shippingBin.y) < INTERACT_RADIUS) {
+      return this.openShippingBin();
+    }
+    if (this.room.bed && this.dist(this.room.bed.x, this.room.bed.y) < INTERACT_RADIUS) {
+      return this.openSleepConfirm();
+    }
+    if (this.nearFishingSpot()) return this.startFishing();
 
-    if (this.isWater(tx, ty) && this.isNearFishingSpot(tx, ty)) return this.startFishing();
-
-    if (this.inFarmArea(tx, ty)) return this.useFarmTool(tx, ty);
+    const plot = this.nearestFarmPlot();
+    if (plot) return this.useFarmTool(plot.col, plot.row);
   }
 
   private useFarmTool(tx: number, ty: number): void {
@@ -386,15 +391,12 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
-    const groundTile = this.map.tiles[ty][tx];
     const tool = GameState.data.selectedTool;
 
     if (tool === "hoe") {
       if (plot?.tilled) return this.ui.toast("이미 갈아둔 밭이에요");
-      if (groundTile !== "dirt") return;
       if (!GameState.spendStamina(5)) return this.ui.toast("체력이 부족해요");
       GameState.tillPlot(tx, ty);
-      this.layer.putTileAt(tileIndex("tilled_dry"), tx, ty);
       this.ui.toast("밭을 갈았어요");
       return;
     }
@@ -404,7 +406,6 @@ export class WorldScene extends Phaser.Scene {
       if (plot.watered) return this.ui.toast("이미 물을 줬어요");
       if (!GameState.spendStamina(3)) return this.ui.toast("체력이 부족해요");
       GameState.waterPlot(tx, ty);
-      this.layer.putTileAt(tileIndex("tilled_wet"), tx, ty);
       this.ui.toast("물을 주었어요");
       return;
     }
@@ -524,14 +525,14 @@ export class WorldScene extends Phaser.Scene {
     this.cameras.main.fadeOut(500, 20, 15, 25);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
       const earned = GameState.sleepAndAdvance();
-      this.player.setPosition(this.map.spawn.x * TILE_SIZE, this.map.spawn.y * TILE_SIZE);
-      GameState.data.x = this.player.x;
-      GameState.data.y = this.player.y;
-      this.refreshFarmTiles();
+      GameState.data.zone = "plaza";
+      GameState.data.x = ROOMS.plaza.defaultSpawn.x;
+      GameState.data.y = ROOMS.plaza.defaultSpawn.y;
       GameState.save();
-      this.cameras.main.fadeIn(500, 20, 15, 25);
       this.ui.toast(`좋은 아침이에요! 정산 수익: +${earned}G`, 2500);
       this.sleeping = false;
+      this.transitioning = true;
+      this.scene.restart({ zone: "plaza" } as EnterPayload);
     });
   }
 
@@ -546,10 +547,34 @@ export class WorldScene extends Phaser.Scene {
     this.scene.launch("Fishing");
   }
 
+  private checkPortals(): void {
+    if (this.transitioning) return;
+    for (const portal of this.room.portals) {
+      const { rect } = portal;
+      if (
+        this.player.x >= rect.x &&
+        this.player.x <= rect.x + rect.w &&
+        this.player.y >= rect.y &&
+        this.player.y <= rect.y + rect.h
+      ) {
+        this.transitioning = true;
+        GameState.data.zone = portal.to;
+        GameState.data.x = portal.spawn.x;
+        GameState.data.y = portal.spawn.y;
+        GameState.save();
+        this.cameras.main.fadeOut(250, 20, 15, 25);
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+          this.scene.restart({ zone: portal.to, spawn: portal.spawn } as EnterPayload);
+        });
+        return;
+      }
+    }
+  }
+
   private checkMineEntrance(): void {
-    const tx = Math.floor(this.player.x / TILE_SIZE);
-    const ty = Math.floor(this.player.y / TILE_SIZE);
-    const inside = tx === this.map.mineEntrance.x && ty === this.map.mineEntrance.y;
+    const entrance = this.room.mineEntrance;
+    if (!entrance) return;
+    const inside = this.dist(entrance.x, entrance.y) < INTERACT_RADIUS;
     if (inside && !this.mineCooldown) {
       this.mineCooldown = true;
       GameState.save();
