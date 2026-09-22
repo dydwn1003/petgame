@@ -3,9 +3,9 @@ import type { Species } from "../gfx/characters";
 import { GameState } from "../state/GameState";
 
 const SPECIES_INFO: { id: Species; label: string; desc: string }[] = [
-  { id: "dog", label: "강아지", desc: "농경에 특화된 성실한 수인" },
-  { id: "cat", label: "고양이", desc: "낚시에 능한 여유로운 수인" },
-  { id: "hamster", label: "햄스터", desc: "채광에 강한 부지런한 수인" },
+  { id: "dog", label: "강아지", desc: "농경에 특화된 성실한 캐릭터" },
+  { id: "cat", label: "고양이", desc: "낚시에 능한 여유로운 캐릭터" },
+  { id: "hamster", label: "햄스터", desc: "채광에 강한 부지런한 캐릭터" },
 ];
 
 export class TitleScene extends Phaser.Scene {
@@ -38,7 +38,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(w / 2, 160, "당신의 수인을 선택하세요", {
+      .text(w / 2, 160, "당신의 캐릭터를 선택하세요", {
         fontFamily: "monospace",
         fontSize: "16px",
         color: "#ffcf8b",
@@ -79,26 +79,27 @@ export class TitleScene extends Phaser.Scene {
         .setOrigin(0.5);
     });
 
+    const hasSave = GameState.hasSave();
+    const buttonY = 400;
+    this.makeButton(hasSave ? w / 2 - 100 : w / 2, buttonY, "게임 시작", () => this.startNewGame());
+    if (hasSave) {
+      this.makeButton(w / 2 + 100, buttonY, "이어하기", () => this.continueGame());
+    }
+
     this.add
-      .text(
-        w / 2,
-        400,
-        "숫자 1~3 으로 종족 선택 후 Enter 로 새 게임 시작" +
-          (GameState.hasSave() ? "\n[C] 저장된 게임 이어하기" : ""),
-        {
-          fontFamily: "monospace",
-          fontSize: "14px",
-          color: "#fdf6ec",
-          align: "center",
-        }
-      )
+      .text(w / 2, buttonY + 46, "숫자 1~3: 종족 선택   Enter: 새 게임" + (hasSave ? "   C: 이어하기" : ""), {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#786d8a",
+        align: "center",
+      })
       .setOrigin(0.5);
 
     this.add
       .text(
         w / 2,
         h - 40,
-        "이동: WASD/방향키   상호작용: E   도구 선택: 1-4   ESC: 창 닫기",
+        "이동: WASD/방향키 (모바일: 화면 버튼)   상호작용: E   도구 선택: 1-4",
         { fontFamily: "monospace", fontSize: "12px", color: "#786d8a" }
       )
       .setOrigin(0.5);
@@ -112,6 +113,21 @@ export class TitleScene extends Phaser.Scene {
       if (e.key === "Enter") this.startNewGame();
       if (e.key.toLowerCase() === "c" && GameState.hasSave()) this.continueGame();
     });
+  }
+
+  private makeButton(cx: number, cy: number, label: string, onTap: () => void): void {
+    const bg = this.add
+      .rectangle(cx, cy, 160, 40, 0xff9a4d, 0.95)
+      .setStrokeStyle(3, 0x3d2314)
+      .setInteractive({ useHandCursor: true });
+    this.add
+      .text(cx, cy, label, { fontFamily: "monospace", fontSize: "16px", color: "#241b2e", fontStyle: "bold" })
+      .setOrigin(0.5);
+    bg.on("pointerdown", () => {
+      bg.setFillStyle(0xd97f36, 0.95);
+      onTap();
+    });
+    bg.on("pointerup", () => bg.setFillStyle(0xff9a4d, 0.95));
   }
 
   private select(species: Species): void {

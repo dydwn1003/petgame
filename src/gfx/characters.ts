@@ -7,7 +7,6 @@ import {
   newGrid,
   OUTLINE,
   polygon,
-  setPx,
   type Grid,
 } from "./pixelart";
 
@@ -31,96 +30,197 @@ export const SPECIES_PALETTES: Record<Species, SpeciesPalette> = {
 
 type Facing = "down" | "up" | "side";
 
-function drawEars(g: Grid, species: Species, pal: SpeciesPalette, facing: Facing): void {
+interface Anchor {
+  headCX: number;
+  headCY: number;
+  headR: number;
+  bodyCX: number;
+  bodyCY: number;
+  bodyRX: number;
+  bodyRY: number;
+}
+
+// All characters walk on four legs; each facing has its own on-all-fours
+// layout (head at the leading edge, body trailing behind it).
+const ANCHORS: Record<Facing, Anchor> = {
+  down: { headCX: 16, headCY: 23, headR: 6, bodyCX: 16, bodyCY: 13, bodyRX: 7, bodyRY: 6.5 },
+  up: { headCX: 16, headCY: 9, headR: 6, bodyCX: 16, bodyCY: 19, bodyRX: 7, bodyRY: 6.5 },
+  side: { headCX: 25, headCY: 13, headR: 6, bodyCX: 14, bodyCY: 17, bodyRX: 9, bodyRY: 6 },
+};
+
+interface Leg {
+  x: number;
+  y: number;
+  group: "A" | "B";
+}
+
+// Legs poke out sideways at shoulder height (near the head) and hip height
+// (near the tail) rather than below the head, so they clear the head/torso
+// silhouette instead of being painted over by it.
+function legsFor(facing: Facing): Leg[] {
+  if (facing === "down") {
+    return [
+      { x: 7, y: 19, group: "A" }, // front-left (shoulder)
+      { x: 25, y: 19, group: "B" }, // front-right (shoulder)
+      { x: 8, y: 8, group: "B" }, // back-left (hip)
+      { x: 24, y: 8, group: "A" }, // back-right (hip)
+    ];
+  }
+  if (facing === "up") {
+    return [
+      { x: 7, y: 13, group: "A" }, // front-left (shoulder)
+      { x: 25, y: 13, group: "B" }, // front-right (shoulder)
+      { x: 8, y: 24, group: "B" }, // back-left (hip)
+      { x: 24, y: 24, group: "A" }, // back-right (hip)
+    ];
+  }
+  // side (facing right): all four legs hang below the torso.
+  return [
+    { x: 7, y: 25, group: "A" }, // back-far (hip)
+    { x: 11, y: 26, group: "B" }, // back-near (hip)
+    { x: 19, y: 25, group: "B" }, // front-far (shoulder)
+    { x: 23, y: 26, group: "A" }, // front-near (shoulder)
+  ];
+}
+
+function drawLegs(g: Grid, legs: Leg[], step: 0 | 1, color: string): void {
+  for (const leg of legs) {
+    const raised = (step === 0 && leg.group === "B") || (step === 1 && leg.group === "A");
+    const y = leg.y + (raised ? -1.5 : 1);
+    fillEllipse(g, leg.x, y, 2.3, 3, color);
+  }
+}
+
+function drawEars(g: Grid, species: Species, pal: SpeciesPalette, facing: Facing, a: Anchor): void {
+  const { headCX: hx, headCY: hy } = a;
   if (species === "dog") {
     if (facing === "side") {
-      fillEllipse(g, 22, 9, 3, 5, pal.bodyShade);
+      fillEllipse(g, hx - 3, hy - 4, 2.6, 4.4, pal.bodyShade);
     } else {
-      fillEllipse(g, 8, 9, 3, 5, pal.bodyShade);
-      fillEllipse(g, 24, 9, 3, 5, pal.bodyShade);
+      fillEllipse(g, hx - 6, hy - 3, 2.6, 4.4, pal.bodyShade);
+      fillEllipse(g, hx + 6, hy - 3, 2.6, 4.4, pal.bodyShade);
     }
   } else if (species === "cat") {
     if (facing === "side") {
-      polygon(g, [[19, 6], [25, 6], [23, 0]], pal.body);
-      polygon(g, [[21, 5], [24, 5], [23, 2]], pal.ear);
+      polygon(
+        g,
+        [
+          [hx - 4, hy - 4],
+          [hx + 1, hy - 4],
+          [hx - 2, hy - 9],
+        ],
+        pal.body
+      );
+      polygon(
+        g,
+        [
+          [hx - 3, hy - 5],
+          [hx - 0.5, hy - 5],
+          [hx - 2, hy - 7.5],
+        ],
+        pal.ear
+      );
     } else {
-      polygon(g, [[5, 6], [11, 6], [6, 0]], pal.body);
-      polygon(g, [[21, 6], [27, 6], [26, 0]], pal.body);
-      polygon(g, [[6, 5], [9.5, 5], [7, 2]], pal.ear);
-      polygon(g, [[22.5, 5], [26, 5], [25, 2]], pal.ear);
+      polygon(
+        g,
+        [
+          [hx - 6, hy - 3],
+          [hx - 1, hy - 3],
+          [hx - 5, hy - 9],
+        ],
+        pal.body
+      );
+      polygon(
+        g,
+        [
+          [hx + 1, hy - 3],
+          [hx + 6, hy - 3],
+          [hx + 5, hy - 9],
+        ],
+        pal.body
+      );
+      polygon(
+        g,
+        [
+          [hx - 5, hy - 4],
+          [hx - 2.2, hy - 4],
+          [hx - 4, hy - 6.8],
+        ],
+        pal.ear
+      );
+      polygon(
+        g,
+        [
+          [hx + 2.2, hy - 4],
+          [hx + 5, hy - 4],
+          [hx + 4, hy - 6.8],
+        ],
+        pal.ear
+      );
     }
   } else {
     if (facing === "side") {
-      fillCircle(g, 23, 6, 2.6, pal.bodyShade);
-      fillCircle(g, 23, 6, 1.3, pal.ear);
+      fillCircle(g, hx - 2, hy - 5, 2.4, pal.bodyShade);
+      fillCircle(g, hx - 2, hy - 5, 1.2, pal.ear);
     } else {
-      fillCircle(g, 8, 6, 2.6, pal.bodyShade);
-      fillCircle(g, 24, 6, 2.6, pal.bodyShade);
-      fillCircle(g, 8, 6, 1.3, pal.ear);
-      fillCircle(g, 24, 6, 1.3, pal.ear);
+      fillCircle(g, hx - 5, hy - 4, 2.4, pal.bodyShade);
+      fillCircle(g, hx + 5, hy - 4, 2.4, pal.bodyShade);
+      fillCircle(g, hx - 5, hy - 4, 1.2, pal.ear);
+      fillCircle(g, hx + 5, hy - 4, 1.2, pal.ear);
     }
   }
 }
 
-function drawTail(g: Grid, species: Species, pal: SpeciesPalette, facing: Facing): void {
-  if (species === "hamster") return;
+function drawTail(g: Grid, species: Species, pal: SpeciesPalette, facing: Facing, a: Anchor): void {
+  if (species === "hamster" || facing === "down") return;
+  const { bodyCX: bx, bodyCY: by } = a;
   if (species === "dog") {
-    if (facing === "up") fillEllipse(g, 16, 18, 2.4, 4, pal.bodyShade);
-    if (facing === "side") fillEllipse(g, 8, 17, 2.2, 4, pal.bodyShade);
+    if (facing === "up") fillEllipse(g, bx, by + 8, 2.2, 3.6, pal.bodyShade);
+    if (facing === "side") fillEllipse(g, bx - 9, by - 3, 2.2, 3.6, pal.bodyShade);
   } else if (species === "cat") {
     if (facing === "up") {
-      fillRect(g, 15, 14, 2, 8, pal.bodyShade);
-      fillCircle(g, 16, 13, 1.6, pal.bodyShade);
+      fillRect(g, bx - 1, by + 4, 2, 7, pal.bodyShade);
+      fillCircle(g, bx, by + 11, 1.6, pal.bodyShade);
     }
     if (facing === "side") {
-      fillRect(g, 5, 16, 6, 2, pal.bodyShade);
-      fillCircle(g, 4, 15, 1.6, pal.bodyShade);
+      fillRect(g, bx - 12, by - 5, 6, 2, pal.bodyShade);
+      fillCircle(g, bx - 13, by - 6, 1.6, pal.bodyShade);
     }
   }
 }
 
 function drawBase(species: Species, pal: SpeciesPalette, facing: Facing, step: 0 | 1): Grid {
   const g = newGrid(CS);
-  const bob = step === 1 ? -1 : 0;
-  const headCX = facing === "side" ? 18 : 16;
-  const headCY = 12 + bob;
-  const bodyCX = facing === "side" ? 17 : 16;
-  const bodyCY = 21 + bob;
+  const a = ANCHORS[facing];
 
-  drawTail(g, species, pal, facing);
+  drawTail(g, species, pal, facing, a);
 
-  // body
-  fillEllipse(g, bodyCX, bodyCY, 8, 7, pal.body);
-  // feet (alternate raised on step frame for a walk bounce)
-  const footY = 28 + (step === 1 ? -1 : 0);
-  const footY2 = 28 + (step === 1 ? 1 : 0);
-  fillEllipse(g, bodyCX - 4, footY, 2.6, 1.8, pal.bodyShade);
-  fillEllipse(g, bodyCX + 4, footY2, 2.6, 1.8, pal.bodyShade);
+  // torso (trails behind the head)
+  fillEllipse(g, a.bodyCX, a.bodyCY, a.bodyRX, a.bodyRY, pal.body);
 
-  // ears (behind head)
-  drawEars(g, species, pal, facing);
+  // legs drawn on top of the torso so all four stay visible
+  drawLegs(g, legsFor(facing), step, pal.bodyShade);
 
-  // head
-  fillCircle(g, headCX, headCY, 9, pal.body);
+  drawEars(g, species, pal, facing, a);
 
-  // belly patch
+  // head (leads the body, at the front of the walking direction)
+  fillCircle(g, a.headCX, a.headCY, a.headR, pal.body);
+
+  // belly / chest patch
   if (facing === "down") {
-    fillEllipse(g, bodyCX, bodyCY + 2, 5, 4, pal.belly);
+    fillEllipse(g, a.bodyCX, a.bodyCY + 5, 4, 3.4, pal.belly);
   } else if (facing === "side") {
-    fillEllipse(g, bodyCX + 2, bodyCY + 2, 4, 3.4, pal.belly);
+    fillEllipse(g, a.bodyCX + 1, a.bodyCY + 4, 4.5, 2.6, pal.belly);
   }
 
   // face
   if (facing === "down") {
-    setPx(g, headCX - 4, headCY - 1, "#2a1d15");
-    setPx(g, headCX - 3, headCY - 1, "#2a1d15");
-    setPx(g, headCX + 3, headCY - 1, "#2a1d15");
-    setPx(g, headCX + 4, headCY - 1, "#2a1d15");
-    fillRect(g, headCX - 1, headCY + 2, 2, 2, pal.nose);
+    fillRect(g, a.headCX - 4, a.headCY - 1, 2, 2, "#2a1d15");
+    fillRect(g, a.headCX + 2, a.headCY - 1, 2, 2, "#2a1d15");
+    fillRect(g, a.headCX - 1, a.headCY + 2, 2, 2, pal.nose);
   } else if (facing === "side") {
-    setPx(g, headCX + 5, headCY - 1, "#2a1d15");
-    setPx(g, headCX + 6, headCY - 1, "#2a1d15");
-    fillRect(g, headCX + 7, headCY + 2, 2, 2, pal.nose);
+    fillRect(g, a.headCX + 4, a.headCY - 1, 2, 2, "#2a1d15");
+    fillRect(g, a.headCX + 6, a.headCY + 2, 2, 2, pal.nose);
   }
   // "up" (back) view intentionally has no face — just head + ears silhouette.
 
@@ -147,29 +247,31 @@ export function frameLeft(g: Grid): Grid {
   return flipGridX(g);
 }
 
-// --- NPC accessory overlays (drawn onto the down-frame only, kept simple) ---
+// --- NPC accessory overlays (drawn onto the down/side frames, kept simple) ---
+// Positioned around the down-facing neck/chest (head centered near y=23,
+// body centered near y=15) so they read as worn around the collar.
 
 export function addBandana(g: Grid, color: string): Grid {
   const out = g.map((row) => row.slice());
-  fillRect(out, 10, 17, 12, 3, color);
-  fillRect(out, 14, 20, 4, 3, color);
+  fillRect(out, 10, 18, 12, 3, color);
+  fillRect(out, 14, 21, 4, 2, color);
   autoOutline(out, OUTLINE);
   return out;
 }
 
 export function addApron(g: Grid, color: string): Grid {
   const out = g.map((row) => row.slice());
-  fillRect(out, 11, 19, 10, 9, color);
-  fillRect(out, 12, 17, 2, 3, color);
-  fillRect(out, 18, 17, 2, 3, color);
+  fillRect(out, 11, 15, 10, 8, color);
+  fillRect(out, 12, 12, 2, 4, color);
+  fillRect(out, 18, 12, 2, 4, color);
   autoOutline(out, OUTLINE);
   return out;
 }
 
 export function addVest(g: Grid, color: string): Grid {
   const out = g.map((row) => row.slice());
-  fillRect(out, 10, 18, 4, 8, color);
-  fillRect(out, 18, 18, 4, 8, color);
+  fillRect(out, 9, 12, 4, 9, color);
+  fillRect(out, 19, 12, 4, 9, color);
   autoOutline(out, OUTLINE);
   return out;
 }

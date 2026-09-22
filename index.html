@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>포근포근 펫빌리지</title>
     <style>
       html, body {
@@ -13,6 +13,8 @@
         height: 100%;
         background: #1a1625;
         overflow: hidden;
+        overscroll-behavior: none;
+        touch-action: none;
       }
       #app {
         width: 100%;
@@ -23,10 +25,30 @@
       }
       canvas {
         image-rendering: pixelated;
+        touch-action: none;
+      }
+      #rotate-hint {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 10000;
+        padding: 8px 12px;
+        background: #ff9a4d;
+        color: #241b2e;
+        font: 13px monospace;
+        text-align: center;
+      }
+      @media (orientation: portrait) and (pointer: coarse) {
+        #rotate-hint {
+          display: block;
+        }
       }
     </style>
   </head>
   <body>
+    <div id="rotate-hint">📱↻ 가로 모드로 돌리면 더 넓게 플레이할 수 있어요</div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

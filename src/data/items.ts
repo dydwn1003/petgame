@@ -19,7 +19,7 @@ export const ITEMS: Record<string, ItemDef> = {
     growth_days: 4,
     sell_price: 65,
     name: "뼈다귀 모양 당근",
-    desc: "강아지 수인들이 사랑하는 뼈다귀 모양의 특별한 당근.",
+    desc: "강아지 캐릭터들이 사랑하는 뼈다귀 모양의 특별한 당근.",
   },
   SEED_BONE_CARROT: {
     item_id: "SEED_BONE_CARROT",
@@ -68,7 +68,7 @@ export const ITEMS: Record<string, ItemDef> = {
     sprite_id: "spr_catnip",
     sell_price: 30,
     name: "캣닙",
-    desc: "고양이 수인들이 환장하는 허브.",
+    desc: "고양이 캐릭터들이 환장하는 허브.",
   },
   ORE_COPPER: {
     item_id: "ORE_COPPER",

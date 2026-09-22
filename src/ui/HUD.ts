@@ -63,7 +63,15 @@ export class HUD {
       .setVisible(false);
 
     for (let i = 0; i < TOOLS.length; i++) {
-      const slot = scene.add.rectangle(0, 0, 44, 44, 0x241b2e, 0.85).setStrokeStyle(2, 0x3d2314).setScrollFactor(0).setDepth(900);
+      const slot = scene.add
+        .rectangle(0, 0, 44, 44, 0x241b2e, 0.85)
+        .setStrokeStyle(2, 0x3d2314)
+        .setScrollFactor(0)
+        .setDepth(900)
+        .setInteractive({ useHandCursor: true });
+      slot.on("pointerdown", () => {
+        GameState.data.selectedTool = TOOLS[i].id;
+      });
       const icon = scene.add.image(0, 0, TOOLS[i].icon).setScale(2).setScrollFactor(0).setDepth(901);
       const count = scene.add
         .text(0, 0, "", { fontFamily: "monospace", fontSize: "11px", color: "#fdf6ec" })

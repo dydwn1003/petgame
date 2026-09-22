@@ -1,3 +1,5 @@
+import Phaser from "phaser";
+
 export interface ModalOption {
   label: string;
   onSelect: () => void;
@@ -57,15 +59,23 @@ export class Modal {
         fontSize: "14px",
         color: "#9be3ff",
       });
+      // Wider/taller than the rendered glyphs so it's a comfortable tap target.
+      t.setInteractive(new Phaser.Geom.Rectangle(0, -5, 520, 28), Phaser.Geom.Rectangle.Contains);
+      t.on("pointerdown", () => {
+        this.close();
+        opt.onSelect();
+      });
       y += 22;
       this.container.add(t);
       return t;
     });
-    const closeHint = this.scene.add.text(16, y + 4, "[ESC] 닫기", {
+    const closeHint = this.scene.add.text(16, y + 4, "[ESC] 닫기 / 탭하여 닫기", {
       fontFamily: "monospace",
       fontSize: "12px",
       color: "#a89cad",
     });
+    closeHint.setInteractive(new Phaser.Geom.Rectangle(0, -6, 200, 26), Phaser.Geom.Rectangle.Contains);
+    closeHint.on("pointerdown", () => this.close());
     this.container.add(closeHint);
     this.optionTexts.push(closeHint);
 

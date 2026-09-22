@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { createTapButton, isTouchDevice } from "../ui/TouchControls";
 
 const WIN_HITS = 3;
 const MAX_MISSES = 3;
@@ -69,6 +70,11 @@ export class FishingScene extends Phaser.Scene {
 
     this.input.keyboard!.on("keydown-SPACE", () => this.attempt());
     this.input.keyboard!.on("keydown-ESC", () => this.giveUp());
+
+    if (isTouchDevice(this)) {
+      createTapButton(this, w / 2, h / 2 + 140, "당기기!", () => this.attempt(), { radius: 40, fontSize: "16px" });
+      createTapButton(this, w - 50, 40, "✕", () => this.giveUp(), { radius: 22, fontSize: "16px" });
+    }
   }
 
   private spawnTarget(): void {

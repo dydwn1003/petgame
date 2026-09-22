@@ -60,6 +60,8 @@ export class WorldScene extends Phaser.Scene {
 
     if (!this.scene.isActive("UI")) this.scene.launch("UI");
     this.ui = this.scene.get("UI") as UIScene;
+    this.ui.events.off("touch-interact");
+    this.ui.events.on("touch-interact", () => this.tryInteract());
 
     this.events.on("minigame-result", (payload: { items: { itemId: string; qty: number }[] }) => {
       this.onMinigameResult(payload);
@@ -206,6 +208,10 @@ export class WorldScene extends Phaser.Scene {
     if (this.wasd.D.isDown || this.wasd.RIGHT.isDown) vx += 1;
     if (this.wasd.W.isDown || this.wasd.UP.isDown) vy -= 1;
     if (this.wasd.S.isDown || this.wasd.DOWN.isDown) vy += 1;
+    if (vx === 0 && vy === 0) {
+      vx = this.ui.touchDir.x;
+      vy = this.ui.touchDir.y;
+    }
 
     const moving = vx !== 0 || vy !== 0;
     if (moving) {
