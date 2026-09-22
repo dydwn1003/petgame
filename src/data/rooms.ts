@@ -29,6 +29,11 @@ export interface RoomDef {
   bg: string;
   w: number;
   h: number;
+  /** World px per real-world cm for sizing characters in this room — the 4
+   * background images weren't all drawn at the same implied scale (measured
+   * from door/tunnel heights against ~195cm), so each room gets its own
+   * factor rather than one global constant. */
+  charScale: number;
   solids: Rect[];
   portals: PortalDef[];
   npcIds: NpcId[];
@@ -52,6 +57,7 @@ export const ROOMS: Record<ZoneId, RoomDef> = {
     bg: "bg_plaza",
     w: 2000,
     h: 1091,
+    charScale: 0.68,
     defaultSpawn: PLAZA_SPAWN,
     npcIds: [],
     solids: [
@@ -76,6 +82,7 @@ export const ROOMS: Record<ZoneId, RoomDef> = {
     bg: "bg_farm",
     w: 1408,
     h: 768,
+    charScale: 0.43,
     defaultSpawn: FARM_SPAWN,
     npcIds: ["NPC_DOG_MARO"],
     solids: [
@@ -100,6 +107,7 @@ export const ROOMS: Record<ZoneId, RoomDef> = {
     bg: "bg_harbor",
     w: 1408,
     h: 768,
+    charScale: 0.47,
     defaultSpawn: HARBOR_SPAWN,
     npcIds: ["NPC_CAT_SASHA"],
     solids: [
@@ -122,6 +130,7 @@ export const ROOMS: Record<ZoneId, RoomDef> = {
     bg: "bg_mine",
     w: 1408,
     h: 768,
+    charScale: 0.66,
     defaultSpawn: MINE_SPAWN,
     npcIds: ["NPC_HAM_BOLBOL"],
     solids: [],

@@ -208,3 +208,15 @@ export function fitScale(scene: Phaser.Scene, textureKey: string, targetWidth: n
   const src = scene.textures.get(textureKey).getSourceImage();
   return targetWidth / src.width;
 }
+
+/**
+ * Like fitScale, but sized off the texture's height instead of its width.
+ * A standing character's on-screen HEIGHT should stay constant across
+ * facing directions even though a side-view pose's bounding box is much
+ * wider than a front/back pose's — scaling by width instead would make the
+ * same breed look taller or shorter depending which way it's walking.
+ */
+export function fitScaleByHeight(scene: Phaser.Scene, textureKey: string, targetHeight: number): number {
+  const src = scene.textures.get(textureKey).getSourceImage();
+  return targetHeight / src.height;
+}

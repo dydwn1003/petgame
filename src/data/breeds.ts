@@ -20,6 +20,9 @@ export interface BreedDef {
   desc: string;
   palette: BreedPalette;
   pattern: PatternKind;
+  /** Approximate real-world standing height (head to ground, cm) — used to
+   * size this breed proportionally against the other breeds and the map art. */
+  heightCm: number;
 }
 
 export const BREEDS: BreedDef[] = [
@@ -31,6 +34,7 @@ export const BREEDS: BreedDef[] = [
     desc: "충직하고 씩씩한 토종견",
     palette: { body: "#e8b878", bodyShade: "#d1a05f", belly: "#fdf6ec", ear: "#c98f4a", nose: "#3d2314" },
     pattern: "none",
+    heightCm: 48,
   },
   {
     id: "maltese",
@@ -39,6 +43,7 @@ export const BREEDS: BreedDef[] = [
     desc: "새하얗고 폭신폭신한 털",
     palette: { body: "#ffffff", bodyShade: "#e8e4e0", belly: "#ffffff", ear: "#e8e4e0", nose: "#2a1d15" },
     pattern: "fluffy",
+    heightCm: 23,
   },
   {
     id: "poodle",
@@ -47,6 +52,7 @@ export const BREEDS: BreedDef[] = [
     desc: "곱슬곱슬한 갈색 털",
     palette: { body: "#a86a42", bodyShade: "#8f5530", belly: "#c98f5f", ear: "#8f5530", nose: "#2a1d15" },
     pattern: "curly",
+    heightCm: 28,
   },
   {
     id: "pomeranian",
@@ -55,6 +61,7 @@ export const BREEDS: BreedDef[] = [
     desc: "풍성한 목털의 여우상 얼굴",
     palette: { body: "#e8923c", bodyShade: "#d1782a", belly: "#f7c98a", ear: "#d1782a", nose: "#2a1d15" },
     pattern: "fluffy",
+    heightCm: 21,
   },
 
   // --- Cats ---
@@ -72,6 +79,7 @@ export const BREEDS: BreedDef[] = [
       patternColor: "#d1863f",
     },
     pattern: "tabby",
+    heightCm: 28,
   },
   {
     id: "mackerel_tabby",
@@ -87,6 +95,7 @@ export const BREEDS: BreedDef[] = [
       patternColor: "#8f8b87",
     },
     pattern: "tabby",
+    heightCm: 28,
   },
   {
     id: "calico",
@@ -103,6 +112,7 @@ export const BREEDS: BreedDef[] = [
       patternColor2: "#3d3436",
     },
     pattern: "calico",
+    heightCm: 27,
   },
   {
     id: "tuxedo",
@@ -118,6 +128,7 @@ export const BREEDS: BreedDef[] = [
       patternColor: "#ffffff",
     },
     pattern: "tuxedo",
+    heightCm: 28,
   },
 
   // --- Hamsters ---
@@ -128,6 +139,7 @@ export const BREEDS: BreedDef[] = [
     desc: "골든빛 큰 몸집의 햄스터",
     palette: { body: "#e0b478", bodyShade: "#c99a5e", belly: "#f7e2bb", ear: "#f2c9c9", nose: "#a85d5d" },
     pattern: "none",
+    heightCm: 13,
   },
   {
     id: "winter_white",
@@ -143,6 +155,7 @@ export const BREEDS: BreedDef[] = [
       patternColor: "#6b625c",
     },
     pattern: "dorsalStripe",
+    heightCm: 9,
   },
   {
     id: "roborovski",
@@ -158,6 +171,7 @@ export const BREEDS: BreedDef[] = [
       patternColor: "#fff6e0",
     },
     pattern: "eyebrows",
+    heightCm: 8,
   },
   {
     id: "campbell",
@@ -173,6 +187,7 @@ export const BREEDS: BreedDef[] = [
       patternColor: "#5c5248",
     },
     pattern: "dorsalStripe",
+    heightCm: 9,
   },
 ];
 

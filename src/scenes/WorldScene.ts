@@ -1,8 +1,9 @@
 import Phaser from "phaser";
 import { ROOMS, type RoomDef, type ZoneId } from "../data/rooms";
-import { fitScale, spritePrefixFor } from "../gfx/registerTextures";
+import { fitScaleByHeight, spritePrefixFor } from "../gfx/registerTextures";
 import { NPCS, type NpcDef } from "../data/npcs";
 import { GameState } from "../state/GameState";
+import { getBreed } from "../data/breeds";
 import { getItem, ITEMS } from "../data/items";
 import { TOOLS } from "../ui/HUD";
 import type { ToolId } from "../state/GameState";
@@ -10,11 +11,18 @@ import type { UIScene } from "./UIScene";
 
 type Facing = "down" | "up" | "left" | "right";
 
-// Target on-screen width (in world pixels, pre-camera-zoom) for every
-// character regardless of their art's native resolution — keeps a 64px
-// procedural sprite and a ~130px extracted photo sprite the same size.
-const TARGET_CHAR_WIDTH = 17;
+// A character's on-screen height (in world pixels, pre-camera-zoom) is
+// derived from its breed's real-world height (data/breeds.ts) times the
+// current room's charScale (data/rooms.ts), so a jindo actually looks
+// bigger than a cat, which looks bigger than a hamster, consistently
+// across every room. Very small breeds still get a legibility floor so
+// they don't shrink into unreadable specks.
+const MIN_CHAR_HEIGHT_PX = 9;
 const INTERACT_RADIUS = 34;
+
+function charTargetHeightPx(room: RoomDef, breedId: string): number {
+  return Math.max(MIN_CHAR_HEIGHT_PX, getBreed(breedId).heightCm * room.charScale);
+}
 
 const SEED_FOR_TOOL: Partial<Record<ToolId, string>> = {
   seed_carrot: "SEED_BONE_CARROT",
@@ -42,6 +50,7 @@ export class WorldScene extends Phaser.Scene {
   private sleeping = false;
   private transitioning = false;
   private playerBaseScale = 1;
+  private playerTargetHeightPx = 1;
   private walkT = 0;
   private propColliders: Phaser.GameObjects.Rectangle[] = [];
 
@@ -116,7 +125,8 @@ export class WorldScene extends Phaser.Scene {
     const startY = GameState.data.y || this.room.defaultSpawn.y;
     const textureKey = `char_${breed}_down_0`;
     const sprite = this.physics.add.sprite(startX, startY, textureKey);
-    const scale = fitScale(this, textureKey, TARGET_CHAR_WIDTH);
+    this.playerTargetHeightPx = charTargetHeightPx(this.room, breed);
+    const scale = fitScaleByHeight(this, textureKey, this.playerTargetHeightPx);
     sprite.setScale(scale);
     this.playerBaseScale = scale;
     // Body size/offset are in the texture's own unscaled pixel space —
@@ -138,7 +148,7 @@ export class WorldScene extends Phaser.Scene {
       const prefix = spritePrefixFor(npc.npc_id, npc.breedId);
       const textureKey = `${prefix}_down_0`;
       const sprite = this.add.sprite(x, y, textureKey);
-      sprite.setScale(fitScale(this, textureKey, TARGET_CHAR_WIDTH));
+      sprite.setScale(fitScaleByHeight(this, textureKey, charTargetHeightPx(this.room, npc.breedId)));
       sprite.setDepth(y);
       this.npcSprites.set(npc.npc_id, sprite);
       this.time.addEvent({
@@ -259,6 +269,7 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const moving = vx !== 0 || vy !== 0;
+    const prevFacing = this.facing;
     if (moving) {
       const len = Math.hypot(vx, vy) || 1;
       this.player.setVelocity((vx / len) * speed, (vy / len) * speed);
@@ -271,6 +282,13 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const breed = GameState.data.breed;
+    if (this.facing !== prevFacing) {
+      // A side-view pose's native image has a very different aspect ratio
+      // from a front/back pose, so the scale factor (derived from height)
+      // has to be recomputed per facing — otherwise the character's
+      // apparent height would jump around depending which way it faces.
+      this.playerBaseScale = fitScaleByHeight(this, `char_${breed}_${this.facing}_0`, this.playerTargetHeightPx);
+    }
     const animKey = `char_${breed}_walk_${this.facing}`;
     if (moving) {
       if (this.player.anims.currentAnim?.key !== animKey) this.player.play(animKey);
