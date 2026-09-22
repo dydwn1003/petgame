@@ -6,6 +6,7 @@ import bgPlaza from "../assets/scenes/plaza.webp";
 import bgFarm from "../assets/scenes/farm.webp";
 import bgHarbor from "../assets/scenes/harbor.webp";
 import bgMine from "../assets/scenes/mine.webp";
+import breedBg from "../assets/ui/breed_bg.webp";
 
 const DIRS = ["down", "up", "left", "right"] as const;
 
@@ -38,6 +39,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image("bg_farm", bgFarm);
     this.load.image("bg_harbor", bgHarbor);
     this.load.image("bg_mine", bgMine);
+    this.load.image("bg_breed_picker", breedBg);
   }
 
   create(): void {

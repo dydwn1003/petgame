@@ -177,11 +177,29 @@ export class TitleScene extends Phaser.Scene {
     const cy = 300;
     const previewCy = cy - 30;
 
-    const backdrop = this.add.graphics();
-    backdrop.fillStyle(0x35293f, 0.9);
-    backdrop.fillRoundedRect(cx - 95, previewCy - 85, 190, 170, 16);
-    backdrop.lineStyle(2, 0x4a3a55, 1);
-    backdrop.strokeRoundedRect(cx - 95, previewCy - 85, 190, 170, 16);
+    // A cropped corner of the actual village art (bench, lamppost, grass,
+    // stone path) instead of a flat color plate — a solid color behind the
+    // extracted sprites made their cutout edges look stark and pasted-on;
+    // a textured "ground" reads as the character standing in a scene, and
+    // a light dimming overlay keeps it from competing with the character.
+    const plateW = 190;
+    const plateH = 170;
+    const plateX = cx - plateW / 2;
+    const plateY = previewCy - plateH / 2;
+
+    const bgImage = this.add.image(cx, previewCy, "bg_breed_picker").setDisplaySize(plateW, plateH);
+    const maskShape = this.make.graphics({}, false);
+    maskShape.fillStyle(0xffffff);
+    maskShape.fillRoundedRect(plateX, plateY, plateW, plateH, 16);
+    bgImage.setMask(maskShape.createGeometryMask());
+
+    const dim = this.add.graphics();
+    dim.fillStyle(0x1a1625, 0.35);
+    dim.fillRoundedRect(plateX, plateY, plateW, plateH, 16);
+
+    const border = this.add.graphics();
+    border.lineStyle(2, 0x4a3a55, 1);
+    border.strokeRoundedRect(plateX, plateY, plateW, plateH, 16);
 
     const firstBreed = breedsForSpecies(this.species)[0];
     this.breedPreview = this.add.image(cx, previewCy, `char_${firstBreed.id}_down_0`);
@@ -205,7 +223,9 @@ export class TitleScene extends Phaser.Scene {
     const rightArrow = this.makeArrowButton(cx + ARROW_OFFSET, previewCy, "▶", () => this.cycleBreed(1));
 
     this.breedLayer.add([
-      backdrop,
+      bgImage,
+      dim,
+      border,
       this.breedPreview,
       this.breedLabel,
       this.breedDesc,
