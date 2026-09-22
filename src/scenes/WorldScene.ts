@@ -21,8 +21,8 @@ type Facing = "down" | "up" | "left" | "right";
 // worldScale so it stays visually consistent now that every background is
 // normalized to the same implied real-world scale (see data/rooms.ts).
 const REFERENCE_BREED_ID = "jindo";
-const REFERENCE_HEIGHT_PX = 33;
-const MIN_CHAR_HEIGHT_PX = 13;
+const REFERENCE_HEIGHT_PX = 42;
+const MIN_CHAR_HEIGHT_PX = 17;
 const INTERACT_RADIUS = 34;
 
 function charTargetHeightPx(room: RoomDef, breedId: string): number {
