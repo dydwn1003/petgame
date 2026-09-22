@@ -30,6 +30,84 @@ function mirrorTexture(scene: Phaser.Scene, srcKey: string, destKey: string): vo
   scene.textures.addCanvas(destKey, canvas);
 }
 
+/** Fraction of a frame's height, from the top, where the legs/feet start. */
+const LEG_TOP_FRAC = 0.74;
+
+/** Guards against re-synthesizing the same breed+direction on every scene restart
+ * (the game's texture manager persists across scene.restart() calls). */
+const walkCycleDone = new Set<string>();
+
+/** Clones `src` onto a same-size canvas, then "lifts" one half (left or right of
+ * the frame's own midline) of the leg region: that half is redrawn shifted up
+ * by `liftPx`, shortening it on screen and leaving the other half planted —
+ * a cheap way to fake an alternating walk step from a single static pose. */
+function buildLegLiftCanvas(
+  src: CanvasImageSource,
+  w: number,
+  h: number,
+  legTop: number,
+  mid: number,
+  liftSide: "left" | "right",
+  liftPx: number,
+): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(src, 0, 0);
+
+  const x0 = liftSide === "left" ? 0 : mid;
+  const x1 = liftSide === "left" ? mid : w;
+  const regionW = x1 - x0;
+  const regionH = h - legTop;
+  if (regionW <= 0 || regionH <= 0) return canvas;
+
+  const strip = document.createElement("canvas");
+  strip.width = regionW;
+  strip.height = regionH;
+  const sctx = strip.getContext("2d")!;
+  sctx.imageSmoothingEnabled = false;
+  sctx.drawImage(canvas, x0, legTop, regionW, regionH, 0, 0, regionW, regionH);
+
+  ctx.clearRect(x0, legTop, regionW, regionH);
+  ctx.drawImage(strip, 0, 0, regionW, regionH, x0, legTop - liftPx, regionW, regionH);
+  return canvas;
+}
+
+/** Synthesizes a 3-frame walk cycle (neutral, left-leg-lifted, right-leg-lifted)
+ * for a breed+direction from its single extracted pose, so idle art stays the
+ * clean original (`_0`) while walking actually shows the legs alternate —
+ * the reference sheets only ever gave duplicate/near-duplicate poses per
+ * direction, so real leg movement has to be faked at texture-registration time. */
+function synthesizeWalkCycle(scene: Phaser.Scene, breedId: string, dir: Dir): void {
+  const marker = `${breedId}_${dir}`;
+  if (walkCycleDone.has(marker)) return;
+  const key0 = `char_${breedId}_${dir}_0`;
+  if (!scene.textures.exists(key0)) return;
+  walkCycleDone.add(marker);
+
+  const src = scene.textures.get(key0).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+  const w = src.width;
+  const h = src.height;
+  const legTop = Math.min(h - 2, Math.round(h * LEG_TOP_FRAC));
+  const regionH = h - legTop;
+  if (regionH < 4) return;
+  const mid = Math.round(w / 2);
+  const liftPx = Math.max(2, Math.min(10, Math.round(regionH * 0.4)));
+
+  const liftLeft = buildLegLiftCanvas(src, w, h, legTop, mid, "left", liftPx);
+  const liftRight = buildLegLiftCanvas(src, w, h, legTop, mid, "right", liftPx);
+
+  const key1 = `char_${breedId}_${dir}_1`;
+  if (scene.textures.exists(key1)) scene.textures.remove(key1);
+  scene.textures.addCanvas(key1, liftLeft);
+
+  const key2 = `char_${breedId}_${dir}_2`;
+  if (scene.textures.exists(key2)) scene.textures.remove(key2);
+  scene.textures.addCanvas(key2, liftRight);
+}
+
 /** Real photo-style art loaded in BootScene.preload(); fills in a mirrored "left" if the source lacked one. */
 function registerImageBreed(scene: Phaser.Scene, breedId: string): void {
   const frames = IMAGE_BREEDS[breedId];
@@ -37,6 +115,9 @@ function registerImageBreed(scene: Phaser.Scene, breedId: string): void {
     frames.right.forEach((_url, i) => {
       mirrorTexture(scene, `char_${breedId}_right_${i}`, `char_${breedId}_left_${i}`);
     });
+  }
+  for (const dir of DIRS) {
+    synthesizeWalkCycle(scene, breedId, dir);
   }
 }
 
