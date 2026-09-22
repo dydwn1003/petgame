@@ -5,9 +5,10 @@ import { BREEDS, breedsForSpecies, type BreedDef } from "../data/breeds";
 import { fitScaleContain } from "../gfx/registerTextures";
 import { PIXEL_FONT } from "../ui/theme";
 
-const PREVIEW_MAX_W = 104;
-const PREVIEW_MAX_H = 96;
+const PREVIEW_MAX_W = 150;
+const PREVIEW_MAX_H = 140;
 const SPECIES_GAP = 18;
+const ARROW_OFFSET = 165;
 
 const SPECIES_INFO: { id: Species; label: string }[] = [
   { id: "dog", label: "강아지" },
@@ -19,8 +20,11 @@ export class TitleScene extends Phaser.Scene {
   private species: Species = "dog";
   private breedId: string = BREEDS[0].id;
   private speciesLabels: Phaser.GameObjects.Text[] = [];
-  private breedCards: Phaser.GameObjects.Rectangle[] = [];
   private breedLayer!: Phaser.GameObjects.Container;
+  private breedPreview!: Phaser.GameObjects.Image;
+  private breedLabel!: Phaser.GameObjects.Text;
+  private breedDesc!: Phaser.GameObjects.Text;
+  private breedCounter!: Phaser.GameObjects.Text;
 
   constructor() {
     super("Title");
@@ -161,65 +165,85 @@ export class TitleScene extends Phaser.Scene {
     this.buildBreedCards();
   }
 
+  /** One big preview with clickable ◀ ▶ arrows on either side, instead of a
+   * row of cards — a row could only ever show as many breeds as fit the
+   * screen at once, and needed a keyboard to move between them. This way
+   * there's exactly one box, and it never depends on the keyboard. */
   private buildBreedCards(): void {
     this.breedLayer.removeAll(true);
-    this.breedCards = [];
 
-    const breeds = breedsForSpecies(this.species);
     const w = this.scale.width;
-    const cardW = 160;
-    const gap = 20;
-    const totalW = breeds.length * cardW + (breeds.length - 1) * gap;
-    const startX = w / 2 - totalW / 2 + cardW / 2;
+    const cx = w / 2;
     const cy = 300;
-    const previewCy = cy - 40;
+    const previewCy = cy - 30;
 
-    breeds.forEach((breed, i) => {
-      const cx = startX + i * (cardW + gap);
-      const card = this.add
-        .rectangle(cx, cy, cardW, 190, 0x241b2e, 0.85)
-        .setStrokeStyle(3, 0x3d2314)
-        .setInteractive({ useHandCursor: true });
-      card.on("pointerdown", () => this.selectBreed(breed));
-      this.breedCards.push(card);
+    const backdrop = this.add.graphics();
+    backdrop.fillStyle(0x35293f, 0.9);
+    backdrop.fillRoundedRect(cx - 95, previewCy - 85, 190, 170, 16);
+    backdrop.lineStyle(2, 0x4a3a55, 1);
+    backdrop.strokeRoundedRect(cx - 95, previewCy - 85, 190, 170, 16);
 
-      // A soft rounded backdrop behind the preview art — the extracted
-      // sprites' cutout edges can look a little rough on their own, and a
-      // solid backing plate reads as an intentional "podium" instead.
-      const backdrop = this.add.graphics();
-      backdrop.fillStyle(0x35293f, 0.9);
-      backdrop.fillRoundedRect(cx - 66, previewCy - 60, 132, 120, 14);
-      backdrop.lineStyle(2, 0x4a3a55, 1);
-      backdrop.strokeRoundedRect(cx - 66, previewCy - 60, 132, 120, 14);
+    const firstBreed = breedsForSpecies(this.species)[0];
+    this.breedPreview = this.add.image(cx, previewCy, `char_${firstBreed.id}_down_0`);
+    this.breedLabel = this.add
+      .text(cx, cy + 100, "", { fontFamily: PIXEL_FONT, fontSize: "17px", color: "#fdf6ec" })
+      .setOrigin(0.5);
+    this.breedDesc = this.add
+      .text(cx, cy + 126, "", {
+        fontFamily: PIXEL_FONT,
+        fontSize: "11px",
+        color: "#a89cad",
+        align: "center",
+        wordWrap: { width: 260 },
+      })
+      .setOrigin(0.5);
+    this.breedCounter = this.add
+      .text(cx, previewCy - 100, "", { fontFamily: PIXEL_FONT, fontSize: "11px", color: "#786d8a" })
+      .setOrigin(0.5);
 
-      const previewKey = `char_${breed.id}_down_0`;
-      const preview = this.add
-        .image(cx, previewCy, previewKey)
-        .setScale(fitScaleContain(this, previewKey, PREVIEW_MAX_W, PREVIEW_MAX_H));
-      const label = this.add
-        .text(cx, cy + 44, breed.label, { fontFamily: PIXEL_FONT, fontSize: "15px", color: "#fdf6ec" })
-        .setOrigin(0.5);
-      const desc = this.add
-        .text(cx, cy + 68, breed.desc, {
-          fontFamily: PIXEL_FONT,
-          fontSize: "10px",
-          color: "#a89cad",
-          align: "center",
-          wordWrap: { width: cardW - 16 },
-        })
-        .setOrigin(0.5);
+    const leftArrow = this.makeArrowButton(cx - ARROW_OFFSET, previewCy, "◀", () => this.cycleBreed(-1));
+    const rightArrow = this.makeArrowButton(cx + ARROW_OFFSET, previewCy, "▶", () => this.cycleBreed(1));
 
-      this.breedLayer.add([card, backdrop, preview, label, desc]);
+    this.breedLayer.add([
+      backdrop,
+      this.breedPreview,
+      this.breedLabel,
+      this.breedDesc,
+      this.breedCounter,
+      leftArrow,
+      rightArrow,
+    ]);
+
+    this.selectBreed(breedsForSpecies(this.species)[0]);
+  }
+
+  private makeArrowButton(cx: number, cy: number, label: string, onTap: () => void): Phaser.GameObjects.Container {
+    const bg = this.add
+      .circle(0, 0, 26, 0x241b2e, 0.9)
+      .setStrokeStyle(2, 0x3d2314)
+      .setInteractive({ useHandCursor: true });
+    const txt = this.add
+      .text(0, 0, label, { fontFamily: PIXEL_FONT, fontSize: "18px", color: "#ffcf8b" })
+      .setOrigin(0.5);
+    bg.on("pointerdown", () => {
+      bg.setFillStyle(0x3d2314, 0.95);
+      onTap();
     });
-
-    this.selectBreed(breeds[0]);
+    const reset = () => bg.setFillStyle(0x241b2e, 0.9);
+    bg.on("pointerup", reset);
+    bg.on("pointerout", reset);
+    return this.add.container(cx, cy, [bg, txt]);
   }
 
   private selectBreed(breed: BreedDef): void {
     this.breedId = breed.id;
     const breeds = breedsForSpecies(this.species);
     const idx = breeds.findIndex((b) => b.id === breed.id);
-    this.breedCards.forEach((c, i) => c.setStrokeStyle(3, i === idx ? 0xffcf8b : 0x3d2314));
+    const key = `char_${breed.id}_down_0`;
+    this.breedPreview.setTexture(key).setScale(fitScaleContain(this, key, PREVIEW_MAX_W, PREVIEW_MAX_H));
+    this.breedLabel.setText(breed.label);
+    this.breedDesc.setText(breed.desc);
+    this.breedCounter.setText(`${idx + 1} / ${breeds.length}`);
   }
 
   private cycleBreed(dir: number): void {
