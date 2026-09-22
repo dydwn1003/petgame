@@ -87,7 +87,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.cameras.main.setBounds(0, 0, this.room.w, this.room.h);
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
-    this.cameras.main.setZoom(1.8);
+    this.cameras.main.setZoom(1.3);
     this.cameras.main.setRoundPixels(true);
     this.cameras.main.fadeIn(300, 20, 15, 25);
 

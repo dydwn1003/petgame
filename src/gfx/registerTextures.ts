@@ -220,3 +220,13 @@ export function fitScaleByHeight(scene: Phaser.Scene, textureKey: string, target
   const src = scene.textures.get(textureKey).getSourceImage();
   return targetHeight / src.height;
 }
+
+/**
+ * Scale factor that fits a texture inside a maxWidth x maxHeight box without
+ * exceeding either dimension (like CSS `object-fit: contain`). Used for UI
+ * preview slots where breeds' native art varies wildly in aspect ratio.
+ */
+export function fitScaleContain(scene: Phaser.Scene, textureKey: string, maxWidth: number, maxHeight: number): number {
+  const src = scene.textures.get(textureKey).getSourceImage();
+  return Math.min(maxWidth / src.width, maxHeight / src.height);
+}

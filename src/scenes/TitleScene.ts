@@ -2,10 +2,12 @@ import Phaser from "phaser";
 import type { Species } from "../gfx/characters";
 import { GameState } from "../state/GameState";
 import { BREEDS, breedsForSpecies, type BreedDef } from "../data/breeds";
-import { fitScale } from "../gfx/registerTextures";
+import { fitScaleContain } from "../gfx/registerTextures";
 import { PIXEL_FONT } from "../ui/theme";
 
-const PREVIEW_WIDTH = 96;
+const PREVIEW_MAX_W = 104;
+const PREVIEW_MAX_H = 96;
+const SPECIES_GAP = 18;
 
 const SPECIES_INFO: { id: Species; label: string }[] = [
   { id: "dog", label: "강아지" },
@@ -16,7 +18,7 @@ const SPECIES_INFO: { id: Species; label: string }[] = [
 export class TitleScene extends Phaser.Scene {
   private species: Species = "dog";
   private breedId: string = BREEDS[0].id;
-  private speciesTabs: Phaser.GameObjects.Rectangle[] = [];
+  private speciesLabels: Phaser.GameObjects.Text[] = [];
   private breedCards: Phaser.GameObjects.Rectangle[] = [];
   private breedLayer!: Phaser.GameObjects.Container;
 
@@ -53,24 +55,7 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    // --- species tabs ---
-    const tabW = 140;
-    const tabGap = 16;
-    const tabTotal = SPECIES_INFO.length * tabW + (SPECIES_INFO.length - 1) * tabGap;
-    const tabStartX = w / 2 - tabTotal / 2 + tabW / 2;
-    SPECIES_INFO.forEach((info, i) => {
-      const cx = tabStartX + i * (tabW + tabGap);
-      const cy = 150;
-      const tab = this.add
-        .rectangle(cx, cy, tabW, 34, 0x241b2e, 0.9)
-        .setStrokeStyle(2, 0x3d2314)
-        .setInteractive({ useHandCursor: true });
-      tab.on("pointerdown", () => this.selectSpecies(info.id));
-      this.speciesTabs.push(tab);
-      this.add
-        .text(cx, cy, `[${i + 1}] ${info.label}`, { fontFamily: PIXEL_FONT, fontSize: "14px", color: "#fdf6ec" })
-        .setOrigin(0.5);
-    });
+    this.buildSpeciesRow();
 
     this.breedLayer = this.add.container(0, 0);
 
@@ -82,12 +67,17 @@ export class TitleScene extends Phaser.Scene {
     }
 
     this.add
-      .text(w / 2, buttonY + 40, "숫자 1~3: 종족 탭   품종은 카드를 눌러 선택   Enter: 새 게임" + (hasSave ? "   C: 이어하기" : ""), {
-        fontFamily: PIXEL_FONT,
-        fontSize: "11px",
-        color: "#786d8a",
-        align: "center",
-      })
+      .text(
+        w / 2,
+        buttonY + 40,
+        "◀ ▶ 방향키: 종족 전환   품종은 카드를 눌러 선택   Enter: 새 게임" + (hasSave ? "   C: 이어하기" : ""),
+        {
+          fontFamily: PIXEL_FONT,
+          fontSize: "11px",
+          color: "#786d8a",
+          align: "center",
+        },
+      )
       .setOrigin(0.5);
 
     this.add
@@ -104,15 +94,64 @@ export class TitleScene extends Phaser.Scene {
       if (e.key === "1") this.selectSpecies("dog");
       if (e.key === "2") this.selectSpecies("cat");
       if (e.key === "3") this.selectSpecies("hamster");
+      if (e.key === "ArrowLeft") this.cycleSpecies(-1);
+      if (e.key === "ArrowRight") this.cycleSpecies(1);
       if (e.key === "Enter") this.startNewGame();
       if (e.key.toLowerCase() === "c" && GameState.hasSave()) this.continueGame();
     });
   }
 
+  /** A plain "강아지 | 고양이 | 햄스터" row — the selected one lights up,
+   * separators are inert. Widths are measured after creation so the whole
+   * row can be centered regardless of label length. */
+  private buildSpeciesRow(): void {
+    const w = this.scale.width;
+    const cy = 152;
+    type Part = { text: string; species?: Species };
+    const parts: Part[] = [];
+    SPECIES_INFO.forEach((info, i) => {
+      parts.push({ text: info.label, species: info.id });
+      if (i < SPECIES_INFO.length - 1) parts.push({ text: "|" });
+    });
+
+    const texts = parts.map((p) =>
+      this.add
+        .text(0, cy, p.text, {
+          fontFamily: PIXEL_FONT,
+          fontSize: p.species ? "20px" : "16px",
+          color: p.species ? "#786d8a" : "#4a3f5c",
+        })
+        .setOrigin(0.5),
+    );
+
+    const totalW = texts.reduce((sum, t) => sum + t.width, 0) + SPECIES_GAP * (texts.length - 1);
+    let x = w / 2 - totalW / 2;
+    this.speciesLabels = [];
+    texts.forEach((t, i) => {
+      t.x = x + t.width / 2;
+      x += t.width + SPECIES_GAP;
+      const species = parts[i].species;
+      if (species) {
+        t.setInteractive({ useHandCursor: true });
+        t.on("pointerdown", () => this.selectSpecies(species));
+        this.speciesLabels.push(t);
+      }
+    });
+  }
+
+  private cycleSpecies(dir: number): void {
+    const idx = SPECIES_INFO.findIndex((s) => s.id === this.species);
+    const next = SPECIES_INFO[(idx + dir + SPECIES_INFO.length) % SPECIES_INFO.length];
+    this.selectSpecies(next.id);
+  }
+
   private selectSpecies(species: Species): void {
     this.species = species;
     const idx = SPECIES_INFO.findIndex((s) => s.id === species);
-    this.speciesTabs.forEach((t, i) => t.setStrokeStyle(2, i === idx ? 0xffcf8b : 0x3d2314));
+    this.speciesLabels.forEach((t, i) => {
+      t.setColor(i === idx ? "#ffcf8b" : "#786d8a");
+      t.setFontStyle(i === idx ? "bold" : "normal");
+    });
     this.buildBreedCards();
   }
 
@@ -127,6 +166,7 @@ export class TitleScene extends Phaser.Scene {
     const totalW = breeds.length * cardW + (breeds.length - 1) * gap;
     const startX = w / 2 - totalW / 2 + cardW / 2;
     const cy = 300;
+    const previewCy = cy - 40;
 
     breeds.forEach((breed, i) => {
       const cx = startX + i * (cardW + gap);
@@ -137,8 +177,19 @@ export class TitleScene extends Phaser.Scene {
       card.on("pointerdown", () => this.selectBreed(breed));
       this.breedCards.push(card);
 
+      // A soft rounded backdrop behind the preview art — the extracted
+      // sprites' cutout edges can look a little rough on their own, and a
+      // solid backing plate reads as an intentional "podium" instead.
+      const backdrop = this.add.graphics();
+      backdrop.fillStyle(0x35293f, 0.9);
+      backdrop.fillRoundedRect(cx - 66, previewCy - 60, 132, 120, 14);
+      backdrop.lineStyle(2, 0x4a3a55, 1);
+      backdrop.strokeRoundedRect(cx - 66, previewCy - 60, 132, 120, 14);
+
       const previewKey = `char_${breed.id}_down_0`;
-      const preview = this.add.image(cx, cy - 40, previewKey).setScale(fitScale(this, previewKey, PREVIEW_WIDTH));
+      const preview = this.add
+        .image(cx, previewCy, previewKey)
+        .setScale(fitScaleContain(this, previewKey, PREVIEW_MAX_W, PREVIEW_MAX_H));
       const label = this.add
         .text(cx, cy + 44, breed.label, { fontFamily: PIXEL_FONT, fontSize: "15px", color: "#fdf6ec" })
         .setOrigin(0.5);
@@ -152,7 +203,7 @@ export class TitleScene extends Phaser.Scene {
         })
         .setOrigin(0.5);
 
-      this.breedLayer.add([card, preview, label, desc]);
+      this.breedLayer.add([card, backdrop, preview, label, desc]);
     });
 
     this.selectBreed(breeds[0]);
