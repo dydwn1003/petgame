@@ -83,9 +83,16 @@ function buildLegLiftCanvas(
 function synthesizeWalkCycle(scene: Phaser.Scene, breedId: string, dir: Dir): void {
   const marker = `${breedId}_${dir}`;
   if (walkCycleDone.has(marker)) return;
+  walkCycleDone.add(marker);
+
+  // Some breeds (jindo) now ship a real multi-frame walk cycle extracted
+  // directly from reference art instead of a single static pose — trust
+  // that real animation and don't overwrite it with a synthesized one.
+  const realFrameCount = IMAGE_BREEDS[breedId]?.[dir]?.length ?? 0;
+  if (realFrameCount >= 3) return;
+
   const key0 = `char_${breedId}_${dir}_0`;
   if (!scene.textures.exists(key0)) return;
-  walkCycleDone.add(marker);
 
   const src = scene.textures.get(key0).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
   const w = src.width;
