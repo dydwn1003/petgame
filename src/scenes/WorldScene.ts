@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { buildMap, MAP_H, MAP_W, TILE_SIZE, type MapInfo } from "../data/mapData";
 import { TILE_KEYS, SOLID_TILES } from "../gfx/tiles";
-import { tileIndex, TILESET_KEY } from "../gfx/registerTextures";
+import { fitScale, spritePrefixFor, tileIndex, TILESET_KEY } from "../gfx/registerTextures";
 import { NPCS, type NpcDef } from "../data/npcs";
 import { GameState } from "../state/GameState";
 import { getItem, ITEMS } from "../data/items";
@@ -10,6 +10,11 @@ import type { ToolId } from "../state/GameState";
 import type { UIScene } from "./UIScene";
 
 type Facing = "down" | "up" | "left" | "right";
+
+// Target on-screen width (in world pixels, pre-camera-zoom) for every
+// character regardless of their art's native resolution — keeps a 64px
+// procedural sprite and a ~130px extracted photo sprite the same size.
+const TARGET_CHAR_WIDTH = 22;
 
 const SEED_FOR_TOOL: Partial<Record<ToolId, string>> = {
   seed_carrot: "SEED_BONE_CARROT",
@@ -85,8 +90,16 @@ export class WorldScene extends Phaser.Scene {
     const breed = GameState.data.breed;
     const startX = GameState.data.x || this.map.spawn.x * TILE_SIZE;
     const startY = GameState.data.y || this.map.spawn.y * TILE_SIZE;
-    const sprite = this.physics.add.sprite(startX, startY, `char_${breed}_down_0`);
-    sprite.setSize(32, 24).setOffset(16, 36);
+    const textureKey = `char_${breed}_down_0`;
+    const sprite = this.physics.add.sprite(startX, startY, textureKey);
+    const scale = fitScale(this, textureKey, TARGET_CHAR_WIDTH);
+    sprite.setScale(scale);
+    // Body size/offset are in the texture's own unscaled pixel space —
+    // Phaser applies the sprite's scale automatically. A modest box near
+    // the sprite's feet, since breed art varies in raw resolution/pose.
+    const fw = sprite.frame.width;
+    const fh = sprite.frame.height;
+    sprite.setSize(fw * 0.5, fh * 0.28).setOffset(fw * 0.25, fh * 0.66);
     sprite.setDepth(startY);
     this.player = sprite;
     this.physics.add.collider(this.player, this.layer);
@@ -96,7 +109,10 @@ export class WorldScene extends Phaser.Scene {
     for (const npc of NPCS) {
       const x = npc.tileX * TILE_SIZE + TILE_SIZE / 2;
       const y = npc.tileY * TILE_SIZE + TILE_SIZE / 2;
-      const sprite = this.add.sprite(x, y, `npc_${npc.npc_id}_down_0`);
+      const prefix = spritePrefixFor(npc.npc_id, npc.breedId);
+      const textureKey = `${prefix}_down_0`;
+      const sprite = this.add.sprite(x, y, textureKey);
+      sprite.setScale(fitScale(this, textureKey, TARGET_CHAR_WIDTH));
       sprite.setDepth(y);
       this.npcSprites.set(npc.npc_id, sprite);
       this.time.addEvent({
@@ -226,14 +242,12 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const breed = GameState.data.breed;
-    const dirKey = this.facing === "left" || this.facing === "right" ? "side" : this.facing;
-    this.player.setFlipX(this.facing === "left");
-    const animKey = `char_${breed}_walk_${dirKey}`;
+    const animKey = `char_${breed}_walk_${this.facing}`;
     if (moving) {
       if (this.player.anims.currentAnim?.key !== animKey) this.player.play(animKey);
     } else {
       this.player.anims.stop();
-      this.player.setTexture(`char_${breed}_${dirKey}_0`);
+      this.player.setTexture(`char_${breed}_${this.facing}_0`);
     }
   }
 

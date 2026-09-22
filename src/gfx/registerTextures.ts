@@ -1,11 +1,14 @@
-import { gridToCanvas, registerGrid, type Grid } from "./pixelart";
+import { flipGridX, gridToCanvas, registerGrid, type Grid } from "./pixelart";
 import { buildTileGrids, TILE_KEYS, type TileKey } from "./tiles";
 import { buildIconGrids } from "./icons";
 import { addApron, addBandana, addVest, buildCharacter } from "./characters";
 import { BREEDS, getBreed } from "../data/breeds";
 import { NPCS } from "../data/npcs";
+import { hasImageArt, IMAGE_BREEDS } from "./spriteAssets";
 
 export const TILESET_KEY = "tileset";
+const DIRS = ["down", "up", "left", "right"] as const;
+type Dir = (typeof DIRS)[number];
 
 export function tileIndex(key: TileKey): number {
   return TILE_KEYS.indexOf(key);
@@ -36,19 +39,54 @@ export function registerIcons(scene: Phaser.Scene): void {
   }
 }
 
-function regFrames(scene: Phaser.Scene, prefix: string, frames: { down: Grid[]; up: Grid[]; side: Grid[] }): void {
+/** Registers a horizontally-flipped copy of an existing (possibly image-based) texture. */
+function mirrorTexture(scene: Phaser.Scene, srcKey: string, destKey: string): void {
+  if (scene.textures.exists(destKey)) return;
+  const src = scene.textures.get(srcKey).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+  const canvas = document.createElement("canvas");
+  canvas.width = src.width;
+  canvas.height = src.height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.imageSmoothingEnabled = false;
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(src, 0, 0);
+  scene.textures.addCanvas(destKey, canvas);
+}
+
+/** Real photo-style art loaded in BootScene.preload(); fills in a mirrored "left" if the source lacked one. */
+function registerImageBreed(scene: Phaser.Scene, breedId: string): void {
+  const frames = IMAGE_BREEDS[breedId];
+  if (frames.left.length === 0) {
+    frames.right.forEach((_url, i) => {
+      mirrorTexture(scene, `char_${breedId}_right_${i}`, `char_${breedId}_left_${i}`);
+    });
+  }
+}
+
+function regProceduralFrames(scene: Phaser.Scene, prefix: string, frames: { down: Grid[]; up: Grid[]; side: Grid[] }): void {
   frames.down.forEach((g, i) => registerGrid(scene, `${prefix}_down_${i}`, g));
   frames.up.forEach((g, i) => registerGrid(scene, `${prefix}_up_${i}`, g));
-  frames.side.forEach((g, i) => registerGrid(scene, `${prefix}_side_${i}`, g));
+  frames.side.forEach((g, i) => registerGrid(scene, `${prefix}_right_${i}`, g));
+  frames.side.forEach((g, i) => registerGrid(scene, `${prefix}_left_${i}`, flipGridX(g)));
 }
 
 export function registerCharacters(scene: Phaser.Scene): void {
   for (const breed of BREEDS) {
-    const frames = buildCharacter(breed);
-    regFrames(scene, `char_${breed.id}`, frames);
+    if (hasImageArt(breed.id)) {
+      registerImageBreed(scene, breed.id);
+    } else {
+      regProceduralFrames(scene, `char_${breed.id}`, buildCharacter(breed));
+    }
   }
 
   for (const npc of NPCS) {
+    // NPCs whose breed has real art just reuse the player's breed textures
+    // (char_<breedId>_*) directly — see spritePrefixFor() below. Accessory
+    // overlays (bandana/apron/vest) currently only work on procedural
+    // (canvas-drawn) breeds, so image-art NPCs render without their prop.
+    if (hasImageArt(npc.breedId)) continue;
+
     const frames = buildCharacter(getBreed(npc.breedId));
     if (npc.npc_id === "NPC_DOG_MARO") {
       frames.down = frames.down.map((g) => addBandana(g, "#d9534f"));
@@ -61,21 +99,36 @@ export function registerCharacters(scene: Phaser.Scene): void {
       frames.down = frames.down.map((g) => addVest(g, "#8a6644"));
       frames.side = frames.side.map((g) => addVest(g, "#8a6644"));
     }
-    regFrames(scene, `npc_${npc.npc_id}`, frames);
+    regProceduralFrames(scene, `npc_${npc.npc_id}`, frames);
   }
 }
 
+/** The texture-key prefix to use for a given NPC (some alias straight to their breed's player textures). */
+export function spritePrefixFor(npcId: string, breedId: string): string {
+  return hasImageArt(breedId) ? `char_${breedId}` : `npc_${npcId}`;
+}
+
+function frameCount(scene: Phaser.Scene, prefix: string, dir: Dir): number {
+  let n = 0;
+  while (scene.textures.exists(`${prefix}_${dir}_${n}`)) n++;
+  return n;
+}
+
 export function createAnimations(scene: Phaser.Scene): void {
-  const dirs: Array<"down" | "up" | "side"> = ["down", "up", "side"];
-  const actors = [...BREEDS.map((b) => `char_${b.id}`), ...NPCS.map((n) => `npc_${n.npc_id}`)];
+  const actors = [
+    ...BREEDS.map((b) => `char_${b.id}`),
+    ...NPCS.filter((n) => !hasImageArt(n.breedId)).map((n) => `npc_${n.npc_id}`),
+  ];
   for (const actor of actors) {
-    for (const dir of dirs) {
+    for (const dir of DIRS) {
       const key = `${actor}_walk_${dir}`;
       if (scene.anims.exists(key)) continue;
+      const n = frameCount(scene, actor, dir);
+      if (n === 0) continue;
       scene.anims.create({
         key,
-        frames: [{ key: `${actor}_${dir}_0` }, { key: `${actor}_${dir}_1` }],
-        frameRate: 4,
+        frames: Array.from({ length: n }, (_, i) => ({ key: `${actor}_${dir}_${i}` })),
+        frameRate: n > 2 ? 8 : 4,
         repeat: -1,
       });
     }
@@ -87,4 +140,15 @@ export function registerAllArt(scene: Phaser.Scene): void {
   registerIcons(scene);
   registerCharacters(scene);
   createAnimations(scene);
+}
+
+/**
+ * Scale factor that makes a texture display at `targetWidth` world/screen
+ * pixels, regardless of the texture's own native resolution — procedural
+ * breeds are drawn at 64x64, extracted photo breeds are ~130px wide, and
+ * future breeds may differ again.
+ */
+export function fitScale(scene: Phaser.Scene, textureKey: string, targetWidth: number): number {
+  const src = scene.textures.get(textureKey).getSourceImage();
+  return targetWidth / src.width;
 }

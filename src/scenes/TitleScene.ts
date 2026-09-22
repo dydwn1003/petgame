@@ -2,6 +2,9 @@ import Phaser from "phaser";
 import type { Species } from "../gfx/characters";
 import { GameState } from "../state/GameState";
 import { BREEDS, breedsForSpecies, type BreedDef } from "../data/breeds";
+import { fitScale } from "../gfx/registerTextures";
+
+const PREVIEW_WIDTH = 96;
 
 const SPECIES_INFO: { id: Species; label: string }[] = [
   { id: "dog", label: "강아지" },
@@ -133,7 +136,8 @@ export class TitleScene extends Phaser.Scene {
       card.on("pointerdown", () => this.selectBreed(breed));
       this.breedCards.push(card);
 
-      const preview = this.add.image(cx, cy - 40, `char_${breed.id}_down_0`).setScale(2.1);
+      const previewKey = `char_${breed.id}_down_0`;
+      const preview = this.add.image(cx, cy - 40, previewKey).setScale(fitScale(this, previewKey, PREVIEW_WIDTH));
       const label = this.add
         .text(cx, cy + 44, breed.label, { fontFamily: "monospace", fontSize: "15px", color: "#fdf6ec" })
         .setOrigin(0.5);
