@@ -11,17 +11,24 @@ import type { UIScene } from "./UIScene";
 
 type Facing = "down" | "up" | "left" | "right";
 
-// A character's on-screen height (in world pixels, pre-camera-zoom) is
-// derived from its breed's real-world height (data/breeds.ts) times the
-// current room's charScale (data/rooms.ts), so a jindo actually looks
-// bigger than a cat, which looks bigger than a hamster, consistently
-// across every room. Very small breeds still get a legibility floor so
-// they don't shrink into unreadable specks.
-const MIN_CHAR_HEIGHT_PX = 9;
+// A character's on-screen height (in world pixels, pre-camera-zoom) comes
+// from its breed's real-world height (data/breeds.ts), compressed with a
+// square root so the spread between the biggest dog and the smallest
+// hamster reads clearly without shrinking anything to an unreadable speck
+// (a literal linear cm ratio made hamsters nearly invisible). jindo (the
+// biggest breed) keeps its long-tuned ~33px reference size; every other
+// breed is sized relative to that. The result is then scaled by the room's
+// worldScale so it stays visually consistent now that every background is
+// normalized to the same implied real-world scale (see data/rooms.ts).
+const REFERENCE_BREED_ID = "jindo";
+const REFERENCE_HEIGHT_PX = 33;
+const MIN_CHAR_HEIGHT_PX = 13;
 const INTERACT_RADIUS = 34;
 
 function charTargetHeightPx(room: RoomDef, breedId: string): number {
-  return Math.max(MIN_CHAR_HEIGHT_PX, getBreed(breedId).heightCm * room.charScale);
+  const refCm = getBreed(REFERENCE_BREED_ID).heightCm;
+  const ratio = Math.sqrt(getBreed(breedId).heightCm / refCm);
+  return Math.max(MIN_CHAR_HEIGHT_PX, REFERENCE_HEIGHT_PX * ratio) * room.worldScale;
 }
 
 const SEED_FOR_TOOL: Partial<Record<ToolId, string>> = {
@@ -256,7 +263,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private handleMovement(delta: number): void {
-    const speed = 110;
+    const speed = 110 * this.room.worldScale;
     let vx = 0;
     let vy = 0;
     if (this.wasd.A.isDown || this.wasd.LEFT.isDown) vx -= 1;
@@ -310,6 +317,10 @@ export class WorldScene extends Phaser.Scene {
     return Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y);
   }
 
+  private interactRadius(): number {
+    return INTERACT_RADIUS * this.room.worldScale;
+  }
+
   private nearestFarmPlot(): { col: number; row: number } | null {
     const g = this.room.farmGrid;
     if (!g) return null;
@@ -323,7 +334,7 @@ export class WorldScene extends Phaser.Scene {
 
   private nearestNpc(): NpcDef | undefined {
     let best: NpcDef | undefined;
-    let bestDist = INTERACT_RADIUS;
+    let bestDist = this.interactRadius();
     for (const npc of NPCS) {
       if (!this.room.npcIds.includes(npc.npc_id)) continue;
       const d = this.dist(npc.tileX, npc.tileY);
@@ -336,7 +347,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private nearFishingSpot(): boolean {
-    return (this.room.fishingSpots ?? []).some((f) => this.dist(f.x, f.y) < INTERACT_RADIUS);
+    return (this.room.fishingSpots ?? []).some((f) => this.dist(f.x, f.y) < this.interactRadius());
   }
 
   private updateHint(): void {
@@ -345,15 +356,15 @@ export class WorldScene extends Phaser.Scene {
       this.ui.setHint(`[E] ${npc.name}와 대화하기`);
       return;
     }
-    if (this.room.questBoard && this.dist(this.room.questBoard.x, this.room.questBoard.y) < INTERACT_RADIUS) {
+    if (this.room.questBoard && this.dist(this.room.questBoard.x, this.room.questBoard.y) < this.interactRadius()) {
       this.ui.setHint("[E] 게시판 확인하기");
       return;
     }
-    if (this.room.shippingBin && this.dist(this.room.shippingBin.x, this.room.shippingBin.y) < INTERACT_RADIUS) {
+    if (this.room.shippingBin && this.dist(this.room.shippingBin.x, this.room.shippingBin.y) < this.interactRadius()) {
       this.ui.setHint("[E] 출하 상자 열기");
       return;
     }
-    if (this.room.bed && this.dist(this.room.bed.x, this.room.bed.y) < INTERACT_RADIUS) {
+    if (this.room.bed && this.dist(this.room.bed.x, this.room.bed.y) < this.interactRadius()) {
       this.ui.setHint("[E] 잠자리에 들기");
       return;
     }
@@ -383,13 +394,13 @@ export class WorldScene extends Phaser.Scene {
     const npc = this.nearestNpc();
     if (npc) return this.openNpcDialogue(npc);
 
-    if (this.room.questBoard && this.dist(this.room.questBoard.x, this.room.questBoard.y) < INTERACT_RADIUS) {
+    if (this.room.questBoard && this.dist(this.room.questBoard.x, this.room.questBoard.y) < this.interactRadius()) {
       return this.openQuestBoard();
     }
-    if (this.room.shippingBin && this.dist(this.room.shippingBin.x, this.room.shippingBin.y) < INTERACT_RADIUS) {
+    if (this.room.shippingBin && this.dist(this.room.shippingBin.x, this.room.shippingBin.y) < this.interactRadius()) {
       return this.openShippingBin();
     }
-    if (this.room.bed && this.dist(this.room.bed.x, this.room.bed.y) < INTERACT_RADIUS) {
+    if (this.room.bed && this.dist(this.room.bed.x, this.room.bed.y) < this.interactRadius()) {
       return this.openSleepConfirm();
     }
     if (this.nearFishingSpot()) return this.startFishing();
@@ -592,7 +603,7 @@ export class WorldScene extends Phaser.Scene {
   private checkMineEntrance(): void {
     const entrance = this.room.mineEntrance;
     if (!entrance) return;
-    const inside = this.dist(entrance.x, entrance.y) < INTERACT_RADIUS;
+    const inside = this.dist(entrance.x, entrance.y) < this.interactRadius();
     if (inside && !this.mineCooldown) {
       this.mineCooldown = true;
       GameState.save();

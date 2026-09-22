@@ -29,11 +29,14 @@ export interface RoomDef {
   bg: string;
   w: number;
   h: number;
-  /** World px per real-world cm for sizing characters in this room — the 4
-   * background images weren't all drawn at the same implied scale (measured
-   * from door/tunnel heights against ~195cm), so each room gets its own
-   * factor rather than one global constant. */
-  charScale: number;
+  /** How much bigger this room's background was resized to bring it onto
+   * the same implied real-world scale as the others (measured off each
+   * scene's door/tunnel height; farm and harbor were originally drawn at a
+   * noticeably smaller scale than plaza/mine, so their images and every
+   * pixel coordinate below were scaled up by this factor). Movement speed
+   * and interaction radius are scaled by it too, so traversal and reach
+   * feel the same in every room despite the different pixel grids. */
+  worldScale: number;
   solids: Rect[];
   portals: PortalDef[];
   npcIds: NpcId[];
@@ -47,8 +50,8 @@ export interface RoomDef {
 }
 
 const PLAZA_SPAWN = { x: 1140, y: 900 };
-const FARM_SPAWN = { x: 160, y: 190 };
-const HARBOR_SPAWN = { x: 650, y: 460 };
+const FARM_SPAWN = { x: 256, y: 304 };
+const HARBOR_SPAWN = { x: 945, y: 669 };
 const MINE_SPAWN = { x: 600, y: 300 };
 
 export const ROOMS: Record<ZoneId, RoomDef> = {
@@ -57,7 +60,7 @@ export const ROOMS: Record<ZoneId, RoomDef> = {
     bg: "bg_plaza",
     w: 2000,
     h: 1091,
-    charScale: 0.68,
+    worldScale: 1,
     defaultSpawn: PLAZA_SPAWN,
     npcIds: [],
     solids: [
@@ -77,51 +80,56 @@ export const ROOMS: Record<ZoneId, RoomDef> = {
     ],
   },
 
+  // Background was resized 1.6x (1408x768 -> 2253x1229) to match plaza's
+  // implied real-world scale, so every coordinate below is the original
+  // layout scaled by the same 1.6x.
   farm: {
     id: "farm",
     bg: "bg_farm",
-    w: 1408,
-    h: 768,
-    charScale: 0.43,
+    w: 2253,
+    h: 1229,
+    worldScale: 1.6,
     defaultSpawn: FARM_SPAWN,
     npcIds: ["NPC_DOG_MARO"],
     solids: [
-      { x: 205, y: 60, w: 250, h: 190 }, // farmhouse
-      { x: 630, y: 70, w: 170, h: 165 }, // barn
-      { x: 795, y: 15, w: 95, h: 220 }, // silo
-      { x: 915, y: 95, w: 125, h: 155 }, // greenhouse
-      { x: 1035, y: 140, w: 100, h: 95 }, // coop
-      { x: 75, y: 285, w: 245, h: 150 }, // second cottage / well
-      { x: 0, y: 590, w: 270, h: 178 }, // round pond
-      { x: 0, y: 575, w: 440, h: 40 }, // river (west of first bridge)
-      { x: 500, y: 575, w: 480, h: 40 }, // river (between bridges)
-      { x: 1050, y: 575, w: 358, h: 40 }, // river (east of second bridge)
+      { x: 328, y: 96, w: 400, h: 304 }, // farmhouse
+      { x: 1008, y: 112, w: 272, h: 264 }, // barn
+      { x: 1272, y: 24, w: 152, h: 352 }, // silo
+      { x: 1464, y: 152, w: 200, h: 248 }, // greenhouse
+      { x: 1656, y: 224, w: 160, h: 152 }, // coop
+      { x: 120, y: 456, w: 392, h: 240 }, // second cottage / well
+      { x: 0, y: 944, w: 432, h: 285 }, // round pond
+      { x: 0, y: 920, w: 704, h: 64 }, // river (west of first bridge)
+      { x: 800, y: 920, w: 768, h: 64 }, // river (between bridges)
+      { x: 1680, y: 920, w: 573, h: 64 }, // river (east of second bridge)
     ],
-    farmGrid: { x0: 520, y0: 260, cols: 5, rows: 4, cell: 42 },
-    shippingBin: { x: 490, y: 195 },
-    portals: [{ rect: { x: 20, y: 40, w: 70, h: 70 }, to: "plaza", spawn: { x: 100, y: 750 }, hint: "광장으로 이동" }],
+    farmGrid: { x0: 832, y0: 416, cols: 5, rows: 4, cell: 67 },
+    shippingBin: { x: 784, y: 312 },
+    portals: [{ rect: { x: 32, y: 64, w: 112, h: 112 }, to: "plaza", spawn: { x: 100, y: 750 }, hint: "광장으로 이동" }],
   },
 
+  // Background was resized 1.4545x (1408x768 -> 2048x1117) to match
+  // plaza's implied real-world scale.
   harbor: {
     id: "harbor",
     bg: "bg_harbor",
-    w: 1408,
-    h: 768,
-    charScale: 0.47,
+    w: 2048,
+    h: 1117,
+    worldScale: 2048 / 1408,
     defaultSpawn: HARBOR_SPAWN,
     npcIds: ["NPC_CAT_SASHA"],
     solids: [
-      { x: 0, y: 0, w: 190, h: 230 }, // left cottage
-      { x: 155, y: 0, w: 230, h: 120 }, // pink-roof cottage
-      { x: 590, y: 0, w: 230, h: 100 }, // yellow cottage
-      { x: 820, y: 0, w: 230, h: 100 }, // yellow cottage 2
-      { x: 520, y: 170, w: 260, h: 260 }, // teahouse building
-      { x: 930, y: 0, w: 478, h: 768 }, // open water, east
-      { x: 230, y: 0, w: 700, h: 255 }, // open water, north strip
+      { x: 0, y: 0, w: 276, h: 335 }, // left cottage
+      { x: 225, y: 0, w: 335, h: 175 }, // pink-roof cottage
+      { x: 858, y: 0, w: 335, h: 145 }, // yellow cottage
+      { x: 1193, y: 0, w: 335, h: 145 }, // yellow cottage 2
+      { x: 756, y: 247, w: 378, h: 378 }, // teahouse building
+      { x: 1353, y: 0, w: 695, h: 1117 }, // open water, east
+      { x: 335, y: 0, w: 1018, h: 371 }, // open water, north strip
     ],
-    fishingSpots: [{ x: 905, y: 430 }, { x: 905, y: 600 }],
+    fishingSpots: [{ x: 1316, y: 625 }, { x: 1316, y: 873 }],
     portals: [
-      { rect: { x: 380, y: 0, w: 140, h: 35 }, to: "plaza", spawn: { x: 1880, y: 600 }, hint: "광장으로 이동" },
+      { rect: { x: 553, y: 0, w: 204, h: 51 }, to: "plaza", spawn: { x: 1880, y: 600 }, hint: "광장으로 이동" },
     ],
   },
 
@@ -130,7 +138,7 @@ export const ROOMS: Record<ZoneId, RoomDef> = {
     bg: "bg_mine",
     w: 1408,
     h: 768,
-    charScale: 0.66,
+    worldScale: 1,
     defaultSpawn: MINE_SPAWN,
     npcIds: ["NPC_HAM_BOLBOL"],
     solids: [],

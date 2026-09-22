@@ -22,8 +22,8 @@ export const NPCS: NpcDef[] = [
     breedId: "jindo",
     lovedGifts: ["CROP_BONE_CARROT"],
     likedGifts: ["SEED_BONE_CARROT", "CROP_STRAWBERRY"],
-    tileX: 330,
-    tileY: 280,
+    tileX: 528,
+    tileY: 448,
     dialogue: [
       "멍! 어서 오게, 새로운 이웃.",
       "농장을 잘 가꾸면 이 마을도 다시 살아날 거야.",
@@ -38,8 +38,8 @@ export const NPCS: NpcDef[] = [
     breedId: "mackerel_tabby",
     lovedGifts: ["FISH_DRIED", "CATNIP"],
     likedGifts: ["FISH_ANCHOVY"],
-    tileX: 730,
-    tileY: 480,
+    tileX: 1062,
+    tileY: 698,
     dialogue: [
       "야옹~ 항구 카페에 온 걸 환영해.",
       "신선한 생선이 있으면 맛있는 요리를 해줄게.",
