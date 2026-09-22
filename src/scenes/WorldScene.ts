@@ -14,7 +14,7 @@ type Facing = "down" | "up" | "left" | "right";
 // Target on-screen width (in world pixels, pre-camera-zoom) for every
 // character regardless of their art's native resolution — keeps a 64px
 // procedural sprite and a ~130px extracted photo sprite the same size.
-const TARGET_CHAR_WIDTH = 22;
+const TARGET_CHAR_WIDTH = 16;
 
 const SEED_FOR_TOOL: Partial<Record<ToolId, string>> = {
   seed_carrot: "SEED_BONE_CARROT",
@@ -36,6 +36,8 @@ export class WorldScene extends Phaser.Scene {
   private facing: Facing = "down";
   private mineCooldown = false;
   private sleeping = false;
+  private playerBaseScale = 1;
+  private walkT = 0;
 
   constructor() {
     super("World");
@@ -94,6 +96,7 @@ export class WorldScene extends Phaser.Scene {
     const sprite = this.physics.add.sprite(startX, startY, textureKey);
     const scale = fitScale(this, textureKey, TARGET_CHAR_WIDTH);
     sprite.setScale(scale);
+    this.playerBaseScale = scale;
     // Body size/offset are in the texture's own unscaled pixel space —
     // Phaser applies the sprite's scale automatically. A modest box near
     // the sprite's feet, since breed art varies in raw resolution/pose.
@@ -202,7 +205,7 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
-    this.handleMovement();
+    this.handleMovement(delta);
     this.updateHint();
     this.player.setDepth(this.player.y);
     GameState.data.x = this.player.x;
@@ -216,7 +219,7 @@ export class WorldScene extends Phaser.Scene {
     this.checkMineEntrance();
   }
 
-  private handleMovement(): void {
+  private handleMovement(delta: number): void {
     const speed = 110;
     let vx = 0;
     let vy = 0;
@@ -245,9 +248,17 @@ export class WorldScene extends Phaser.Scene {
     const animKey = `char_${breed}_walk_${this.facing}`;
     if (moving) {
       if (this.player.anims.currentAnim?.key !== animKey) this.player.play(animKey);
+      // Cheap squash/stretch "hop" bob so movement reads as walking rather
+      // than a static photo sliding around, even where the source art only
+      // gave us one or two real frames per direction.
+      this.walkT += delta;
+      const bob = Math.sin(this.walkT * 0.016);
+      this.player.setScale(this.playerBaseScale * (1 - bob * 0.05), this.playerBaseScale * (1 + bob * 0.09));
     } else {
       this.player.anims.stop();
       this.player.setTexture(`char_${breed}_${this.facing}_0`);
+      this.walkT = 0;
+      this.player.setScale(this.playerBaseScale);
     }
   }
 
