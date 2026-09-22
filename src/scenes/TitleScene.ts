@@ -70,7 +70,7 @@ export class TitleScene extends Phaser.Scene {
       .text(
         w / 2,
         buttonY + 40,
-        "◀ ▶ 방향키: 종족 전환   품종은 카드를 눌러 선택   Enter: 새 게임" + (hasSave ? "   C: 이어하기" : ""),
+        "◀ ▶: 품종 선택   ▲ ▼: 종족 전환   Enter: 새 게임" + (hasSave ? "   C: 이어하기" : ""),
         {
           fontFamily: PIXEL_FONT,
           fontSize: "11px",
@@ -94,8 +94,10 @@ export class TitleScene extends Phaser.Scene {
       if (e.key === "1") this.selectSpecies("dog");
       if (e.key === "2") this.selectSpecies("cat");
       if (e.key === "3") this.selectSpecies("hamster");
-      if (e.key === "ArrowLeft") this.cycleSpecies(-1);
-      if (e.key === "ArrowRight") this.cycleSpecies(1);
+      if (e.key === "ArrowUp") this.cycleSpecies(-1);
+      if (e.key === "ArrowDown") this.cycleSpecies(1);
+      if (e.key === "ArrowLeft") this.cycleBreed(-1);
+      if (e.key === "ArrowRight") this.cycleBreed(1);
       if (e.key === "Enter") this.startNewGame();
       if (e.key.toLowerCase() === "c" && GameState.hasSave()) this.continueGame();
     });
@@ -214,6 +216,13 @@ export class TitleScene extends Phaser.Scene {
     const breeds = breedsForSpecies(this.species);
     const idx = breeds.findIndex((b) => b.id === breed.id);
     this.breedCards.forEach((c, i) => c.setStrokeStyle(3, i === idx ? 0xffcf8b : 0x3d2314));
+  }
+
+  private cycleBreed(dir: number): void {
+    const breeds = breedsForSpecies(this.species);
+    const idx = breeds.findIndex((b) => b.id === this.breedId);
+    const next = breeds[(idx + dir + breeds.length) % breeds.length];
+    this.selectBreed(next);
   }
 
   private makeButton(cx: number, cy: number, label: string, onTap: () => void): void {
