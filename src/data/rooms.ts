@@ -64,11 +64,11 @@ export const ROOMS: Record<ZoneId, RoomDef> = {
     defaultSpawn: PLAZA_SPAWN,
     npcIds: [],
     solids: [
-      { x: 90, y: 0, w: 310, h: 235 }, // top-left cottage
-      { x: 1610, y: 0, w: 390, h: 340 }, // village cafe building
+      { x: 85, y: 0, w: 320, h: 220 }, // top-left cottage
+      { x: 1600, y: 0, w: 400, h: 430 }, // village cafe building (was only covering its left third)
       { x: 0, y: 680, w: 270, h: 320 }, // bottom-left cottage
-      { x: 1730, y: 860, w: 270, h: 231 }, // bottom-right cottage
-      { x: 990, y: 470, w: 280, h: 230 }, // fountain + inner sunflower ring
+      { x: 1790, y: 620, w: 170, h: 410 }, // bottom-right cottage (stops short of x=2000 so it can't swallow the harbor portal strip at x:1970-2000)
+      { x: 770, y: 390, w: 460, h: 320 }, // fountain + sunflower ring (was offset, only blocking the right half)
       { x: 690, y: 175, w: 150, h: 100 }, // quest board post
     ],
     questBoard: { x: 735, y: 225 },
@@ -119,13 +119,17 @@ export const ROOMS: Record<ZoneId, RoomDef> = {
     defaultSpawn: HARBOR_SPAWN,
     npcIds: ["NPC_CAT_SASHA"],
     solids: [
-      { x: 0, y: 0, w: 276, h: 335 }, // left cottage
-      { x: 225, y: 0, w: 335, h: 175 }, // pink-roof cottage
-      { x: 858, y: 0, w: 335, h: 145 }, // yellow cottage
-      { x: 1193, y: 0, w: 335, h: 145 }, // yellow cottage 2
+      { x: 0, y: 120, w: 210, h: 270 }, // left (blue-roof) cottage
+      { x: 225, y: 0, w: 335, h: 255 }, // pink-roof cottage (was only covering its left half)
+      { x: 860, y: 0, w: 430, h: 170 }, // both yellow cottages
       { x: 756, y: 247, w: 378, h: 378 }, // teahouse building
-      { x: 1353, y: 0, w: 695, h: 1117 }, // open water, east
-      { x: 335, y: 0, w: 1018, h: 371 }, // open water, north strip
+      // The old "north strip" water block here was wrong — that whole
+      // region is grass and the stone path up to the yellow cottages, not
+      // water, and it was silently walling the player off from both
+      // cottages. Water only actually starts east of the dock and along
+      // the southern shoreline.
+      { x: 1400, y: 350, w: 648, h: 580 }, // open water, east of the dock
+      { x: 0, y: 930, w: 2048, h: 187 }, // open water, south shoreline
     ],
     fishingSpots: [{ x: 1316, y: 625 }, { x: 1316, y: 873 }],
     portals: [

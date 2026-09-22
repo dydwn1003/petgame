@@ -91,6 +91,10 @@ export class TitleScene extends Phaser.Scene {
     this.selectSpecies("dog");
 
     this.input.keyboard?.on("keydown", (e: KeyboardEvent) => {
+      // Ignore the browser's key-repeat auto-fire on held arrow keys —
+      // without this a held press blows straight through every breed
+      // card instead of landing on the one the player meant to stop at.
+      if (e.repeat && e.key.startsWith("Arrow")) return;
       if (e.key === "1") this.selectSpecies("dog");
       if (e.key === "2") this.selectSpecies("cat");
       if (e.key === "3") this.selectSpecies("hamster");

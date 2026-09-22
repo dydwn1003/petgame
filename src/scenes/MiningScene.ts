@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { GameState } from "../state/GameState";
 import { getItem } from "../data/items";
-import { createTapButton, isTouchDevice } from "../ui/TouchControls";
+import { createTapButton } from "../ui/TouchControls";
 import { PIXEL_FONT } from "../ui/theme";
 
 const COLS = 7;
@@ -115,18 +115,16 @@ export class MiningScene extends Phaser.Scene {
     this.input.keyboard!.on("keydown-D", () => this.move(1, 0));
     this.input.keyboard!.on("keydown-ESC", () => this.close());
 
-    if (isTouchDevice(this)) {
-      // Placed off to the side of the panel (not below it) so it never runs
-      // off the bottom of the screen regardless of board size.
-      const bx = w - 140;
-      const by = h - 110;
-      const s = 40;
-      createTapButton(this, bx, by - s, "▲", () => this.move(0, -1), { radius: 18 });
-      createTapButton(this, bx, by + s, "▼", () => this.move(0, 1), { radius: 18 });
-      createTapButton(this, bx - s, by, "◀", () => this.move(-1, 0), { radius: 18 });
-      createTapButton(this, bx + s, by, "▶", () => this.move(1, 0), { radius: 18 });
-      createTapButton(this, w - 40, 30, "✕", () => this.close(), { radius: 20 });
-    }
+    // Placed off to the side of the panel (not below it) so it never runs
+    // off the bottom of the screen regardless of board size.
+    const bx = w - 140;
+    const by = h - 110;
+    const s = 40;
+    createTapButton(this, bx, by - s, "▲", () => this.move(0, -1), { radius: 18 });
+    createTapButton(this, bx, by + s, "▼", () => this.move(0, 1), { radius: 18 });
+    createTapButton(this, bx - s, by, "◀", () => this.move(-1, 0), { radius: 18 });
+    createTapButton(this, bx + s, by, "▶", () => this.move(1, 0), { radius: 18 });
+    createTapButton(this, w - 40, 30, "✕", () => this.close(), { radius: 20 });
   }
 
   private updateCursorGfx(): void {
