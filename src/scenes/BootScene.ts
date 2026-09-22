@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { registerAllArt } from "../gfx/registerTextures";
 import { IMAGE_BREEDS } from "../gfx/spriteAssets";
+import { PIXEL_FONT } from "../ui/theme";
 
 const DIRS = ["down", "up", "left", "right"] as const;
 
@@ -14,7 +15,7 @@ export class BootScene extends Phaser.Scene {
     const h = this.scale.height;
     this.add
       .text(w / 2, h / 2, "포근포근 펫빌리지\n도트 그래픽 불러오는 중...", {
-        fontFamily: "monospace",
+        fontFamily: PIXEL_FONT,
         fontSize: "20px",
         color: "#fdf6ec",
         align: "center",

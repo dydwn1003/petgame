@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { createTapButton, isTouchDevice } from "../ui/TouchControls";
+import { PIXEL_FONT } from "../ui/theme";
 
 const WIN_HITS = 3;
 const MAX_MISSES = 3;
@@ -35,11 +36,11 @@ export class FishingScene extends Phaser.Scene {
 
     this.add.rectangle(w / 2, h / 2, 480, 260, 0x0e2a33, 0.92).setStrokeStyle(3, 0x3d2314);
     this.add
-      .text(w / 2, h / 2 - 100, "고양이 낚시", { fontFamily: "monospace", fontSize: "22px", color: "#fdf6ec" })
+      .text(w / 2, h / 2 - 100, "고양이 낚시", { fontFamily: PIXEL_FONT, fontSize: "22px", color: "#fdf6ec" })
       .setOrigin(0.5);
     this.add
       .text(w / 2, h / 2 - 70, "파란 구간에 발바닥이 들어왔을 때 SPACE!", {
-        fontFamily: "monospace",
+        fontFamily: PIXEL_FONT,
         fontSize: "13px",
         color: "#a8d8e8",
       })
@@ -55,17 +56,17 @@ export class FishingScene extends Phaser.Scene {
     this.marker = this.add.image(this.barX, this.barY, "icon_spr_fish_small").setOrigin(0.5).setScale(1.3);
 
     this.hitText = this.add
-      .text(w / 2, h / 2 + 60, "", { fontFamily: "monospace", fontSize: "16px", color: "#fdf6ec" })
+      .text(w / 2, h / 2 + 60, "", { fontFamily: PIXEL_FONT, fontSize: "16px", color: "#fdf6ec" })
       .setOrigin(0.5);
     this.updateHitText();
 
     this.resultText = this.add
-      .text(w / 2, h / 2, "", { fontFamily: "monospace", fontSize: "26px", color: "#ffcf8b", fontStyle: "bold" })
+      .text(w / 2, h / 2, "", { fontFamily: PIXEL_FONT, fontSize: "26px", color: "#ffcf8b", fontStyle: "bold" })
       .setOrigin(0.5)
       .setDepth(10);
 
     this.add
-      .text(w / 2, h / 2 + 100, "[ESC] 포기하고 나가기", { fontFamily: "monospace", fontSize: "12px", color: "#786d8a" })
+      .text(w / 2, h / 2 + 100, "[ESC] 포기하고 나가기", { fontFamily: PIXEL_FONT, fontSize: "12px", color: "#786d8a" })
       .setOrigin(0.5);
 
     this.input.keyboard!.on("keydown-SPACE", () => this.attempt());

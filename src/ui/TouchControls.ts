@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { PIXEL_FONT } from "./theme";
 
 export function isTouchDevice(scene: Phaser.Scene): boolean {
   const device = scene.sys.game.device;
@@ -25,7 +26,7 @@ export function createDPad(scene: Phaser.Scene, cx: number, cy: number, depth = 
       .setDepth(depth)
       .setInteractive({ useHandCursor: true });
     const txt = scene.add
-      .text(cx + ox, cy + oy, label, { fontFamily: "monospace", fontSize: "20px", color: "#fdf6ec" })
+      .text(cx + ox, cy + oy, label, { fontFamily: PIXEL_FONT, fontSize: "20px", color: "#fdf6ec" })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(depth + 1);
@@ -89,7 +90,7 @@ export function createTapButton(
     .setDepth(depth)
     .setInteractive({ useHandCursor: true });
   const txt = scene.add
-    .text(x, y, label, { fontFamily: "monospace", fontSize: opts.fontSize ?? "16px", color: "#fdf6ec" })
+    .text(x, y, label, { fontFamily: PIXEL_FONT, fontSize: opts.fontSize ?? "16px", color: "#fdf6ec" })
     .setOrigin(0.5)
     .setScrollFactor(0)
     .setDepth(depth + 1);

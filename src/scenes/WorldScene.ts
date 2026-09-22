@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { buildMap, MAP_H, MAP_W, TILE_SIZE, type MapInfo } from "../data/mapData";
 import { TILE_KEYS, SOLID_TILES } from "../gfx/tiles";
 import { fitScale, spritePrefixFor, tileIndex, TILESET_KEY } from "../gfx/registerTextures";
+import { PROPS } from "../gfx/props";
 import { NPCS, type NpcDef } from "../data/npcs";
 import { GameState } from "../state/GameState";
 import { getItem, ITEMS } from "../data/items";
@@ -14,7 +15,7 @@ type Facing = "down" | "up" | "left" | "right";
 // Target on-screen width (in world pixels, pre-camera-zoom) for every
 // character regardless of their art's native resolution — keeps a 64px
 // procedural sprite and a ~130px extracted photo sprite the same size.
-const TARGET_CHAR_WIDTH = 13;
+const TARGET_CHAR_WIDTH = 17;
 
 const SEED_FOR_TOOL: Partial<Record<ToolId, string>> = {
   seed_carrot: "SEED_BONE_CARROT",
@@ -38,6 +39,7 @@ export class WorldScene extends Phaser.Scene {
   private sleeping = false;
   private playerBaseScale = 1;
   private walkT = 0;
+  private propColliders: Phaser.GameObjects.Rectangle[] = [];
 
   constructor() {
     super("World");
@@ -47,7 +49,9 @@ export class WorldScene extends Phaser.Scene {
     this.sleeping = false;
     this.map = buildMap();
     this.buildTilemap();
+    this.buildProps();
     this.buildPlayer();
+    this.physics.add.collider(this.player, this.propColliders);
     this.buildNpcs();
     this.refreshFarmTiles();
 
@@ -86,6 +90,29 @@ export class WorldScene extends Phaser.Scene {
     layer.setCollision(solidIndices);
     layer.setDepth(0);
     this.layer = layer;
+  }
+
+  private buildProps(): void {
+    this.propColliders = [];
+    for (const placement of this.map.props) {
+      const def = PROPS[placement.key];
+      if (!def) continue;
+      const px = placement.x * TILE_SIZE;
+      const py = placement.y * TILE_SIZE;
+      const img = this.add.image(px, py, placement.key).setOrigin(0.5, 1);
+      img.setDepth(py - 1);
+      if (def.solid) {
+        // Collide only against a shallow strip at the base of the sprite
+        // (its "feet"), so tall props like trees/buildings still let the
+        // player walk visually in front of/behind their upper portion.
+        const baseH = Math.max(6, Math.round(def.h * 0.22));
+        const baseW = Math.round(def.w * 0.7);
+        const collider = this.add.rectangle(px, py - baseH / 2, baseW, baseH);
+        collider.setVisible(false);
+        this.physics.add.existing(collider, true);
+        this.propColliders.push(collider);
+      }
+    }
   }
 
   private buildPlayer(): void {

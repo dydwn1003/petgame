@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { PIXEL_FONT } from "./theme";
 
 export interface ModalOption {
   label: string;
@@ -26,13 +27,13 @@ export class Modal {
       .setStrokeStyle(3, 0x3d2314)
       .setOrigin(0);
     this.titleText = scene.add.text(16, 12, "", {
-      fontFamily: "monospace",
+      fontFamily: PIXEL_FONT,
       fontSize: "18px",
       color: "#ffcf8b",
       fontStyle: "bold",
     });
     this.bodyText = scene.add.text(16, 44, "", {
-      fontFamily: "monospace",
+      fontFamily: PIXEL_FONT,
       fontSize: "14px",
       color: "#fdf6ec",
       wordWrap: { width: w - 32 },
@@ -55,7 +56,7 @@ export class Modal {
     let y = 44 + this.bodyText.height + 12;
     this.optionTexts = options.map((opt, i) => {
       const t = this.scene.add.text(16, y, `[${i + 1}] ${opt.label}`, {
-        fontFamily: "monospace",
+        fontFamily: PIXEL_FONT,
         fontSize: "14px",
         color: "#9be3ff",
       });
@@ -70,7 +71,7 @@ export class Modal {
       return t;
     });
     const closeHint = this.scene.add.text(16, y + 4, "[ESC] 닫기 / 탭하여 닫기", {
-      fontFamily: "monospace",
+      fontFamily: PIXEL_FONT,
       fontSize: "12px",
       color: "#a89cad",
     });

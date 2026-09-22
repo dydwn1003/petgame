@@ -4,6 +4,12 @@ export const TILE_SIZE = 16;
 export const MAP_W = 60;
 export const MAP_H = 40;
 
+export interface PropPlacement {
+  key: string;
+  x: number; // tile x of the prop's bottom-center anchor
+  y: number; // tile y of the prop's bottom-center anchor
+}
+
 export interface MapInfo {
   tiles: TileKey[][]; // [y][x]
   farmArea: { x0: number; y0: number; x1: number; y1: number };
@@ -13,6 +19,7 @@ export interface MapInfo {
   shippingBin: { x: number; y: number };
   bed: { x: number; y: number };
   spawn: { x: number; y: number };
+  props: PropPlacement[];
 }
 
 function rand(seed: { v: number }): number {
@@ -131,6 +138,43 @@ export function buildMap(): MapInfo {
 
   const spawn = { x: plazaCx, y: plazaCy + 5 };
 
+  // --- decorative props: buildings, trees, dock dressing ---
+  const props: PropPlacement[] = [
+    // farm: farmhouse + barn + silo tucked into the grass margin south of the fields
+    { key: "prop_farmhouse", x: 8, y: 38 },
+    { key: "prop_barn", x: 15, y: 38 },
+    { key: "prop_silo", x: 19, y: 38 },
+    { key: "prop_tree0", x: 2, y: 8 },
+    { key: "prop_tree1", x: 2, y: 16 },
+    { key: "prop_tree2", x: 2, y: 24 },
+    { key: "prop_tree0", x: 6, y: 2 },
+    { key: "prop_tree1", x: 14, y: 2 },
+
+    // harbor: tea house on the sand, boats bobbing near the pier
+    { key: "prop_cafe", x: 55, y: 16 },
+    { key: "prop_boat", x: 46, y: 7 },
+    { key: "prop_boat", x: 53, y: 5 },
+    { key: "prop_tree2", x: 41, y: 12 },
+    { key: "prop_tree0", x: 58, y: 5 },
+
+    // plaza: sunflower-ringed fountain already placed; frame it with trees,
+    // benches, and lamps along the circular path
+    { key: "prop_tree1", x: plaza.x0 - 1, y: plaza.y0 - 1 },
+    { key: "prop_tree2", x: plaza.x1 + 1, y: plaza.y0 - 1 },
+    { key: "prop_tree1", x: plaza.x0 - 1, y: plaza.y1 + 1 },
+    { key: "prop_tree2", x: plaza.x1 + 1, y: plaza.y1 + 1 },
+    { key: "prop_bench", x: plazaCx - 5, y: plazaCy - 4 },
+    { key: "prop_bench", x: plazaCx + 5, y: plazaCy - 4 },
+    { key: "prop_bench", x: plazaCx - 5, y: plazaCy + 4 },
+    { key: "prop_bench", x: plazaCx + 5, y: plazaCy + 4 },
+    { key: "prop_lamp", x: plaza.x0 + 1, y: plaza.y0 },
+    { key: "prop_lamp", x: plaza.x1 - 1, y: plaza.y0 },
+    { key: "prop_lamp", x: plaza.x0 + 1, y: plaza.y1 },
+    { key: "prop_lamp", x: plaza.x1 - 1, y: plaza.y1 },
+    { key: "prop_bush", x: 26, y: 9 },
+    { key: "prop_bush", x: 36, y: 9 },
+  ];
+
   return {
     tiles,
     farmArea: farm,
@@ -140,6 +184,7 @@ export function buildMap(): MapInfo {
     shippingBin,
     bed,
     spawn,
+    props,
   };
 }
 

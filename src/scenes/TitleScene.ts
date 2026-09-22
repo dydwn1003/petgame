@@ -3,6 +3,7 @@ import type { Species } from "../gfx/characters";
 import { GameState } from "../state/GameState";
 import { BREEDS, breedsForSpecies, type BreedDef } from "../data/breeds";
 import { fitScale } from "../gfx/registerTextures";
+import { PIXEL_FONT } from "../ui/theme";
 
 const PREVIEW_WIDTH = 96;
 
@@ -30,7 +31,7 @@ export class TitleScene extends Phaser.Scene {
 
     this.add
       .text(w / 2, 46, "포근포근 펫빌리지", {
-        fontFamily: "monospace",
+        fontFamily: PIXEL_FONT,
         fontSize: "34px",
         color: "#fdf6ec",
         fontStyle: "bold",
@@ -38,7 +39,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.add
       .text(w / 2, 82, "고양이 · 강아지 · 햄스터와 함께 가꾸는 힐링 도트 낙원", {
-        fontFamily: "monospace",
+        fontFamily: PIXEL_FONT,
         fontSize: "13px",
         color: "#c9bfe0",
       })
@@ -46,7 +47,7 @@ export class TitleScene extends Phaser.Scene {
 
     this.add
       .text(w / 2, 116, "당신의 캐릭터를 선택하세요", {
-        fontFamily: "monospace",
+        fontFamily: PIXEL_FONT,
         fontSize: "15px",
         color: "#ffcf8b",
       })
@@ -67,7 +68,7 @@ export class TitleScene extends Phaser.Scene {
       tab.on("pointerdown", () => this.selectSpecies(info.id));
       this.speciesTabs.push(tab);
       this.add
-        .text(cx, cy, `[${i + 1}] ${info.label}`, { fontFamily: "monospace", fontSize: "14px", color: "#fdf6ec" })
+        .text(cx, cy, `[${i + 1}] ${info.label}`, { fontFamily: PIXEL_FONT, fontSize: "14px", color: "#fdf6ec" })
         .setOrigin(0.5);
     });
 
@@ -82,7 +83,7 @@ export class TitleScene extends Phaser.Scene {
 
     this.add
       .text(w / 2, buttonY + 40, "숫자 1~3: 종족 탭   품종은 카드를 눌러 선택   Enter: 새 게임" + (hasSave ? "   C: 이어하기" : ""), {
-        fontFamily: "monospace",
+        fontFamily: PIXEL_FONT,
         fontSize: "11px",
         color: "#786d8a",
         align: "center",
@@ -91,7 +92,7 @@ export class TitleScene extends Phaser.Scene {
 
     this.add
       .text(w / 2, h - 24, "이동: WASD/방향키 (모바일: 화면 버튼)   상호작용: E   도구 선택: 1-4", {
-        fontFamily: "monospace",
+        fontFamily: PIXEL_FONT,
         fontSize: "12px",
         color: "#786d8a",
       })
@@ -139,11 +140,11 @@ export class TitleScene extends Phaser.Scene {
       const previewKey = `char_${breed.id}_down_0`;
       const preview = this.add.image(cx, cy - 40, previewKey).setScale(fitScale(this, previewKey, PREVIEW_WIDTH));
       const label = this.add
-        .text(cx, cy + 44, breed.label, { fontFamily: "monospace", fontSize: "15px", color: "#fdf6ec" })
+        .text(cx, cy + 44, breed.label, { fontFamily: PIXEL_FONT, fontSize: "15px", color: "#fdf6ec" })
         .setOrigin(0.5);
       const desc = this.add
         .text(cx, cy + 68, breed.desc, {
-          fontFamily: "monospace",
+          fontFamily: PIXEL_FONT,
           fontSize: "10px",
           color: "#a89cad",
           align: "center",
@@ -170,7 +171,7 @@ export class TitleScene extends Phaser.Scene {
       .setStrokeStyle(3, 0x3d2314)
       .setInteractive({ useHandCursor: true });
     this.add
-      .text(cx, cy, label, { fontFamily: "monospace", fontSize: "16px", color: "#241b2e", fontStyle: "bold" })
+      .text(cx, cy, label, { fontFamily: PIXEL_FONT, fontSize: "16px", color: "#241b2e", fontStyle: "bold" })
       .setOrigin(0.5);
     bg.on("pointerdown", () => {
       bg.setFillStyle(0xd97f36, 0.95);

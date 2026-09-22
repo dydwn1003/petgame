@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { GameState } from "../state/GameState";
 import { getItem } from "../data/items";
 import { createTapButton, isTouchDevice } from "../ui/TouchControls";
+import { PIXEL_FONT } from "../ui/theme";
 
 const COLS = 7;
 const ROWS = 6;
@@ -58,11 +59,11 @@ export class MiningScene extends Phaser.Scene {
 
     this.add.rectangle(w / 2, h / 2, boardW + 40, boardH + 90, 0x241522, 0.94).setStrokeStyle(3, 0x3d2314);
     this.add
-      .text(w / 2, this.originY - 46, "햄스터 광산", { fontFamily: "monospace", fontSize: "22px", color: "#fdf6ec" })
+      .text(w / 2, this.originY - 46, "햄스터 광산", { fontFamily: PIXEL_FONT, fontSize: "22px", color: "#fdf6ec" })
       .setOrigin(0.5);
     this.add
       .text(w / 2, this.originY - 22, "방향키로 이동, SPACE로 인접한 벽을 채굴하세요", {
-        fontFamily: "monospace",
+        fontFamily: PIXEL_FONT,
         fontSize: "12px",
         color: "#c9bfe0",
       })
@@ -92,13 +93,13 @@ export class MiningScene extends Phaser.Scene {
     this.updateCursorGfx();
 
     this.infoText = this.add
-      .text(w / 2, this.originY + boardH + 30, "", { fontFamily: "monospace", fontSize: "14px", color: "#fdf6ec" })
+      .text(w / 2, this.originY + boardH + 30, "", { fontFamily: PIXEL_FONT, fontSize: "14px", color: "#fdf6ec" })
       .setOrigin(0.5);
     this.updateInfo();
 
     this.add
       .text(w / 2, this.originY + boardH + 52, "[ESC] 채굴 종료하고 나가기", {
-        fontFamily: "monospace",
+        fontFamily: PIXEL_FONT,
         fontSize: "12px",
         color: "#786d8a",
       })

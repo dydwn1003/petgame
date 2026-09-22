@@ -10,8 +10,8 @@ export const OUTLINE = "#3D2314";
 
 export type Grid = (string | null)[][];
 
-export function newGrid(size: number): Grid {
-  return Array.from({ length: size }, () => Array<string | null>(size).fill(null));
+export function newGrid(width: number, height: number = width): Grid {
+  return Array.from({ length: height }, () => Array<string | null>(width).fill(null));
 }
 
 export function setPx(g: Grid, x: number, y: number, color: string | null): void {
@@ -134,14 +134,15 @@ export function shiftGrid(g: Grid, dx: number, dy: number): Grid {
 
 /** Rasterizes a grid to an offscreen canvas at 1 logical pixel = 1 real pixel. */
 export function gridToCanvas(g: Grid): HTMLCanvasElement {
-  const size = g.length;
+  const height = g.length;
+  const width = g[0]?.length ?? 0;
   const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d")!;
   ctx.imageSmoothingEnabled = false;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
       const c = g[y][x];
       if (c) {
         ctx.fillStyle = c;

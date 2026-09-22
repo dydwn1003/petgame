@@ -1,4 +1,5 @@
 import { GameState, MAX_STAGE, type ToolId } from "../state/GameState";
+import { PIXEL_FONT } from "./theme";
 
 const STAGE_NAMES = ["", "잡초 우거진 마을", "북적북적 항구", "해바라기 지하터널", "동물들의 유토피아"];
 
@@ -25,7 +26,7 @@ export class HUD {
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    const panelStyle = { fontFamily: "monospace", fontSize: "14px", color: "#fdf6ec" };
+    const panelStyle = { fontFamily: PIXEL_FONT, fontSize: "14px", color: "#fdf6ec" };
 
     this.scene.add
       .rectangle(0, 0, 260, 54, 0x241b2e, 0.75)
@@ -43,19 +44,19 @@ export class HUD {
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(900);
-    this.goldText = scene.add.text(0, 0, "", { fontFamily: "monospace", fontSize: "16px", color: "#ffcf8b" }).setScrollFactor(0).setDepth(901);
+    this.goldText = scene.add.text(0, 0, "", { fontFamily: PIXEL_FONT, fontSize: "16px", color: "#ffcf8b" }).setScrollFactor(0).setDepth(901);
 
     this.staminaBarBg = scene.add.rectangle(0, 0, 160, 12, 0x3d2314).setOrigin(0).setScrollFactor(0).setDepth(901);
     this.staminaBar = scene.add.rectangle(0, 0, 160, 12, 0x7fd06a).setOrigin(0).setScrollFactor(0).setDepth(902);
 
     this.hintText = scene.add
-      .text(0, 0, "", { fontFamily: "monospace", fontSize: "13px", color: "#fdf6ec", backgroundColor: "#241b2eb0" })
+      .text(0, 0, "", { fontFamily: PIXEL_FONT, fontSize: "13px", color: "#fdf6ec", backgroundColor: "#241b2eb0" })
       .setPadding(6, 4, 6, 4)
       .setScrollFactor(0)
       .setDepth(901);
 
     this.toastText = scene.add
-      .text(0, 0, "", { fontFamily: "monospace", fontSize: "15px", color: "#fff6e0", backgroundColor: "#241b2ecc" })
+      .text(0, 0, "", { fontFamily: PIXEL_FONT, fontSize: "15px", color: "#fff6e0", backgroundColor: "#241b2ecc" })
       .setPadding(10, 6, 10, 6)
       .setOrigin(0.5)
       .setScrollFactor(0)
@@ -74,7 +75,7 @@ export class HUD {
       });
       const icon = scene.add.image(0, 0, TOOLS[i].icon).setScale(2).setScrollFactor(0).setDepth(901);
       const count = scene.add
-        .text(0, 0, "", { fontFamily: "monospace", fontSize: "11px", color: "#fdf6ec" })
+        .text(0, 0, "", { fontFamily: PIXEL_FONT, fontSize: "11px", color: "#fdf6ec" })
         .setScrollFactor(0)
         .setDepth(902);
       this.hotbarSlots.push(slot);

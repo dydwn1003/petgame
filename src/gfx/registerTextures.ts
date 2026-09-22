@@ -5,6 +5,7 @@ import { addApron, addBandana, addVest, buildCharacter } from "./characters";
 import { BREEDS, getBreed } from "../data/breeds";
 import { NPCS } from "../data/npcs";
 import { hasImageArt, IMAGE_BREEDS } from "./spriteAssets";
+import { registerProps } from "./props";
 
 export const TILESET_KEY = "tileset";
 const DIRS = ["down", "up", "left", "right"] as const;
@@ -140,6 +141,7 @@ export function registerAllArt(scene: Phaser.Scene): void {
   registerIcons(scene);
   registerCharacters(scene);
   createAnimations(scene);
+  registerProps(scene);
 }
 
 /**
