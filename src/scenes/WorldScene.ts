@@ -82,11 +82,11 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private buildPlayer(): void {
-    const species = GameState.data.species;
+    const breed = GameState.data.breed;
     const startX = GameState.data.x || this.map.spawn.x * TILE_SIZE;
     const startY = GameState.data.y || this.map.spawn.y * TILE_SIZE;
-    const sprite = this.physics.add.sprite(startX, startY, `char_${species}_down_0`);
-    sprite.setSize(16, 12).setOffset(8, 18);
+    const sprite = this.physics.add.sprite(startX, startY, `char_${breed}_down_0`);
+    sprite.setSize(32, 24).setOffset(16, 36);
     sprite.setDepth(startY);
     this.player = sprite;
     this.physics.add.collider(this.player, this.layer);
@@ -225,15 +225,15 @@ export class WorldScene extends Phaser.Scene {
       this.player.setVelocity(0, 0);
     }
 
-    const species = GameState.data.species;
+    const breed = GameState.data.breed;
     const dirKey = this.facing === "left" || this.facing === "right" ? "side" : this.facing;
     this.player.setFlipX(this.facing === "left");
-    const animKey = `char_${species}_walk_${dirKey}`;
+    const animKey = `char_${breed}_walk_${dirKey}`;
     if (moving) {
       if (this.player.anims.currentAnim?.key !== animKey) this.player.play(animKey);
     } else {
       this.player.anims.stop();
-      this.player.setTexture(`char_${species}_${dirKey}_0`);
+      this.player.setTexture(`char_${breed}_${dirKey}_0`);
     }
   }
 

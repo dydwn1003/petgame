@@ -1,16 +1,20 @@
 import Phaser from "phaser";
 import type { Species } from "../gfx/characters";
 import { GameState } from "../state/GameState";
+import { BREEDS, breedsForSpecies, type BreedDef } from "../data/breeds";
 
-const SPECIES_INFO: { id: Species; label: string; desc: string }[] = [
-  { id: "dog", label: "강아지", desc: "농경에 특화된 성실한 캐릭터" },
-  { id: "cat", label: "고양이", desc: "낚시에 능한 여유로운 캐릭터" },
-  { id: "hamster", label: "햄스터", desc: "채광에 강한 부지런한 캐릭터" },
+const SPECIES_INFO: { id: Species; label: string }[] = [
+  { id: "dog", label: "강아지" },
+  { id: "cat", label: "고양이" },
+  { id: "hamster", label: "햄스터" },
 ];
 
 export class TitleScene extends Phaser.Scene {
-  private selected: Species = "dog";
-  private boxes: Phaser.GameObjects.Rectangle[] = [];
+  private species: Species = "dog";
+  private breedId: string = BREEDS[0].id;
+  private speciesTabs: Phaser.GameObjects.Rectangle[] = [];
+  private breedCards: Phaser.GameObjects.Rectangle[] = [];
+  private breedLayer!: Phaser.GameObjects.Container;
 
   constructor() {
     super("Title");
@@ -22,97 +26,138 @@ export class TitleScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor("#1a1625");
 
     this.add
-      .text(w / 2, 70, "포근포근 펫빌리지", {
+      .text(w / 2, 46, "포근포근 펫빌리지", {
         fontFamily: "monospace",
-        fontSize: "40px",
+        fontSize: "34px",
         color: "#fdf6ec",
         fontStyle: "bold",
       })
       .setOrigin(0.5);
     this.add
-      .text(w / 2, 112, "고양이 · 강아지 · 햄스터와 함께 가꾸는 힐링 도트 낙원", {
+      .text(w / 2, 82, "고양이 · 강아지 · 햄스터와 함께 가꾸는 힐링 도트 낙원", {
         fontFamily: "monospace",
-        fontSize: "14px",
+        fontSize: "13px",
         color: "#c9bfe0",
       })
       .setOrigin(0.5);
 
     this.add
-      .text(w / 2, 160, "당신의 캐릭터를 선택하세요", {
+      .text(w / 2, 116, "당신의 캐릭터를 선택하세요", {
         fontFamily: "monospace",
-        fontSize: "16px",
+        fontSize: "15px",
         color: "#ffcf8b",
       })
       .setOrigin(0.5);
 
-    const boxW = 160;
-    const gap = 24;
-    const totalW = SPECIES_INFO.length * boxW + (SPECIES_INFO.length - 1) * gap;
-    const startX = w / 2 - totalW / 2 + boxW / 2;
-
+    // --- species tabs ---
+    const tabW = 140;
+    const tabGap = 16;
+    const tabTotal = SPECIES_INFO.length * tabW + (SPECIES_INFO.length - 1) * tabGap;
+    const tabStartX = w / 2 - tabTotal / 2 + tabW / 2;
     SPECIES_INFO.forEach((info, i) => {
-      const cx = startX + i * (boxW + gap);
-      const cy = 260;
-      const box = this.add
-        .rectangle(cx, cy, boxW, 150, 0x241b2e, 0.85)
-        .setStrokeStyle(3, 0x3d2314)
+      const cx = tabStartX + i * (tabW + tabGap);
+      const cy = 150;
+      const tab = this.add
+        .rectangle(cx, cy, tabW, 34, 0x241b2e, 0.9)
+        .setStrokeStyle(2, 0x3d2314)
         .setInteractive({ useHandCursor: true });
-      box.on("pointerdown", () => this.select(info.id));
-      this.boxes.push(box);
-
-      this.add.image(cx, cy - 30, `char_${info.id}_down_0`).setScale(2.2);
+      tab.on("pointerdown", () => this.selectSpecies(info.id));
+      this.speciesTabs.push(tab);
       this.add
-        .text(cx, cy + 32, `[${i + 1}] ${info.label}`, {
-          fontFamily: "monospace",
-          fontSize: "16px",
-          color: "#fdf6ec",
-        })
-        .setOrigin(0.5);
-      this.add
-        .text(cx, cy + 56, info.desc, {
-          fontFamily: "monospace",
-          fontSize: "11px",
-          color: "#a89cad",
-          align: "center",
-          wordWrap: { width: boxW - 16 },
-        })
+        .text(cx, cy, `[${i + 1}] ${info.label}`, { fontFamily: "monospace", fontSize: "14px", color: "#fdf6ec" })
         .setOrigin(0.5);
     });
 
+    this.breedLayer = this.add.container(0, 0);
+
     const hasSave = GameState.hasSave();
-    const buttonY = 400;
+    const buttonY = 470;
     this.makeButton(hasSave ? w / 2 - 100 : w / 2, buttonY, "게임 시작", () => this.startNewGame());
     if (hasSave) {
       this.makeButton(w / 2 + 100, buttonY, "이어하기", () => this.continueGame());
     }
 
     this.add
-      .text(w / 2, buttonY + 46, "숫자 1~3: 종족 선택   Enter: 새 게임" + (hasSave ? "   C: 이어하기" : ""), {
+      .text(w / 2, buttonY + 40, "숫자 1~3: 종족 탭   품종은 카드를 눌러 선택   Enter: 새 게임" + (hasSave ? "   C: 이어하기" : ""), {
         fontFamily: "monospace",
-        fontSize: "12px",
+        fontSize: "11px",
         color: "#786d8a",
         align: "center",
       })
       .setOrigin(0.5);
 
     this.add
-      .text(
-        w / 2,
-        h - 40,
-        "이동: WASD/방향키 (모바일: 화면 버튼)   상호작용: E   도구 선택: 1-4",
-        { fontFamily: "monospace", fontSize: "12px", color: "#786d8a" }
-      )
+      .text(w / 2, h - 24, "이동: WASD/방향키 (모바일: 화면 버튼)   상호작용: E   도구 선택: 1-4", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#786d8a",
+      })
       .setOrigin(0.5);
 
-    this.select("dog");
+    this.selectSpecies("dog");
 
     this.input.keyboard?.on("keydown", (e: KeyboardEvent) => {
-      if (e.key === "1") this.select("dog");
-      if (e.key === "2") this.select("cat");
-      if (e.key === "3") this.select("hamster");
+      if (e.key === "1") this.selectSpecies("dog");
+      if (e.key === "2") this.selectSpecies("cat");
+      if (e.key === "3") this.selectSpecies("hamster");
       if (e.key === "Enter") this.startNewGame();
       if (e.key.toLowerCase() === "c" && GameState.hasSave()) this.continueGame();
     });
+  }
+
+  private selectSpecies(species: Species): void {
+    this.species = species;
+    const idx = SPECIES_INFO.findIndex((s) => s.id === species);
+    this.speciesTabs.forEach((t, i) => t.setStrokeStyle(2, i === idx ? 0xffcf8b : 0x3d2314));
+    this.buildBreedCards();
+  }
+
+  private buildBreedCards(): void {
+    this.breedLayer.removeAll(true);
+    this.breedCards = [];
+
+    const breeds = breedsForSpecies(this.species);
+    const w = this.scale.width;
+    const cardW = 160;
+    const gap = 20;
+    const totalW = breeds.length * cardW + (breeds.length - 1) * gap;
+    const startX = w / 2 - totalW / 2 + cardW / 2;
+    const cy = 300;
+
+    breeds.forEach((breed, i) => {
+      const cx = startX + i * (cardW + gap);
+      const card = this.add
+        .rectangle(cx, cy, cardW, 190, 0x241b2e, 0.85)
+        .setStrokeStyle(3, 0x3d2314)
+        .setInteractive({ useHandCursor: true });
+      card.on("pointerdown", () => this.selectBreed(breed));
+      this.breedCards.push(card);
+
+      const preview = this.add.image(cx, cy - 40, `char_${breed.id}_down_0`).setScale(2.1);
+      const label = this.add
+        .text(cx, cy + 44, breed.label, { fontFamily: "monospace", fontSize: "15px", color: "#fdf6ec" })
+        .setOrigin(0.5);
+      const desc = this.add
+        .text(cx, cy + 68, breed.desc, {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#a89cad",
+          align: "center",
+          wordWrap: { width: cardW - 16 },
+        })
+        .setOrigin(0.5);
+
+      this.breedLayer.add([card, preview, label, desc]);
+    });
+
+    this.selectBreed(breeds[0]);
+  }
+
+  private selectBreed(breed: BreedDef): void {
+    this.breedId = breed.id;
+    const breeds = breedsForSpecies(this.species);
+    const idx = breeds.findIndex((b) => b.id === breed.id);
+    this.breedCards.forEach((c, i) => c.setStrokeStyle(3, i === idx ? 0xffcf8b : 0x3d2314));
   }
 
   private makeButton(cx: number, cy: number, label: string, onTap: () => void): void {
@@ -130,14 +175,8 @@ export class TitleScene extends Phaser.Scene {
     bg.on("pointerup", () => bg.setFillStyle(0xff9a4d, 0.95));
   }
 
-  private select(species: Species): void {
-    this.selected = species;
-    const idx = SPECIES_INFO.findIndex((s) => s.id === species);
-    this.boxes.forEach((b, i) => b.setStrokeStyle(3, i === idx ? 0xffcf8b : 0x3d2314));
-  }
-
   private startNewGame(): void {
-    GameState.newGame(this.selected);
+    GameState.newGame(this.species, this.breedId);
     this.scene.start("World");
   }
 

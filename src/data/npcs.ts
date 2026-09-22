@@ -5,6 +5,7 @@ export interface NpcDef {
   name: string;
   role: string;
   species: "dog" | "cat" | "hamster";
+  breedId: string;
   lovedGifts: string[];
   likedGifts: string[];
   tileX: number;
@@ -18,6 +19,7 @@ export const NPCS: NpcDef[] = [
     name: "마로 (Maro)",
     role: "마을 이장 및 농경 안내자",
     species: "dog",
+    breedId: "jindo",
     lovedGifts: ["CROP_BONE_CARROT"],
     likedGifts: ["SEED_BONE_CARROT", "CROP_STRAWBERRY"],
     tileX: 14,
@@ -33,6 +35,7 @@ export const NPCS: NpcDef[] = [
     name: "샤샤 (Sasha)",
     role: "항구 카페 오너 겸 요리사",
     species: "cat",
+    breedId: "mackerel_tabby",
     lovedGifts: ["FISH_DRIED", "CATNIP"],
     likedGifts: ["FISH_ANCHOVY"],
     tileX: 46,
@@ -48,6 +51,7 @@ export const NPCS: NpcDef[] = [
     name: "볼볼 (Bolbol)",
     role: "광산 상인",
     species: "hamster",
+    breedId: "syrian",
     lovedGifts: ["ORE_GOLD", "GEM_BLUE"],
     likedGifts: ["ORE_COPPER"],
     tileX: 46,

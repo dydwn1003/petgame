@@ -1,7 +1,8 @@
 import { gridToCanvas, registerGrid, type Grid } from "./pixelart";
 import { buildTileGrids, TILE_KEYS, type TileKey } from "./tiles";
 import { buildIconGrids } from "./icons";
-import { addApron, addBandana, addVest, buildCharacter, type Species } from "./characters";
+import { addApron, addBandana, addVest, buildCharacter } from "./characters";
+import { BREEDS, getBreed } from "../data/breeds";
 import { NPCS } from "../data/npcs";
 
 export const TILESET_KEY = "tileset";
@@ -35,8 +36,6 @@ export function registerIcons(scene: Phaser.Scene): void {
   }
 }
 
-const SPECIES: Species[] = ["dog", "cat", "hamster"];
-
 function regFrames(scene: Phaser.Scene, prefix: string, frames: { down: Grid[]; up: Grid[]; side: Grid[] }): void {
   frames.down.forEach((g, i) => registerGrid(scene, `${prefix}_down_${i}`, g));
   frames.up.forEach((g, i) => registerGrid(scene, `${prefix}_up_${i}`, g));
@@ -44,13 +43,13 @@ function regFrames(scene: Phaser.Scene, prefix: string, frames: { down: Grid[]; 
 }
 
 export function registerCharacters(scene: Phaser.Scene): void {
-  for (const sp of SPECIES) {
-    const frames = buildCharacter(sp);
-    regFrames(scene, `char_${sp}`, frames);
+  for (const breed of BREEDS) {
+    const frames = buildCharacter(breed);
+    regFrames(scene, `char_${breed.id}`, frames);
   }
 
   for (const npc of NPCS) {
-    const frames = buildCharacter(npc.species);
+    const frames = buildCharacter(getBreed(npc.breedId));
     if (npc.npc_id === "NPC_DOG_MARO") {
       frames.down = frames.down.map((g) => addBandana(g, "#d9534f"));
       frames.side = frames.side.map((g) => addBandana(g, "#d9534f"));
@@ -68,7 +67,7 @@ export function registerCharacters(scene: Phaser.Scene): void {
 
 export function createAnimations(scene: Phaser.Scene): void {
   const dirs: Array<"down" | "up" | "side"> = ["down", "up", "side"];
-  const actors = [...SPECIES.map((s) => `char_${s}`), ...NPCS.map((n) => `npc_${n.npc_id}`)];
+  const actors = [...BREEDS.map((b) => `char_${b.id}`), ...NPCS.map((n) => `npc_${n.npc_id}`)];
   for (const actor of actors) {
     for (const dir of dirs) {
       const key = `${actor}_walk_${dir}`;

@@ -18,6 +18,7 @@ export type ToolId = "hoe" | "water" | "seed_carrot" | "seed_straw";
 
 export interface SaveData {
   species: Species;
+  breed: string;
   x: number;
   y: number;
   gold: number;
@@ -37,9 +38,10 @@ export interface SaveData {
 
 const SAVE_KEY = "petvillage_save_v1";
 
-function freshSave(species: Species): SaveData {
+function freshSave(species: Species, breed: string): SaveData {
   return {
     species,
+    breed,
     x: 400,
     y: 420,
     gold: 300,
@@ -59,7 +61,7 @@ function freshSave(species: Species): SaveData {
 }
 
 class GameStateStore {
-  data: SaveData = freshSave("dog");
+  data: SaveData = freshSave("dog", "jindo");
   listeners: Array<() => void> = [];
   started = false;
   private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -82,8 +84,8 @@ class GameStateStore {
     }, 400);
   }
 
-  newGame(species: Species): void {
-    this.data = freshSave(species);
+  newGame(species: Species, breed: string): void {
+    this.data = freshSave(species, breed);
     this.started = true;
     this.save();
     this.notify();
@@ -97,7 +99,7 @@ class GameStateStore {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
     try {
-      this.data = { ...freshSave("dog"), ...JSON.parse(raw) };
+      this.data = { ...freshSave("dog", "jindo"), ...JSON.parse(raw) };
       this.started = true;
       this.notify();
       return true;

@@ -49,6 +49,29 @@ export function fillEllipse(g: Grid, cx: number, cy: number, rx: number, ry: num
   }
 }
 
+/**
+ * Like fillEllipse, but only paints over pixels that are already filled.
+ * Used for fur patterns (stripes/patches/etc.) so they stay clipped inside
+ * the silhouette already drawn instead of spilling into transparent space.
+ */
+export function fillEllipseMasked(g: Grid, cx: number, cy: number, rx: number, ry: number, color: string): void {
+  for (let yy = Math.floor(cy - ry); yy <= Math.ceil(cy + ry); yy++) {
+    for (let xx = Math.floor(cx - rx); xx <= Math.ceil(cx + rx); xx++) {
+      const dx = (xx - cx + 0.5) / rx;
+      const dy = (yy - cy + 0.5) / ry;
+      if (dx * dx + dy * dy <= 1.05 && getPx(g, xx, yy) !== null) setPx(g, xx, yy, color);
+    }
+  }
+}
+
+export function fillRectMasked(g: Grid, x: number, y: number, w: number, h: number, color: string): void {
+  for (let yy = y; yy < y + h; yy++) {
+    for (let xx = x; xx < x + w; xx++) {
+      if (getPx(g, xx, yy) !== null) setPx(g, xx, yy, color);
+    }
+  }
+}
+
 export function polygon(g: Grid, pts: [number, number][], color: string): void {
   let minY = Infinity, maxY = -Infinity;
   for (const [, y] of pts) { minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
