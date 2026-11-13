@@ -9,6 +9,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: root("./index.html"),
+        echo: root("./echo.html"),
         sword: root("./sword.html"),
       },
     },

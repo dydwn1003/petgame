@@ -4,27 +4,27 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>메아리 미로</title>
+    <title>별의 지팡이</title>
   </head>
   <body>
-    <canvas id="view"></canvas>
+    <div id="stage">
+      <canvas id="screen" width="480" height="270"></canvas>
 
-    <div class="hud" id="hud">
-      <span id="hudLevel">레벨 1</span>
-      <span id="hudEchoes">음파 0</span>
-      <span id="hudTime">0.0초</span>
-    </div>
+      <div id="card" class="card hidden"></div>
 
-    <button class="echo-btn" id="echoBtn" aria-label="음파 쏘기">))</button>
+      <div id="dialog" class="dialog hidden">
+        <div class="who" id="who"></div>
+        <div class="text" id="text"></div>
+        <div class="next">▼</div>
+      </div>
 
-    <div class="overlay" id="overlay">
-      <div class="card">
-        <h1 id="ovTitle">🦇 메아리 미로</h1>
-        <div id="ovBody"></div>
-        <div class="ov-buttons" id="ovButtons"></div>
+      <div id="menu" class="menu hidden">
+        <h1 id="menuTitle"></h1>
+        <p id="menuSub"></p>
+        <div id="menuButtons" class="menu-buttons"></div>
       </div>
     </div>
-
-    <script type="module" src="/src/echo/main.ts"></script>
+    <div id="rotate">📱 가로로 돌리면 더 크게 볼 수 있어요</div>
+    <script type="module" src="/src/wand/main.ts"></script>
   </body>
 </html>
