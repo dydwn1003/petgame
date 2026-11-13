@@ -3,53 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>검 강화하기</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>메아리 미로</title>
   </head>
   <body>
-    <main id="app">
-      <header class="top">
-        <div class="gold">💰 <span id="gold">0</span> G</div>
-        <div class="best">최고 <span id="best">+0</span></div>
-      </header>
+    <canvas id="view"></canvas>
 
-      <section class="stage" id="stage">
-        <div class="level" id="level">+0</div>
-        <div class="sword-wrap" id="swordWrap"></div>
-        <div class="name" id="name">나뭇가지</div>
-        <div class="toast" id="toast"></div>
-      </section>
+    <div class="hud" id="hud">
+      <span id="hudLevel">레벨 1</span>
+      <span id="hudEchoes">음파 0</span>
+      <span id="hudTime">0.0초</span>
+    </div>
 
-      <section class="info">
-        <div class="row"><span>성공 확률</span><b id="rate">95%</b></div>
-        <div class="row"><span>강화 비용</span><b id="cost">10 G</b></div>
-        <div class="row"><span>실패 시</span><b id="failRule">유지</b></div>
-        <div class="row"><span>판매 가격</span><b id="sellPrice">0 G</b></div>
-      </section>
+    <button class="echo-btn" id="echoBtn" aria-label="음파 쏘기">))</button>
 
-      <label class="protect" id="protectRow">
-        <input type="checkbox" id="protect" />
-        <span>🛡️ 파괴 방지권 사용 (<b id="protectCost">0</b> G 추가)</span>
-      </label>
+    <div class="overlay" id="overlay">
+      <div class="card">
+        <h1 id="ovTitle">🦇 메아리 미로</h1>
+        <div id="ovBody"></div>
+        <div class="ov-buttons" id="ovButtons"></div>
+      </div>
+    </div>
 
-      <section class="buttons">
-        <button class="btn primary" id="enhanceBtn">⚒️ 강화하기</button>
-        <button class="btn" id="sellBtn">💸 판매</button>
-      </section>
-      <button class="btn work" id="workBtn">⛏️ 광산 알바 (+5 G)</button>
-
-      <section class="log">
-        <div class="log-title">강화 기록</div>
-        <ul id="log"></ul>
-      </section>
-
-      <footer class="stats">
-        <span>시도 <b id="tries">0</b></span>
-        <span>파괴 <b id="destroyed">0</b></span>
-        <span>판매 <b id="sold">0</b></span>
-        <button class="reset" id="resetBtn">처음부터</button>
-      </footer>
-    </main>
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/echo/main.ts"></script>
   </body>
 </html>

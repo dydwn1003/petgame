@@ -1,4 +1,4 @@
-import "./fonts.css";
+import "../fonts.css";
 import "./style.css";
 import {
   MAX_LEVEL,
