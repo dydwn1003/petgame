@@ -4,13 +4,11 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>별의 지팡이</title>
+    <title>마법사의 여정</title>
   </head>
-  <body>
+  <body data-mode="title">
     <div id="stage">
       <canvas id="screen" width="480" height="270"></canvas>
-
-      <div id="card" class="card hidden"></div>
 
       <div id="dialog" class="dialog hidden">
         <div class="who" id="who"></div>
@@ -18,13 +16,22 @@
         <div class="next">▼</div>
       </div>
 
-      <div id="menu" class="menu hidden">
-        <h1 id="menuTitle"></h1>
-        <p id="menuSub"></p>
-        <div id="menuButtons" class="menu-buttons"></div>
+      <div id="panel" class="panel hidden"></div>
+
+      <div class="touch touch-world">
+        <button data-k="menu" class="small">수첩</button>
+        <button data-k="act" class="big">A</button>
+      </div>
+      <div class="touch touch-battle">
+        <button data-k="run" class="small">도망</button>
+        <button data-k="potion" class="small">물약</button>
+        <button data-k="dash" class="mid">회피</button>
+        <button data-k="s2" class="mid">L</button>
+        <button data-k="s1" class="mid">K</button>
+        <button data-k="basic" class="big">공격</button>
       </div>
     </div>
     <div id="rotate">📱 가로로 돌리면 더 크게 볼 수 있어요</div>
-    <script type="module" src="/src/wand/main.ts"></script>
+    <script type="module" src="/src/tamer/main.ts"></script>
   </body>
 </html>
