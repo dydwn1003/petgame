@@ -3,53 +3,53 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>포근포근 펫빌리지</title>
-    <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        background: #1a1625;
-        overflow: hidden;
-        overscroll-behavior: none;
-        touch-action: none;
-      }
-      #app {
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      canvas {
-        image-rendering: pixelated;
-        touch-action: none;
-      }
-      #rotate-hint {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 10000;
-        padding: 8px 12px;
-        background: #ff9a4d;
-        color: #241b2e;
-        font: 13px "Galmuri11", monospace;
-        text-align: center;
-      }
-      @media (orientation: portrait) and (pointer: coarse) {
-        #rotate-hint {
-          display: block;
-        }
-      }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>검 강화하기</title>
   </head>
   <body>
-    <div id="rotate-hint">📱↻ 가로 모드로 돌리면 더 넓게 플레이할 수 있어요</div>
-    <div id="app"></div>
+    <main id="app">
+      <header class="top">
+        <div class="gold">💰 <span id="gold">0</span> G</div>
+        <div class="best">최고 <span id="best">+0</span></div>
+      </header>
+
+      <section class="stage" id="stage">
+        <div class="level" id="level">+0</div>
+        <div class="sword-wrap" id="swordWrap"></div>
+        <div class="name" id="name">나뭇가지</div>
+        <div class="toast" id="toast"></div>
+      </section>
+
+      <section class="info">
+        <div class="row"><span>성공 확률</span><b id="rate">95%</b></div>
+        <div class="row"><span>강화 비용</span><b id="cost">10 G</b></div>
+        <div class="row"><span>실패 시</span><b id="failRule">유지</b></div>
+        <div class="row"><span>판매 가격</span><b id="sellPrice">0 G</b></div>
+      </section>
+
+      <label class="protect" id="protectRow">
+        <input type="checkbox" id="protect" />
+        <span>🛡️ 파괴 방지권 사용 (<b id="protectCost">0</b> G 추가)</span>
+      </label>
+
+      <section class="buttons">
+        <button class="btn primary" id="enhanceBtn">⚒️ 강화하기</button>
+        <button class="btn" id="sellBtn">💸 판매</button>
+      </section>
+      <button class="btn work" id="workBtn">⛏️ 광산 알바 (+5 G)</button>
+
+      <section class="log">
+        <div class="log-title">강화 기록</div>
+        <ul id="log"></ul>
+      </section>
+
+      <footer class="stats">
+        <span>시도 <b id="tries">0</b></span>
+        <span>파괴 <b id="destroyed">0</b></span>
+        <span>판매 <b id="sold">0</b></span>
+        <button class="reset" id="resetBtn">처음부터</button>
+      </footer>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
