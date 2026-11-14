@@ -1,7 +1,7 @@
 import "../fonts.css";
 import "./style.css";
 import { FONT, H, W, canvas, clock, fx, g, keys, mouse, pressed, tickScripts, unlockAudio, updateFx } from "./core";
-import { S, debug, drawPlay, drawTitle, goScene, update, updateTitle } from "./game";
+import { S, debug, drawPlay, drawTitle, goScene, prewarm, update, updateTitle } from "./game";
 
 const stage = document.getElementById("stage")!;
 
@@ -52,7 +52,9 @@ function frame(now: number): void {
   else update(dt);
   tickScripts();
   updateFx(dt);
-  g.setTransform(1, 0, 0, 1, 0, 0);
+  // 캔버스는 2배 해상도: 게임 좌표 1칸 = 2도트
+  g.setTransform(2, 0, 0, 2, 0, 0);
+  g.imageSmoothingEnabled = false;
   g.fillStyle = "#000";
   g.fillRect(0, 0, W, H);
   if (S.mode === "title") drawTitle();
@@ -104,7 +106,13 @@ window.addEventListener("resize", resize);
 resize();
 fx.fade = 0;
 fx.fadeTarget = 0;
-void document.fonts.load(FONT).finally(() => requestAnimationFrame(frame));
+void document.fonts.load(FONT).finally(() => {
+  const t0 = performance.now();
+  prewarm();
+  console.info(`sprites ready in ${Math.round(performance.now() - t0)}ms`);
+  last = performance.now();
+  requestAnimationFrame(frame);
+});
 
 // 테스트용
 (window as unknown as { __game: unknown }).__game = { S, debug, goScene };

@@ -29,8 +29,10 @@ import {
   BUILD_25,
   BUILD_3,
   CHARLIE,
+  ADDICT,
+  FROG_KING,
   FROGMAN,
-  HUMAN_W,
+  HUMAN_ORIGIN,
   SKELETON,
   ZOMBIES,
   cat,
@@ -295,17 +297,6 @@ function smoke(x: number, y: number, n: number, camX: number, color = "rgba(40,3
 // ═════════════════════════════════════════════════════════
 // 프롤로그 1: 퇴근길
 // ═════════════════════════════════════════════════════════
-const ADDICT: Look = {
-  ...ZOMBIES[0],
-  skin: "#e0b898",
-  skinShade: "#c09878",
-  hairStyle: "hood",
-  hair: "#3a3a44",
-  hairShade: "#2a2a30",
-  armsForward: false,
-  eye: "#2a2220",
-  hunch: 2,
-};
 
 SCENES.street1 = () => {
   const info = buildStreet(1200, false, 11);
@@ -1085,7 +1076,6 @@ function unlock(n: number): void {
   }
 }
 
-const FROG_KING: Look = { ...FROGMAN, skin: "#5a9a3a", skinShade: "#3a7024", hunch: 3, shirt: (lx, ly, w) => (ly < 2 ? "#e8c83a" : lx === w - 1 ? "#5a1e3a" : "#7a2a4a"), sleeve: () => "#7a2a4a", sleeveBack: () => "#5a1e3a" };
 
 /** 지하철 입구 (거리) */
 SCENES.subwayGate = () => {
@@ -1712,25 +1702,28 @@ function nearestHotspot(): Hotspot | null {
 // ═════════════════════════════════════════════════════════
 // 그리기
 // ═════════════════════════════════════════════════════════
+/** 0.5 화면픽셀 단위로 반올림 (2배 해상도 캔버스에서 1도트) */
+const half = (v: number) => Math.round(v * 2) / 2;
+
 const dark = makeCanvas(W, H);
 const dg = dark.getContext("2d")!;
 
 function drawActor(a: Actor, camX: number): void {
   if (!a.visible) return;
-  const sx = Math.round(a.x - camX);
+  const sx = half(a.x - camX);
   if (sx < -40 || sx > W + 40) return;
   if (a.kind === "sam") {
     let pose: CatPose;
     const idle = (): CatPose => {
       const t = (clock.t + a.x * 0.01) % 4;
       if (t > 3.82) return "blink";
-      return Math.floor(clock.t * 1.5) % 4 === 0 ? "sit1" : "sit";
+      return `sitT${Math.floor(clock.t * 6) % 8}`;
     };
     if (a.pose === "sit") pose = idle();
     else if (a.pose) pose = a.pose as CatPose;
-    else pose = a.moving ? (`walk${Math.floor(a.walkDist / 3) % 8}` as CatPose) : idle();
+    else pose = a.moving ? `walk${Math.floor(a.walkDist / 1.5) % 16}` : idle();
     const spr = cat(pose, a.facing, !!a.silhouette);
-    g.drawImage(spr, sx - 15, Math.round(a.y) - 22);
+    g.drawImage(spr, sx - 15, half(a.y) - 22, 32, 24);
     return;
   }
   const isCharlie = a.kind === "charlie";
@@ -1738,20 +1731,19 @@ function drawActor(a: Actor, camX: number): void {
   const id = isCharlie ? (a.lookId ?? "charlie") : a.lookId!;
   let pose: Pose;
   const sneakNow = isCharlie && sneaking() && S.control;
-  const breath: Pose = Math.floor(clock.t / 0.8 + a.x * 0.003) % 2 ? "stand1" : "stand";
+  const breath: Pose = `stand${Math.floor(clock.t / 0.55 + a.x * 0.01) % 4}`;
   if (a.pose === "stand") pose = breath;
   else if (a.pose) pose = a.pose as Pose;
-  else if (a.moving) {
-    pose = sneakNow ? (`crouch${Math.floor(a.walkDist / 5) % 4}` as Pose) : (`walk${Math.floor(a.walkDist / 4) % 8}` as Pose);
-  } else if (sneakNow) pose = "crouch0";
+  else if (a.moving) pose = sneakNow ? `crouch${Math.floor(a.walkDist / 2.5) % 8}` : `walk${Math.floor(a.walkDist / 2) % 16}`;
+  else if (sneakNow) pose = "crouch0";
   else if (isCharlie && S.scene?.useLight && S.flags.supplies && (S.scene.id !== "subway" || S.flags.light)) pose = "flashlight";
   else pose = breath;
   const build = isCharlie ? S.build : BUILD_3;
   const spr = human(look, id, pose, build, a.facing);
-  const ox = a.facing === 1 ? 14 : HUMAN_W - 1 - 14;
+  const ox = a.facing === 1 ? HUMAN_ORIGIN.x : 32 - HUMAN_ORIGIN.x;
   g.fillStyle = "rgba(0,0,0,0.3)";
-  g.fillRect(sx - 9, Math.round(a.y) - 1, 18, 2);
-  g.drawImage(spr, sx - ox, Math.round(a.y) - 52);
+  g.fillRect(sx - 9, half(a.y) - 1, 18, 2);
+  g.drawImage(spr, sx - ox, half(a.y) - HUMAN_ORIGIN.y, 32, 54);
 }
 
 function drawLighting(sc: Scene, camX: number): void {
@@ -1785,7 +1777,9 @@ function drawLighting(sc: Scene, camX: number): void {
     dg.fillStyle = gr;
     dg.fillRect(lx - l.r, l.y - l.r, l.r * 2, l.r * 2 + 60);
   }
+  g.imageSmoothingEnabled = true;
   g.drawImage(dark, 0, 0);
+  g.imageSmoothingEnabled = false;
   // 따뜻한 빛 번짐
   g.globalCompositeOperation = "lighter";
   for (const l of lights) {
@@ -1833,7 +1827,7 @@ function magnifier(x: number, y: number, active: boolean): void {
 export function drawPlay(): void {
   const sc = S.scene;
   if (!sc) return;
-  const camX = Math.round(S.camX);
+  const camX = half(S.camX);
   const sx = fx.shake > 0 ? Math.round((Math.random() - 0.5) * fx.shake * 10) : 0;
   const sy = fx.shake > 0 ? Math.round((Math.random() - 0.5) * fx.shake * 10) : 0;
   g.save();
@@ -1978,9 +1972,9 @@ export function drawTitle(): void {
   g.drawImage(titleBg.canvas, pan, 0, W, H, 0, 0, W, H);
   g.fillStyle = "rgba(6,5,14,0.55)";
   g.fillRect(0, 0, W, H);
-  const spr = human(CHARLIE, "charlie", "stand", S.build, 1);
-  g.drawImage(spr, W / 2 - 120, GROUND - 52);
-  g.drawImage(cat("sit", -1), W / 2 - 92, GROUND - 22);
+  const spr = human(CHARLIE, "charlie", `stand${Math.floor(clock.t / 0.55) % 4}`, S.build, 1);
+  g.drawImage(spr, W / 2 - 120, GROUND - 52, 32, 54);
+  g.drawImage(cat(`sitT${Math.floor(clock.t * 6) % 8}`, -1), W / 2 - 92, GROUND - 22, 32, 24);
   g.save();
   g.font = "bold 30px Galmuri11";
   g.textAlign = "center";
@@ -2008,3 +2002,17 @@ export const debug = {
     return sam;
   },
 };
+
+/** 첫 등장 때 끊기지 않도록 자주 쓰는 프레임을 미리 굽는다 */
+export function prewarm(): void {
+  const poses: string[] = [];
+  for (let i = 0; i < 16; i++) poses.push(`walk${i}`);
+  for (let i = 0; i < 8; i++) poses.push(`crouch${i}`);
+  for (let i = 0; i < 4; i++) poses.push(`stand${i}`);
+  poses.push("flashlight", "sit", "drink", "sleep", "armsUp", "back");
+  for (const b of [BUILD_3, BUILD_25]) for (const p of poses) for (const f of [1, -1] as const) human(CHARLIE, "charlie", p, b, f);
+  const catPoses: string[] = ["blink", "startle", "loaf", "butt"];
+  for (let i = 0; i < 16; i++) catPoses.push(`walk${i}`);
+  for (let i = 0; i < 8; i++) catPoses.push(`sitT${i}`);
+  for (const p of catPoses) for (const f of [1, -1] as const) cat(p, f);
+}
