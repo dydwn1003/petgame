@@ -790,7 +790,8 @@ SCENES.chapter1 = (checkpoint) => {
         run: async () => {
           charlie.facing = 1;
           await say(charlie, "저 사람... 아까 퇴근길에 흔들리던 그 사람인가?");
-          await caption("움직이는 것에 반응하는 것 같다. ↓ 키를 누르고 살금살금 지나가거나, 쓰레기통에 숨자.");
+          await caption("발소리에 반응하는 것 같다. ↓(살금) 버튼을 누른 채로 걸으면 들키지 않고 옆을 지나갈 수 있다.");
+          await caption("들켜서 쫓기면 쓰레기통에 숨어 따돌리자.");
         },
       },
       {
@@ -859,7 +860,8 @@ SCENES.chapter1 = (checkpoint) => {
         if (z.state === "idle") {
           z.pose = "stand";
           z.x = (z.home ?? z.x) + Math.sin(clock.t * 0.9 + (z.home ?? 0)) * 1.2;
-          const noticeR = S.hidden ? 0 : sneaking() ? 24 : running() ? 150 : charlie.moving ? 74 : 36;
+          // 멈춰 있는 좀비는 '움직임'에만 반응한다: 살금살금 걷거나 가만히 있으면 들키지 않는다
+          const noticeR = S.hidden || sneaking() || !charlie.moving ? 0 : running() ? 150 : 74;
           if (S.control && dist < noticeR) {
             z.state = "chase";
             z.bubble = "으어어...";
@@ -1324,8 +1326,10 @@ export function drawPlay(): void {
       });
       const it = FRIDGE_ITEMS[S.fridgeSel];
       const p = FRIDGE_SPOTS[it.key];
-      text(`[Space] ${it.label}`, p.x, p.y + 4, "#ffd36a", "center");
-      text("← → 고르기", W / 2, H - 8, "rgba(255,255,255,0.7)", "center");
+      void p;
+      g.fillStyle = "rgba(6,5,10,0.78)";
+      g.fillRect(0, H - 20, W, 20);
+      text(`← → 고르기   [Space] ${it.label}`, W / 2, H - 10, "#ffd36a", "center");
     }
   } else if (S.control) {
     for (const h of sc.hotspots) if (h.enabled() && !(S.hidden && h.label !== "숨기")) magnifier(h.x - camX, h.iconY, h === near);

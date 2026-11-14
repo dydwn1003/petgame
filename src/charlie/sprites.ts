@@ -1,5 +1,5 @@
 // 캐릭터 도트: 찰리 · 샘(고양이) · 좀비 · 해골 시위대 · 개구리 인간
-import { bake, cached, ellipse, flip, makeCanvas, type Px } from "./pixel";
+import { bake, cached, ellipse, flip, makeCanvas, mix, type Px } from "./pixel";
 
 // ── 사람 ────────────────────────────────────────────────
 export interface Look {
@@ -99,7 +99,10 @@ function paintHead(p: Px, L: Look, hx: number, ft: number, opts: { closed?: bool
   p(hx - 4, ft, 1, 9, L.skinShade);
   p(hx - 3, ft + 8, 7, 1, L.skinShade);
   p(hx + 5, ft + 4, 1, 2, L.skin);
+  p(hx + 5, ft + 6, 1, 1, L.skinShade);
   p(hx - 3, ft + 3, 1, 2, L.skinShade);
+  p(hx - 1, ft + 1, 4, 1, mix(L.skin, 0.25));
+  p(hx + 4, ft + 7, 1, 1, mix(L.skin, -0.12));
   if (opts.back) {
     p(hx - 5, ft - 1, 11, 8, L.hair);
     p(hx - 5, ft + 5, 11, 1, L.hairShade);
@@ -107,8 +110,8 @@ function paintHead(p: Px, L: Look, hx: number, ft: number, opts: { closed?: bool
     p(hx + 2, ft, 1, 4, L.hairLight);
   } else {
     if (L.glasses) {
-      const fr = "#6a3a1c";
-      const lens = "#dce8ea";
+      const fr = "#7a4422";
+      const lens = "#cfe0e4";
       p(hx - 3, ft + 3, 9, 1, fr);
       p(hx - 3, ft + 4, 1, 2, fr);
       p(hx - 2, ft + 4, 3, 2, lens);
@@ -123,6 +126,8 @@ function paintHead(p: Px, L: Look, hx: number, ft: number, opts: { closed?: bool
       } else {
         p(hx - 1, ft + 4, 1, 2, L.eye);
         p(hx + 3, ft + 4, 1, 2, L.eye);
+        p(hx - 1, ft + 4, 1, 1, "#4a6a3a");
+        p(hx + 3, ft + 4, 1, 1, "#4a6a3a");
       }
     } else if (opts.closed) {
       p(hx - 2, ft + 5, 2, 1, L.eye);
@@ -139,21 +144,35 @@ function paintHead(p: Px, L: Look, hx: number, ft: number, opts: { closed?: bool
   const S = L.hairShade;
   const Li = L.hairLight;
   if (L.hairStyle === "pomp") {
-    p(hx - 2, ft - 6, 6, 1, H);
+    const D = mix(S, -0.3);
+    const X = mix(Li, 0.5);
+    p(hx - 2, ft - 7, 5, 1, H);
+    p(hx - 3, ft - 6, 8, 1, H);
     p(hx - 4, ft - 5, 10, 1, H);
     p(hx - 5, ft - 4, 12, 3, H);
     p(hx - 5, ft - 1, 11, 1, S);
     p(hx - 5, ft, 8, 1, H);
-    p(hx - 5, ft + 1, 3, 1, H);
+    p(hx - 5, ft + 1, 4, 1, H);
     p(hx - 5, ft + 2, 2, 4, S);
     p(hx - 5, ft - 4, 1, 4, S);
-    p(hx - 1, ft - 5, 4, 1, Li);
-    p(hx + 1, ft - 4, 4, 1, Li);
-    p(hx + 3, ft - 3, 3, 1, Li);
+    p(hx - 4, ft - 5, 1, 2, S);
+    p(hx - 5, ft + 2, 1, 4, D);
+    // 앞머리 물결 (2번 시안)
+    p(hx - 1, ft - 6, 4, 1, Li);
+    p(hx, ft - 5, 5, 1, Li);
+    p(hx + 2, ft - 4, 4, 1, Li);
+    p(hx + 4, ft - 3, 2, 1, Li);
+    p(hx + 1, ft - 6, 2, 1, X);
+    p(hx + 3, ft - 5, 1, 1, X);
+    p(hx - 3, ft - 4, 3, 1, Li);
     p(hx - 2, ft - 3, 1, 2, S);
-    p(hx + 1, ft - 2, 1, 1, S);
-    p(hx + 4, ft - 2, 2, 1, S);
+    p(hx + 1, ft - 3, 1, 2, S);
+    p(hx + 3, ft - 2, 3, 1, S);
+    p(hx - 1, ft - 2, 2, 1, D);
+    p(hx + 4, ft - 1, 2, 1, D);
     p(hx + 3, ft, 2, 1, S);
+    p(hx - 4, ft, 2, 1, Li);
+    p(hx - 4, ft + 1, 1, 1, S);
   } else if (L.hairStyle === "messy") {
     p(hx - 4, ft - 3, 9, 3, H);
     p(hx - 5, ft - 1, 11, 2, H);
@@ -203,9 +222,17 @@ function paintHuman(p: Px, L: Look, pose: Pose, B: Build): void {
       for (let i = 0; i < len - lift; i++) {
         const t = i / Math.max(1, len - 1);
         const knee = crouch ? Math.round(Math.sin(t * Math.PI) * 4) : 0;
-        p(x0 + Math.round(off * t) + knee, beltY + 1 + i, lw, 1, col);
+        const lx = x0 + Math.round(off * t) + knee;
+        p(lx, beltY + 1 + i, lw, 1, col);
+        if (lw >= 4) {
+          p(lx + 1, beltY + 1 + i, 1, 1, mix(col, 0.16));
+          p(lx + lw - 1, beltY + 1 + i, 1, 1, mix(col, -0.18));
+        }
+        if (lw >= 4 && i === len - lift - 1) p(lx, beltY + 1 + i, lw, 1, mix(col, -0.22));
       }
       p(x0 + off, FEET - 1 - lift, lw + 2, 2, L.shoes);
+      p(x0 + off + lw, FEET - 1 - lift, 1, 1, mix(L.shoes, 0.35));
+      p(x0 + off, FEET - lift, lw + 2, 1, mix(L.shoes, -0.35));
     };
     leg(CX - 3, legB, liftB, L.pantsShade);
     leg(CX + 1 - (lw < 4 ? 0 : 0), legF, liftF, L.pants);
@@ -234,7 +261,10 @@ function paintHuman(p: Px, L: Look, pose: Pose, B: Build): void {
     for (let lx = 0; lx < tw; lx++) p(tl + lx + lean, torsoTop + ly, 1, 1, L.shirt(lx, ly, tw));
   }
   p(tl, beltY, tw, 1, L.belt ?? L.pantsShade);
-  if (L.buckle) p(CX + 1, beltY, 2, 1, L.buckle);
+  if (L.buckle) {
+    p(CX + 1, beltY, 2, 1, L.buckle);
+    p(CX + 1, beltY, 1, 1, mix(L.buckle, 0.4));
+  }
 
   // 앞쪽 팔
   if (pose === "armsUp") {
@@ -268,13 +298,19 @@ function paintHuman(p: Px, L: Look, pose: Pose, B: Build): void {
 
 // ── 의상 ────────────────────────────────────────────────
 const plaid = (lx: number, ly: number, w: number) => {
-  const v = lx % 4 === 2;
-  const h = ly % 4 === 1;
-  if (v && h) return "#1e150c";
-  if (v || h) return "#3c2a12";
-  if (lx === 0) return "#b47a14";
-  if (lx === w - 1) return "#c88a1a";
-  return "#e8b02e";
+  // 깃 (V넥) 과 단추
+  if (ly === 0 && lx >= 4 && lx <= 6) return lx === 5 ? "#d69a76" : "#f3c7a1";
+  if (ly === 1 && lx === 5) return "#d69a76";
+  if ((ly === 0 && (lx === 3 || lx === 7)) || (ly === 1 && (lx === 4 || lx === 6))) return "#f8d468";
+  if (lx === 5 && ly % 3 === 2) return "#f4e8c0";
+  const v = lx % 4 === 1;
+  const h = ly % 4 === 3;
+  const line = v || h;
+  if (lx === 0) return line ? "#24190b" : "#b07610";
+  if (lx === w - 1) return line ? "#2e2010" : "#c8891a";
+  if (v && h) return "#1a120a";
+  if (line) return (lx + ly) % 2 ? "#3c2a12" : "#4a3416";
+  return (lx + ly) % 3 === 0 ? "#f0b834" : "#e6ac2c";
 };
 
 export const CHARLIE: Look = {
@@ -375,6 +411,7 @@ export const CAT_H = 24;
 
 const F = "#c3c6d0";
 const FL = "#e2e4ea";
+const FLL = "#f4f5f8";
 const FS = "#9a9eac";
 const FD = "#7e8292";
 const EYE = "#e8962e";
@@ -382,62 +419,86 @@ const PUP = "#2a1a10";
 const NOSE = "#e89aa6";
 const EAR = "#ecb2ba";
 
+/** 복슬복슬한 덩어리: 아래쪽 그림자, 위쪽 빛, 가장자리 털 */
+function fluff(p: Px, cx: number, cy: number, rx: number, ry: number, base = F, light = FL, shade = FS): void {
+  ellipse(p, cx + 0.6, cy + 0.8, rx, ry, shade);
+  ellipse(p, cx, cy, Math.max(1, rx - 0.5), Math.max(1, ry - 0.5), base);
+  ellipse(p, cx - rx * 0.3, cy - ry * 0.35, Math.max(1, rx * 0.5), Math.max(0.6, ry * 0.4), light);
+  for (let a = 0; a < Math.PI * 2; a += 0.7) {
+    const tx = Math.round(cx + Math.cos(a) * (rx + 0.6));
+    const ty = Math.round(cy + Math.sin(a) * (ry + 0.6));
+    if (Math.sin(a) < 0.6) p(tx, ty, 1, 1, Math.sin(a) < 0 ? base : shade);
+  }
+}
+
 function catHead(p: Px, hx: number, hy: number, wide = false): void {
-  ellipse(p, hx, hy, 5, 4.5, F);
-  ellipse(p, hx - 1, hy - 1, 3, 2, FL);
-  ellipse(p, hx + 1, hy + 3, 4, 1.6, FL);
-  p(hx - 4, hy - 5, 2, 2, F);
-  p(hx - 4, hy - 6, 1, 1, F);
-  p(hx - 3, hy - 4, 1, 1, EAR);
-  p(hx + 1, hy - 5, 2, 2, F);
-  p(hx + 2, hy - 6, 1, 1, F);
-  p(hx + 1, hy - 4, 1, 1, EAR);
-  p(hx - 5, hy, 1, 3, FS);
+  // 귀
+  p(hx - 4, hy - 5, 3, 2, F);
+  p(hx - 4, hy - 6, 2, 1, F);
+  p(hx - 3, hy - 5, 1, 1, EAR);
+  p(hx + 1, hy - 5, 3, 2, F);
+  p(hx + 2, hy - 6, 2, 1, F);
+  p(hx + 2, hy - 5, 1, 1, EAR);
+  fluff(p, hx, hy, 5, 4.5);
+  // 볼 털
+  fluff(p, hx + 1, hy + 3, 4, 1.6, FL, FLL, F);
+  p(hx - 5, hy + 1, 1, 2, FS);
+  // 큰 구리빛 눈 (페르시안)
   if (wide) {
-    p(hx, hy - 1, 3, 3, EYE);
-    p(hx + 1, hy - 1, 1, 3, PUP);
+    p(hx, hy - 2, 3, 4, EYE);
+    p(hx + 1, hy - 2, 1, 4, PUP);
+    p(hx, hy - 2, 1, 1, "#ffffff");
   } else {
-    p(hx + 1, hy - 1, 2, 2, EYE);
-    p(hx + 2, hy - 1, 1, 2, PUP);
-    p(hx + 1, hy - 1, 1, 1, "#fff6e0");
+    p(hx, hy - 1, 3, 3, EYE);
+    p(hx, hy + 1, 3, 1, mix(EYE, -0.25));
+    p(hx + 1, hy - 1, 2, 2, PUP);
+    p(hx + 1, hy - 1, 1, 1, "#ffffff");
   }
   p(hx + 4, hy + 1, 1, 1, NOSE);
   p(hx + 3, hy + 2, 1, 1, FS);
+  p(hx + 4, hy + 3, 1, 1, FS);
 }
 
 function paintCat(p: Px, pose: CatPose): void {
   if (pose === "sit") {
-    ellipse(p, 9, 20, 7, 2, F);
-    ellipse(p, 5, 19, 3, 2, FS);
-    ellipse(p, 14, 15, 6, 6.5, F);
-    ellipse(p, 12, 15, 2, 5, FS);
-    ellipse(p, 17, 14, 3, 4.5, FL);
+    fluff(p, 9, 20, 7, 2.2);
+    fluff(p, 4, 19, 3, 2, FS, F, FD);
+    fluff(p, 14, 15, 6, 6.5);
+    ellipse(p, 11, 16, 2, 4.5, FS);
+    fluff(p, 17, 14, 3, 4.5, FL, FLL, F);
     p(16, 19, 2, 3, F);
     p(19, 19, 2, 3, FL);
+    p(16, 21, 2, 1, FL);
     catHead(p, 17, 6);
     return;
   }
   if (pose === "loaf") {
-    ellipse(p, 6, 19, 5, 2, FS);
-    ellipse(p, 14, 17, 9, 5, F);
-    ellipse(p, 14, 15, 7, 2, FL);
-    ellipse(p, 22, 13, 5, 4, F);
-    ellipse(p, 21, 12, 3, 2, FL);
-    p(18, 9, 2, 2, F);
-    p(23, 9, 2, 2, F);
-    p(22, 13, 3, 1, FD);
+    fluff(p, 6, 19, 5, 2, FS, F, FD);
+    fluff(p, 14, 17, 9, 5);
+    fluff(p, 15, 15, 6, 2, FL, FLL, F);
+    p(18, 9, 3, 2, F);
+    p(23, 9, 3, 2, F);
+    p(19, 10, 1, 1, EAR);
+    p(24, 10, 1, 1, EAR);
+    fluff(p, 22, 13, 5, 4);
+    fluff(p, 22, 15, 3.5, 1.5, FL, FLL, F);
+    p(21, 13, 2, 1, FD);
+    p(24, 13, 2, 1, FD);
     p(26, 14, 1, 1, NOSE);
     return;
   }
   if (pose === "startle") {
-    for (const x of [7, 10, 19, 22]) p(x, 12, 2, 10, x < 15 ? FS : F);
-    ellipse(p, 5, 7, 3.5, 3.5, F);
-    ellipse(p, 4, 3, 3, 3, F);
-    ellipse(p, 4, 1, 2, 1.5, FL);
-    ellipse(p, 14, 9, 9, 4, F);
-    ellipse(p, 14, 6, 6, 2, F);
+    for (const x of [7, 10, 19, 22]) {
+      p(x, 12, 2, 10, x < 15 ? FS : F);
+      p(x, 21, 2, 1, FL);
+    }
+    fluff(p, 5, 7, 3.5, 3.5);
+    fluff(p, 4, 3, 3, 3);
+    fluff(p, 4, 1, 2, 1.5, FL, FLL, F);
+    fluff(p, 14, 9, 9, 4);
+    fluff(p, 14, 6, 6, 2);
     for (let x = 8; x < 21; x += 2) p(x, 3 + (x % 4 === 0 ? 0 : 1), 1, 2, FL);
-    ellipse(p, 15, 11, 6, 1.5, FL);
+    fluff(p, 15, 11, 6, 1.5, FL, FLL, F);
     catHead(p, 24, 10, true);
     return;
   }
@@ -445,20 +506,25 @@ function paintCat(p: Px, pose: CatPose): void {
   const f = pose === "butt" ? 0 : Number(pose.slice(4));
   const swing = f === 0 ? 1 : f === 2 ? -1 : 0;
   const sway = f % 2 === 0 ? 0 : 1;
-  ellipse(p, 6, 10 + sway, 3.5, 3, F);
-  ellipse(p, 4, 7 + sway, 3, 3, F);
-  ellipse(p, 3, 4 + sway, 2.5, 2.5, FL);
-  ellipse(p, 6, 12 + sway, 3, 1, FS);
+  // 꼬리 (복슬복슬)
+  fluff(p, 6, 10 + sway, 3.5, 3);
+  fluff(p, 4, 7 + sway, 3, 3);
+  fluff(p, 3, 4 + sway, 2.5, 2.5, FL, FLL, F);
+  // 뒷다리 (멀리)
   p(9 - swing, 15, 2, 6, FD);
   p(19 + swing, 15, 2, 6, FS);
-  ellipse(p, 14, 12, 8, 5, F);
-  ellipse(p, 14, 9, 6, 1.5, FL);
-  ellipse(p, 15, 15, 5, 1.5, FL);
+  // 몸통
+  fluff(p, 14, 12, 8, 5);
+  fluff(p, 15, 15, 5, 1.5, FL, FLL, F);
+  // 앞다리 (가까이)
   p(12 + swing, 15, 2, 6, F);
   p(22 - swing, 15, 2, 6, F);
-  p(11 + swing, 20, 3, 1, FL);
-  p(21 - swing, 20, 3, 1, FL);
-  ellipse(p, 20, 12, 2.5, 3, FL);
+  p(12 + swing, 15, 1, 6, FL);
+  p(22 - swing, 15, 1, 6, FL);
+  p(11 + swing, 20, 3, 1, FLL);
+  p(21 - swing, 20, 3, 1, FLL);
+  // 가슴 털
+  fluff(p, 20, 12, 2.5, 3, FL, FLL, F);
   if (pose === "butt") catHead(p, 24, 10);
   else catHead(p, 23, 8);
 }

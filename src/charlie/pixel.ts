@@ -70,3 +70,21 @@ export function cached(key: string, make: () => HTMLCanvasElement): HTMLCanvasEl
 export function clearCache(prefix: string): void {
   for (const k of [...cache.keys()]) if (k.startsWith(prefix)) cache.delete(k);
 }
+
+/** 색을 밝게(k>0) 또는 어둡게(k<0). "#rrggbb" 와 "rgb(r,g,b)" 모두 받는다 */
+export function mix(c: string, k: number): string {
+  let r: number, gg: number, b: number;
+  if (c.startsWith("#")) {
+    const n = parseInt(c.slice(1, 7), 16);
+    r = (n >> 16) & 255;
+    gg = (n >> 8) & 255;
+    b = n & 255;
+  } else {
+    [r, gg, b] = (c.match(/\d+/g) ?? ["0", "0", "0"]).map(Number);
+  }
+  const t = k > 0 ? 255 : 0;
+  const a = Math.abs(k);
+  const f = (v: number) => Math.round(v + (t - v) * a);
+  return `rgb(${f(r)},${f(gg)},${f(b)})`;
+}
+
