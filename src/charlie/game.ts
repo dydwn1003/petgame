@@ -4426,25 +4426,82 @@ function drawLighting(sc: Scene, camX: number): void {
 }
 
 function magnifier(x: number, y: number, active: boolean): void {
-  // 위치는 고정 (스크롤 중 떨림 방지). 가까이 있을 때만 테두리가 천천히 반짝인다
-  const by = y;
+  // 위치는 고정 (스크롤 중 떨림 방지). 금테 둥근 렌즈 + 나무 손잡이, 가까이 가면 빛나며 반짝인다
+  const cx = x - 1;
+  const cy = y - 1.5;
+  g.save();
   if (active) {
-    g.globalAlpha = 0.35 + Math.sin(clock.t * 4) * 0.2;
-    g.fillStyle = "#ffd36a";
-    g.fillRect(x - 6.5, by - 7.5, 14, 14);
-    g.globalAlpha = 1;
+    const pulse = 0.5 + 0.5 * Math.sin(clock.t * 4);
+    const glow = g.createRadialGradient(cx, cy, 0, cx, cy, 11);
+    glow.addColorStop(0, `rgba(255,224,130,${(0.35 + pulse * 0.25).toFixed(2)})`);
+    glow.addColorStop(1, "rgba(255,210,100,0)");
+    g.fillStyle = glow;
+    g.beginPath();
+    g.arc(cx, cy, 11, 0, Math.PI * 2);
+    g.fill();
+  } else g.globalAlpha = 0.82;
+  // 그림자
+  g.fillStyle = "rgba(0,0,0,0.35)";
+  g.beginPath();
+  g.arc(cx + 0.6, cy + 0.8, 5.2, 0, Math.PI * 2);
+  g.fill();
+  // 손잡이
+  g.save();
+  g.translate(cx, cy);
+  g.rotate(Math.PI / 4);
+  g.fillStyle = "#2a1a10";
+  g.fillRect(4.2, -1.6, 6.4, 3.2);
+  const wood = g.createLinearGradient(0, -1.2, 0, 1.2);
+  wood.addColorStop(0, "#b8743a");
+  wood.addColorStop(1, "#6a3a1a");
+  g.fillStyle = wood;
+  g.fillRect(4.6, -1.1, 5.6, 2.2);
+  g.fillStyle = "#e8c050";
+  g.fillRect(4.2, -1.4, 1.2, 2.8);
+  g.restore();
+  // 금테
+  const rim = g.createLinearGradient(cx - 5, cy - 5, cx + 5, cy + 5);
+  rim.addColorStop(0, "#fff0a8");
+  rim.addColorStop(0.5, "#e8b840");
+  rim.addColorStop(1, "#8a5a18");
+  g.fillStyle = rim;
+  g.beginPath();
+  g.arc(cx, cy, 5, 0, Math.PI * 2);
+  g.fill();
+  // 유리
+  const glass = g.createRadialGradient(cx - 1.5, cy - 1.5, 0.3, cx, cy, 4);
+  glass.addColorStop(0, "#f4fcff");
+  glass.addColorStop(0.45, "#a8d8f0");
+  glass.addColorStop(1, "#4a88b0");
+  g.fillStyle = glass;
+  g.beginPath();
+  g.arc(cx, cy, 3.7, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = "rgba(255,255,255,0.9)";
+  g.lineWidth = 0.7;
+  g.beginPath();
+  g.arc(cx, cy, 2.5, Math.PI * 1.05, Math.PI * 1.55);
+  g.stroke();
+  g.restore();
+  // 반짝이 (가까이 있을 때)
+  if (active) {
+    const t = clock.t * 2.2;
+    const sx = cx + 5.5;
+    const sy = cy - 5.5;
+    const r = 1.4 + Math.abs(Math.sin(t)) * 1.4;
+    g.fillStyle = "#fffbe0";
+    g.beginPath();
+    g.moveTo(sx, sy - r);
+    g.lineTo(sx + r * 0.3, sy - r * 0.3);
+    g.lineTo(sx + r, sy);
+    g.lineTo(sx + r * 0.3, sy + r * 0.3);
+    g.lineTo(sx, sy + r);
+    g.lineTo(sx - r * 0.3, sy + r * 0.3);
+    g.lineTo(sx - r, sy);
+    g.lineTo(sx - r * 0.3, sy - r * 0.3);
+    g.closePath();
+    g.fill();
   }
-  g.fillStyle = "#000";
-  g.fillRect(x - 5, by - 6, 11, 11);
-  g.fillStyle = active ? "#ffd36a" : "#d8d0c0";
-  g.fillRect(x - 4, by - 5, 7, 1);
-  g.fillRect(x - 4, by + 1, 7, 1);
-  g.fillRect(x - 4, by - 5, 1, 7);
-  g.fillRect(x + 2, by - 5, 1, 7);
-  g.fillRect(x + 3, by + 2, 2, 2);
-  g.fillRect(x + 4, by + 3, 2, 2);
-  g.fillStyle = "#8ab8d8";
-  g.fillRect(x - 3, by - 4, 5, 5);
 }
 
 export function drawPlay(): void {

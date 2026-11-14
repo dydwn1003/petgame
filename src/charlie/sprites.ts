@@ -1378,7 +1378,11 @@ function furMass(g: CanvasRenderingContext2D, parts: Part[], o: { flow: number; 
   mg.fill(path);
   const img = mg.getImageData(0, 0, w, h);
   const A = new Float32Array(w * h);
-  for (let i = 0; i < w * h; i++) A[i] = img.data[i * 4 + 3];
+  const orig = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    A[i] = img.data[i * 4 + 3];
+    orig[i] = A[i] > 100 ? 1 : 0;
+  }
   const tmp = new Float32Array(w * h);
   for (let pass = 0; pass < 2; pass++) {
     for (let y = 0; y < h; y++) {
@@ -1398,7 +1402,8 @@ function furMass(g: CanvasRenderingContext2D, parts: Part[], o: { flow: number; 
       }
     }
   }
-  for (let i = 0; i < w * h; i++) img.data[i * 4 + 3] = A[i] >= 118 ? 255 : 0;
+  // 원래 모양은 지키고(가는 다리가 끊기지 않게), 덩어리 사이 오목한 틈만 메운다
+  for (let i = 0; i < w * h; i++) img.data[i * 4 + 3] = orig[i] || A[i] >= 110 ? 255 : 0;
   mg.putImageData(img, 0, 0);
   // 털 색 · 빛 · 그림자 · 결을 따로 칠한 뒤 매끈한 실루엣으로 오려 낸다
   const layer = makeCanvas(w, h);
@@ -1700,14 +1705,14 @@ function frontLegParts(sx: number, sy: number, ang: number, lift: number): { par
   const [ex, ey] = bend(sx, sy, 8, ang);
   const [wx, wy] = bend(ex, ey, 7, ang + lift * 0.9);
   const [fx, fy] = bend(wx, wy, 2.5, ang + lift * 1.4 + 0.2);
-  return { parts: catLegPath([[sx, sy], [ex, ey], [wx, wy], [fx, fy]], [5, 3.6, 2.8, 2.6]), foot: [fx, fy] };
+  return { parts: [{ kind: "e", x: sx, y: sy - 1, rx: 6, ry: 6.5 }, ...catLegPath([[sx, sy], [ex, ey], [wx, wy], [fx, fy]], [5.4, 4, 3.2, 3])], foot: [fx, fy] };
 }
 
 function hindLegParts(hx: number, hy: number, ang: number, lift: number): { parts: Part[]; foot: [number, number] } {
   const [kx, ky] = bend(hx + 2, hy + 3, 7.5, ang + 0.6);
   const [ax, ay] = bend(kx, ky, 7, ang - 0.7 - lift * 0.5);
   const [fx, fy] = bend(ax, ay, 4.5, ang + 0.15 - lift * 0.2);
-  return { parts: [{ kind: "e", x: hx + 1, y: hy + 3, rx: 8.5, ry: 9.5, rot: 0.2 }, ...catLegPath([[kx, ky], [ax, ay], [fx, fy]], [4.2, 2.8, 2.6])], foot: [fx, fy] };
+  return { parts: [{ kind: "e", x: hx + 1, y: hy + 3, rx: 8.5, ry: 9.5, rot: 0.2 }, ...catLegPath([[hx + 1, hy + 3], [kx, ky], [ax, ay], [fx, fy]], [6, 4.4, 3.1, 2.9])], foot: [fx, fy] };
 }
 
 /** 꼬리 (풍성하게 퍼지는 긴 털) */
@@ -1735,13 +1740,12 @@ function paintCat(p: Px, pose: string): void {
     catTail(g, [42, 84], [74, 94], [100 + flick * 2, 87 - flick * 3], 3.2, 21);
     // 엉덩이 + 꼿꼿이 세운 몸통 + 목
     furMass(g, [{ kind: "e", x: 50, y: 71, rx: 15, ry: 14.5 }, { kind: "e", x: 62, y: 54, rx: 10, ry: 19, rot: 0.22 }, { kind: "e", x: 70, y: 40, rx: 7, ry: 10, rot: 0.2 }], { flow: Math.PI * 0.55, seed: 1, light: [52, 44] });
-    // 앞다리 (먼 쪽, 가까운 쪽)
-    const legFar = catLegPath([[66, 60], [66, 76], [66.5, 85]], [4.2, 3.2, 2.8]);
-    furMass(g, legFar, { flow: Math.PI / 2, seed: 4, far: true, strands: 50, edge: 0.8 });
+    // 앞다리 (몸통과 한 덩어리로 이어지게)
+    const legFar = catLegPath([[66, 56], [66, 76], [66.5, 85]], [4.4, 3.4, 3]);
+    furMass(g, [...legFar, { kind: "e", x: 64, y: 58, rx: 6, ry: 8 }], { flow: Math.PI / 2, seed: 4, far: true, strands: 50, edge: 0.8 });
     paw(g, 65, 86, true);
-    furMass(g, [{ kind: "e", x: 70, y: 50, rx: 7, ry: 12 }], { flow: Math.PI * 0.55, seed: 9, tone: 0.08, strands: 60, edge: 1 });
-    const legNear = catLegPath([[73, 62], [73, 77], [73.5, 85]], [4.4, 3.4, 2.9]);
-    furMass(g, legNear, { flow: Math.PI / 2, seed: 5, tone: 0.06, strands: 60, edge: 0.8 });
+    const legNear = catLegPath([[72, 54], [73, 77], [73.5, 85]], [5, 3.6, 3.1]);
+    furMass(g, [{ kind: "e", x: 70, y: 48, rx: 7.5, ry: 12 }, ...legNear], { flow: Math.PI * 0.55, seed: 9, tone: 0.06, strands: 60, edge: 1 });
     paw(g, 72, 86, false);
     // 뒷발
     furMass(g, [{ kind: "e", x: 54, y: 84, rx: 9, ry: 3.4 }], { flow: 0, seed: 6, strands: 30, edge: 0.8 });
@@ -1810,11 +1814,9 @@ function paintCat(p: Px, pose: string): void {
   furMass(g, L.ff.parts, { flow: Math.PI * 0.55, seed: 42, far: true, strands: 60 });
   paw(g, L.ff.foot[0], L.ff.foot[1], true);
   // 몸통: 엉덩이 · 허리 · 깊은 가슴 · 목
-  furMass(g, [{ kind: "e", x: 44, y: by + 29, rx: 13, ry: 11.5 }, { kind: "e", x: 60, y: by + 30, rx: 15, ry: 10 }, { kind: "e", x: 76, y: by + 28, rx: 12, ry: 11.5 }, { kind: "e", x: 86, y: by + 19, rx: 7, ry: 9, rot: -0.4 }], { flow: Math.PI * 1.02, seed: 43 });
+  furMass(g, [{ kind: "e", x: 44, y: by + 29, rx: 13, ry: 11.5 }, { kind: "e", x: 60, y: by + 30, rx: 15, ry: 10 }, { kind: "e", x: 76, y: by + 28, rx: 12, ry: 11.5 }, { kind: "e", x: 86, y: by + 19, rx: 7, ry: 9, rot: -0.4 }, ...L.hn.parts, ...L.fn.parts], { flow: Math.PI * 1.02, seed: 43 });
   furMass(g, [{ kind: "e", x: 62, y: by + 37, rx: 13, ry: 3.5 }], { flow: Math.PI * 0.55, seed: 44, tone: 0.08, strands: 50, edge: 1 });
-  furMass(g, L.hn.parts, { flow: Math.PI * 0.6, seed: 45, strands: 90 });
   paw(g, L.hn.foot[0], L.hn.foot[1], false);
-  furMass(g, L.fn.parts, { flow: Math.PI * 0.55, seed: 46, tone: 0.04, strands: 60 });
   paw(g, L.fn.foot[0], L.fn.foot[1], false);
   // 가슴 갈기
   furMass(g, [{ kind: "e", x: 86, y: by + 27, rx: 7, ry: 9 }], { flow: Math.PI * 0.55, seed: 47, tone: 0.08, strands: 50, edge: 1 });
