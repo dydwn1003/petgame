@@ -780,8 +780,25 @@ function paintFront(p: Px, L: Look, n: number, B: Build): void {
 
 function paintHuman(p: Px, L: Look, pose: string, B: Build): void {
   if (pose.startsWith("front")) return paintFront(p, L, Number(pose.slice(5)), B);
+  // 손전등 들기: 'walk3L' 처럼 끝에 L 이 붙으면 앞팔을 앞으로 뻗고 손전등을 쥔다. raise0~3 은 드는 중간 동작
+  let hold = 0;
+  const pose0 = pose;
+  if (pose.endsWith("L")) {
+    pose = pose.slice(0, -1);
+    hold = 1;
+  } else if (pose === "flashlight") {
+    hold = 1;
+  } else if (pose.startsWith("raise")) {
+    hold = (Number(pose.slice(5)) + 1) / 4;
+    pose = "stand0";
+  }
   if (pose.startsWith("climb")) return paintClimbBack(p, L, Number(pose.slice(5)), B);
   const R = rig(pose, L);
+  if (hold > 0) {
+    const [a0, e0] = R.arms[0];
+    const bobA = pose.startsWith("walk") ? Math.sin((Number(pose.slice(4)) / 16) * Math.PI * 4) * 0.05 : 0;
+    R.arms[0] = [a0 + (Math.PI / 2 - 0.12 + bobA - a0) * hold, e0 + (0.08 - e0) * hold];
+  }
   const k = L.limb ?? 1;
   const thigh = B.legLen * 0.5;
   const shin = B.legLen * 0.5 - 8;
@@ -818,12 +835,27 @@ function paintHuman(p: Px, L: Look, pose: string, B: Build): void {
     disk(p, hx, hy + 2, 4.6 * hs, front ? L.skin : L.skinShade);
     p(hx - 2, hy, 3, 2, L.skinLight);
     for (let f = 0; f < 3; f++) p(hx - 2 + f * 2, hy + 5, 1, 2, mix(L.skinShade, -0.1));
-    if (front && pose === "flashlight") {
-      p(hx - 2, hy - 4, 18, 10, "#2a2a34");
-      p(hx - 2, hy - 4, 18, 2, "#5a5a68");
-      p(hx + 4, hy - 3, 2, 8, "#3e3e4a");
-      p(hx + 16, hy - 6, 4, 14, "#fff3b8");
-      p(hx + 17, hy - 5, 2, 12, "#ffffff");
+    if (front && hold >= 0.5 && p.ctx) {
+      // 손전등: 아래팔 방향을 따라 쥔다
+      const g = p.ctx;
+      const ang = Math.atan2(hy - ey, hx - ex);
+      g.save();
+      g.translate(hx, hy + 1.5);
+      g.rotate(ang);
+      g.fillStyle = "#2a2a34";
+      g.fillRect(-3, -4, 18, 8);
+      g.fillStyle = "#5a5a68";
+      g.fillRect(-3, -4, 18, 1.6);
+      g.fillStyle = "#3e3e4a";
+      g.fillRect(3, -3.5, 2, 7);
+      g.fillStyle = "#3a3a46";
+      g.fillRect(14, -6, 4, 12);
+      g.fillStyle = "#fff3b8";
+      g.fillRect(17.5, -5, 2.5, 10);
+      g.restore();
+      const tx = hx + 1.5 * -Math.sin(ang) + Math.cos(ang) * 20;
+      const ty = hy + 1.5 * Math.cos(ang) + Math.sin(ang) * 20;
+      LIGHT_TIP.set(`${pose0}:${B.legLen}`, [(tx - CX) / 4, (ty - FEET) / 4]);
     }
     if (front && pose === "drink") {
       p(hx - 4, hy - 14, 10, 18, "#c4302a");
@@ -1239,6 +1271,11 @@ export function human(look: Look, lookId: string, pose: Pose, build: Build, faci
     return facing === 1 ? right : flip(right);
   });
 }
+/** 손전등 끝 위치 (발 기준, 화면 좌표, 오른쪽을 볼 때) */
+const LIGHT_TIP = new Map<string, [number, number]>();
+export function lightTip(pose: string, build: Build): [number, number] | null {
+  return LIGHT_TIP.get(`${pose}:${build.legLen}`) ?? null;
+}
 /** 화면에 그릴 때 기준점 (발 가운데, 화면 좌표) */
 export const HUMAN_ORIGIN = { x: CX / 4, y: FEET / 4 };
 
@@ -1324,68 +1361,94 @@ function furMass(g: CanvasRenderingContext2D, parts: Part[], o: { flow: number; 
   const tone = (o.tone ?? 0) + (o.far ? -0.08 : 0);
   const base = mix(C.base, tone);
   const r = seeded(o.seed * 977 + 13);
-  // 가장자리 털 (실루엣 밖으로 삐져나옴)
-  const edge = (o.edge ?? 1.6) * 0.28;
-  g.lineCap = "round";
-  for (const s2 of parts) {
-    if (s2.kind !== "e") continue;
-    const per = (s2.rx + s2.ry) * 1.6;
-    for (let i = 0; i < per; i++) {
-      const a = (i / per) * Math.PI * 2;
-      const px = s2.x + Math.cos(a) * s2.rx * 0.97;
-      const py = s2.y + Math.sin(a) * s2.ry * 0.97;
-      const out = edge * (0.5 + r());
-      const fx = Math.cos(o.flow) * 0.8 + Math.cos(a) * 0.6;
-      const fy = Math.sin(o.flow) * 0.8 + Math.sin(a) * 0.6;
-      g.strokeStyle = Math.sin(a) > 0.3 ? mix(base, -0.08) : base;
-      g.lineWidth = 1.15;
-      g.beginPath();
-      g.moveTo(px - fx * 0.6, py - fy * 0.6);
-      g.quadraticCurveTo(px + fx * out * 0.6, py + fy * out * 0.6, px + fx * out, py + fy * out + 0.3);
-      g.stroke();
+  // 매끈한 실루엣: 타원들을 합친 뒤 살짝 흐리게 했다가 다시 경계를 세워 하나로 녹인다
+  const t = g.getTransform();
+  const sc = Math.hypot(t.a, t.b);
+  const blur = Math.max(2, Math.round(2.6 * sc));
+  const corners = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].map(([px, py]) => [t.a * px + t.c * py + t.e, t.b * px + t.d * py + t.f]);
+  const pad = blur * 2 + 2;
+  const dx0 = Math.floor(Math.min(...corners.map((q) => q[0]))) - pad;
+  const dy0 = Math.floor(Math.min(...corners.map((q) => q[1]))) - pad;
+  const w = Math.ceil(Math.max(...corners.map((q) => q[0]))) + pad - dx0;
+  const h = Math.ceil(Math.max(...corners.map((q) => q[1]))) + pad - dy0;
+  const mask = makeCanvas(w, h);
+  const mg = mask.getContext("2d", { willReadFrequently: true })!;
+  mg.setTransform(t.a, t.b, t.c, t.d, t.e - dx0, t.f - dy0);
+  mg.fillStyle = "#000";
+  mg.fill(path);
+  const img = mg.getImageData(0, 0, w, h);
+  const A = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) A[i] = img.data[i * 4 + 3];
+  const tmp = new Float32Array(w * h);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let y = 0; y < h; y++) {
+      let acc = 0;
+      for (let x = -blur; x <= blur; x++) acc += A[y * w + Math.min(w - 1, Math.max(0, x))];
+      for (let x = 0; x < w; x++) {
+        tmp[y * w + x] = acc / (blur * 2 + 1);
+        acc += A[y * w + Math.min(w - 1, x + blur + 1)] - A[y * w + Math.max(0, x - blur)];
+      }
+    }
+    for (let x = 0; x < w; x++) {
+      let acc = 0;
+      for (let y = -blur; y <= blur; y++) acc += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+      for (let y = 0; y < h; y++) {
+        A[y * w + x] = acc / (blur * 2 + 1);
+        acc += tmp[Math.min(h - 1, y + blur + 1) * w + x] - tmp[Math.max(0, y - blur) * w + x];
+      }
     }
   }
-  // 바탕
-  g.fillStyle = base;
-  g.fill(path);
-  g.save();
-  g.clip(path);
-  // 빛 (왼쪽 위) + 그림자 (아래)
+  for (let i = 0; i < w * h; i++) img.data[i * 4 + 3] = A[i] >= 118 ? 255 : 0;
+  mg.putImageData(img, 0, 0);
+  // 털 색 · 빛 · 그림자 · 결을 따로 칠한 뒤 매끈한 실루엣으로 오려 낸다
+  const layer = makeCanvas(w, h);
+  const lg2 = layer.getContext("2d")!;
+  lg2.setTransform(t.a, t.b, t.c, t.d, t.e - dx0, t.f - dy0);
+  lg2.fillStyle = base;
+  lg2.fillRect(x0 - 6, y0 - 6, x1 - x0 + 12, y1 - y0 + 12);
   const [lx, ly] = o.light ?? [x0 + (x1 - x0) * 0.35, y0 + (y1 - y0) * 0.2];
   const rad = Math.max(x1 - x0, y1 - y0);
-  const lg = g.createRadialGradient(lx, ly, 0, lx, ly, rad * 0.75);
-  lg.addColorStop(0, mix(C.light, tone + 0.05));
-  lg.addColorStop(0.55, mix(C.base, tone + 0.06));
-  lg.addColorStop(1, "rgba(240,242,246,0)");
-  g.fillStyle = lg;
-  g.fillRect(x0 - 2, y0 - 2, x1 - x0 + 4, y1 - y0 + 4);
-  const sg = g.createLinearGradient(0, y0, 0, y1);
+  const lgr = lg2.createRadialGradient(lx, ly, 0, lx, ly, rad * 0.75);
+  lgr.addColorStop(0, mix(C.light, tone + 0.05));
+  lgr.addColorStop(0.55, mix(C.base, tone + 0.06));
+  lgr.addColorStop(1, "rgba(240,242,246,0)");
+  lg2.fillStyle = lgr;
+  lg2.fillRect(x0 - 6, y0 - 6, x1 - x0 + 12, y1 - y0 + 12);
+  const sg = lg2.createLinearGradient(0, y0, 0, y1);
   sg.addColorStop(0, "rgba(90,100,124,0)");
   sg.addColorStop(0.6, "rgba(90,100,124,0.04)");
   sg.addColorStop(1, `rgba(90,100,124,${o.far ? 0.16 : 0.07})`);
-  g.fillStyle = sg;
-  g.fillRect(x0 - 2, y0 - 2, x1 - x0 + 4, y1 - y0 + 4);
-  // 결을 따라 흐르는 털
-  const n = Math.floor((o.strands ?? (x1 - x0) * (y1 - y0) * 0.55) * 0.05);
+  lg2.fillStyle = sg;
+  lg2.fillRect(x0 - 6, y0 - 6, x1 - x0 + 12, y1 - y0 + 12);
+  const n = Math.floor((o.strands ?? (x1 - x0) * (y1 - y0) * 0.55) * 0.04);
+  lg2.lineCap = "round";
   for (let i = 0; i < n; i++) {
     const sx = x0 + r() * (x1 - x0);
     const sy = y0 + r() * (y1 - y0);
-    const t = (sy - y0) / (y1 - y0 || 1);
+    const tt = (sy - y0) / (y1 - y0 || 1);
     const len = 2.2 + r() * 3.2;
     const ang = o.flow + (r() - 0.5) * 0.5;
-    const light = r() < 0.5 - t * 0.35;
-    g.strokeStyle = light ? `rgba(252,252,255,${0.14 + r() * 0.18})` : `rgba(110,114,130,${0.03 + r() * 0.05})`;
-    g.lineWidth = 0.45 + r() * 0.35;
-    g.beginPath();
-    g.moveTo(sx, sy);
-    g.quadraticCurveTo(sx + Math.cos(ang) * len * 0.5 + (r() - 0.5), sy + Math.sin(ang) * len * 0.5, sx + Math.cos(ang) * len, sy + Math.sin(ang) * len + 0.4);
-    g.stroke();
+    const light = r() < 0.5 - tt * 0.35;
+    lg2.strokeStyle = light ? `rgba(255,255,255,${0.12 + r() * 0.14})` : `rgba(110,114,130,${0.02 + r() * 0.04})`;
+    lg2.lineWidth = 0.45 + r() * 0.3;
+    lg2.beginPath();
+    lg2.moveTo(sx, sy);
+    lg2.quadraticCurveTo(sx + Math.cos(ang) * len * 0.5, sy + Math.sin(ang) * len * 0.5, sx + Math.cos(ang) * len, sy + Math.sin(ang) * len + 0.3);
+    lg2.stroke();
   }
+  lg2.setTransform(1, 0, 0, 1, 0, 0);
+  lg2.globalCompositeOperation = "destination-in";
+  lg2.drawImage(mask, 0, 0);
+  g.save();
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.drawImage(layer, dx0, dy0);
   g.restore();
+  void o.edge;
 }
 
 /** 머리 (오른쪽 3/4) */
 function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { closed?: boolean; wide?: boolean; happy?: boolean; hiss?: boolean; earsBack?: boolean; tilt?: number }, seed: number): void {
+  headAt = { x: hx, y: hy - 1.5, tilt: o.tilt ?? 0 };
   g.save();
   g.translate(hx, hy - 1.5);
   g.rotate(o.tilt ?? 0);
@@ -1602,6 +1665,12 @@ function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { 
   whiskerAt = { x: hx + 12, y: hy + 5, tilt: o.tilt ?? 0 };
 }
 
+/** 고양이 머리 위치 (꾸미기 소품을 씌우기 위해, 화면 32×24 기준 · 오른쪽을 볼 때) */
+let headAt: { x: number; y: number; tilt: number } | null = null;
+const HEADS = new Map<string, { x: number; y: number; tilt: number }>();
+export function catHead(pose: string): { x: number; y: number; tilt: number } | null {
+  return HEADS.get(pose) ?? null;
+}
 /** 마지막으로 그린 고양이 얼굴 위치 (수염을 외곽선 위에 그리기 위해) */
 let whiskerAt: { x: number; y: number; tilt: number } | null = null;
 
@@ -1760,8 +1829,11 @@ export function cat(pose: CatPose, facing: 1 | -1, silhouette = false): HTMLCanv
   return cached(key, () => {
     const base = cached(`c:${pose}:1:false`, () => {
       whiskerAt = null;
+      headAt = null;
       const k = density / 4;
       const c = bakeVec(CW, CH, k, (p) => paintCat(p, pose), "#6a7080", 0.6);
+      const hd = headAt as { x: number; y: number; tilt: number } | null;
+      if (hd) HEADS.set(pose, { x: hd.x / 4, y: hd.y / 4, tilt: hd.tilt });
       const w = whiskerAt as { x: number; y: number; tilt: number } | null;
       if (w) {
         // 수염은 외곽선 위에, 가늘고 길게

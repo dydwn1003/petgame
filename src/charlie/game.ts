@@ -66,6 +66,8 @@ import {
   FROG_KING,
   FROGMAN,
   HUMAN_ORIGIN,
+  catHead,
+  lightTip,
   SKELETON,
   cat,
   human,
@@ -103,6 +105,8 @@ export interface Actor {
   hop?: number;
   /** 연출 중 반복 재생할 동작 (예: 계단 오르기) */
   anim?: { prefix: string; frames: number; fps: number } | null;
+  /** 마지막으로 그린 자세 (손전등 빛 위치 계산용) */
+  lastPose?: string;
   /** 머리 위 감정 아이콘 */
   emote?: { kind: Emote; t0: number } | null;
 }
@@ -183,7 +187,21 @@ export const S = {
   /** 연출용 카메라: 초점 x, 확대 */
   cam: { focus: null as number | null, zoom: 1, zoomTarget: 1 },
   bars: 0,
+  /** 손전등을 켜고 끈 시각 (드는/내리는 동작용) */
+  lightT: -9,
 };
+
+/** 지금 찰리가 손전등을 켜 들고 있는가 */
+function lightOn(): boolean {
+  const sc = S.scene;
+  return !!sc?.useLight && !!S.flags.supplies && S.flags.light !== 0;
+}
+/** 손에 든 손전등 끝에서 뻗어 나가는 빛 */
+function flashCone(len = 160, spread = 0.3): Light | null {
+  if (!lightOn() || S.hidden || !charlie.visible) return null;
+  const tip = (charlie.lastPose && lightTip(charlie.lastPose, S.build)) || lightTip("flashlight", S.build) || [5, -8.5];
+  return { x: charlie.x + charlie.facing * tip[0], y: charlie.y + tip[1], r: 0, a: 0.95, cone: { dir: charlie.facing, len, spread } };
+}
 
 // ── 연출 도구 ────────────────────────────────────────────
 /** 머리 위에 감정 아이콘을 띄운다 */
@@ -1448,7 +1466,8 @@ SCENES.alley = () => {
         { x: ALLEY.lamp, y: 40, r: 90, a: 0.55, warm: "rgba(255,220,150,0.07)" },
         { x: charlie.x, y: charlie.y - 24, r: 38, a: 0.45 },
       ];
-      if (S.flags.supplies) L.push({ x: charlie.x + charlie.facing * 16, y: charlie.y - 34, r: 0, a: 0.95, cone: { dir: charlie.facing, len: 170, spread: 0.32 } });
+      const cone = flashCone(170, 0.32);
+      if (cone) L.push(cone);
       return L;
     },
     minX: 20,
@@ -1691,7 +1710,8 @@ SCENES.subway = (checkpoint) => {
         const flick = broken ? (Math.sin(clock.t * 23 + i) > 0.6 ? 0.6 : 0) : 0.55;
         return { x, y: 32, r: broken ? 70 : 80, a: flick, warm: flick ? "rgba(200,255,220,0.05)" : undefined };
       });
-      if (F.light && !S.hidden) L.push({ x: charlie.x + charlie.facing * 16, y: charlie.y - 34, r: 0, a: 0.95, cone: { dir: charlie.facing, len: 160, spread: 0.3 } });
+      const cone = flashCone(160, 0.3);
+      if (cone) L.push(cone);
       L.push({ x: charlie.x, y: charlie.y - 24, r: F.light ? 36 : 24, a: 0.5 });
       return L;
     },
@@ -1839,10 +1859,6 @@ SCENES.subway = (checkpoint) => {
       },
     ],
     update: (dt) => {
-      if (took("KeyF") && S.control && !S.hidden) {
-        F.light = F.light ? 0 : 1;
-        sfx.blip();
-      }
       if (!S.control) return;
       // 보초 개구리: 왔다 갔다 하며 앞을 본다 (추격이 시작되면 왕에게 맡기고 멈춘다)
       for (const f of chase ? [] : frogs) {
@@ -2518,8 +2534,10 @@ SCENES.church = (checkpoint) => {
     unlock(4);
     writeSave("end3", 0);
     await fadeTo(1, 1.6);
+    await say(tomas, "그런데 찰리, 격리 센터는 블랙컴퍼니 사원증 없이는 근처에도 못 가.");
+    await say(charlie, "...내 사원증. 회사 책상 서랍에 두고 왔어요. 회사가 여기서 멀지 않아요.");
     await chapterCard("제3장 끝", "");
-    await goScene("pier", 0, false);
+    await goScene("bcLobby", 70, false);
   };
 
   const hideSpot = (x: number): Hotspot => ({
@@ -3029,6 +3047,7 @@ SCENES.pier = (checkpoint) => {
       charlie.facing = 1;
       await fadeTo(0, 1);
       await chapterCard("제4장", "격리 센터");
+      await caption("철조망 쪽문에 사원증을 대자, 「삑— 블랙컴퍼니 직원 확인」. 문이 열렸다.");
       await say(charlie, "허드슨 강변의 컨벤션 센터... 루스 할머니는 저 안에 있어.");
       await caption("샘은 찰리의 가방 속에서 숨을 죽이고 있다.");
       await caption("요원들의 손전등에 비치지 않게, 컨테이너 뒤에 [Space]로 숨으며 하역장까지 가자. 가까이에선 ↓(살금살금)로.");
@@ -3692,6 +3711,7 @@ function drawBag(sc: Scene): void {
     text(sc.label, 12, y + 7.5, "#ece6f4", "left");
     y += 18;
   }
+  if (sc.useLight && S.flags.supplies && sc.id !== "subway") text(S.flags.light === 0 ? "손전등 꺼짐 [F]" : "손전등 켜짐 [F]", 8, H - 26, S.flags.light === 0 ? "#8a8aa0" : "#ffd36a", "left");
   if (items.length) {
     const line = `가방: ${items.map((k) => ITEMS[k.slice(2)] ?? k.slice(2)).join(" · ")}`;
     g.font = FONT;
@@ -3931,6 +3951,179 @@ function markEnding(e: string): void {
   }
 }
 
+// ── 참치캔 (수집 → 샘 꾸미기 해금) ─────────────────────────────
+export const CANS_TOTAL = 20;
+const CAN_KEY = "charlie_cat_cans";
+export function cansFound(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(CAN_KEY) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+export const COSTUMES = [
+  { id: "none", name: "없음", need: 0 },
+  { id: "ribbon", name: "분홍 리본", need: 3 },
+  { id: "glasses", name: "선글라스", need: 8 },
+  { id: "crown", name: "왕관", need: 13 },
+  { id: "helmet", name: "우주 헬멧", need: 20 },
+];
+export function costume(): string {
+  try {
+    return localStorage.getItem("charlie_cat_costume") ?? "none";
+  } catch {
+    return "none";
+  }
+}
+function setCostume(id: string): void {
+  try {
+    localStorage.setItem("charlie_cat_costume", id);
+  } catch {
+    /* 무시 */
+  }
+}
+async function findCan(id: string): Promise<void> {
+  const got = cansFound();
+  if (!got.includes(id)) {
+    got.push(id);
+    try {
+      localStorage.setItem(CAN_KEY, JSON.stringify(got));
+    } catch {
+      /* 무시 */
+    }
+  }
+  S.flags[`can_${id}`] = 1;
+  sfx.can();
+  await caption(`참치캔을 찾았다! (${got.length}/${CANS_TOTAL})`);
+  const unlockedNow = COSTUMES.find((c) => c.need === got.length && c.need > 0);
+  if (unlockedNow) {
+    sfx.item();
+    await caption(`샘 꾸미기 「${unlockedNow.name}」 해금! 타이틀 화면에서 씌워 줄 수 있다.`);
+  }
+}
+/** 참치캔이 숨어 있는 곳 */
+function canSpot(id: string, x: number, iconY = 176, label = "뒤져 보기"): Hotspot {
+  return { x, iconY, label, enabled: () => !S.flags[`can_${id}`] && !cansFound().includes(id), use: () => findCan(id) };
+}
+
+/** 샘 머리에 꾸미기 소품을 씌운다 (left, top = 고양이 그림 왼쪽 위) */
+function drawCostume(left: number, top: number, facing: 1 | -1, pose: string, id = costume()): void {
+  if (id === "none") return;
+  const h = catHead(pose);
+  if (!h) return;
+  const f = facing;
+  const hx = left + (f === 1 ? h.x : 32 - h.x);
+  const hy = top + h.y;
+  g.save();
+  g.translate(hx, hy);
+  g.rotate(h.tilt * f);
+  if (id === "ribbon") {
+    g.fillStyle = "#f06a9a";
+    g.beginPath();
+    g.moveTo(-f * 1, -3.4);
+    g.lineTo(-f * 3.6, -5);
+    g.lineTo(-f * 3.4, -2);
+    g.closePath();
+    g.moveTo(-f * 1, -3.4);
+    g.lineTo(f * 1.4, -5.4);
+    g.lineTo(f * 1.2, -2.2);
+    g.closePath();
+    g.fill();
+    g.fillStyle = "#c8466a";
+    g.beginPath();
+    g.arc(-f * 1, -3.4, 0.8, 0, Math.PI * 2);
+    g.fill();
+  } else if (id === "glasses") {
+    g.strokeStyle = "#111";
+    g.lineWidth = 0.45;
+    g.beginPath();
+    g.moveTo(f * 0.6, -0.9);
+    g.lineTo(-f * 2.8, -1.2);
+    g.stroke();
+    g.fillStyle = "#14141a";
+    g.beginPath();
+    g.ellipse(f * 1.6, -0.6, 1.5, 1.1, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "rgba(255,255,255,0.7)";
+    g.fillRect(f * 1.6 - 0.8, -1.2, 0.6, 0.4);
+  } else if (id === "crown") {
+    g.fillStyle = "#f0c43a";
+    g.beginPath();
+    g.moveTo(-2.4, -4.2);
+    g.lineTo(-2.6, -6.6);
+    g.lineTo(-1.2, -5.2);
+    g.lineTo(0, -7);
+    g.lineTo(1.2, -5.2);
+    g.lineTo(2.6, -6.6);
+    g.lineTo(2.4, -4.2);
+    g.closePath();
+    g.fill();
+    g.fillStyle = "#e84a6a";
+    g.beginPath();
+    g.arc(0, -5, 0.55, 0, Math.PI * 2);
+    g.fill();
+  } else if (id === "helmet") {
+    g.fillStyle = "rgba(190,225,255,0.22)";
+    g.strokeStyle = "rgba(220,240,255,0.85)";
+    g.lineWidth = 0.5;
+    g.beginPath();
+    g.arc(0, -1.6, 5.4, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    g.strokeStyle = "rgba(255,255,255,0.8)";
+    g.beginPath();
+    g.arc(-1.2, -2.8, 3.4, Math.PI * 1.1, Math.PI * 1.5);
+    g.stroke();
+    g.strokeStyle = "#8a9aaa";
+    g.beginPath();
+    g.moveTo(1.5, -6.6);
+    g.lineTo(2.6, -9);
+    g.stroke();
+    g.fillStyle = Math.floor(clock.t * 3) % 2 ? "#6ae88a" : "#2a6a4a";
+    g.beginPath();
+    g.arc(2.7, -9.2, 0.6, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.restore();
+}
+
+// ── 샘 쓰다듬기 ─────────────────────────────────────────────
+let petUntil = 0;
+let petPrev: string | null = null;
+function petCount(): number {
+  try {
+    return Number(localStorage.getItem("charlie_cat_pets")) || 0;
+  } catch {
+    return 0;
+  }
+}
+function canPet(): boolean {
+  const sc = S.scene;
+  return !!sc && !sc.noPlayer && S.control && !S.talk && !S.hidden && sam.visible && charlie.kind === "charlie" && Math.abs(sam.x - charlie.x) < 34 && Math.abs(sam.y - charlie.y) < 20;
+}
+function petSam(): void {
+  const n = petCount() + 1;
+  try {
+    localStorage.setItem("charlie_cat_pets", String(n));
+  } catch {
+    /* 무시 */
+  }
+  if (clock.t > petUntil) petPrev = sam.pose;
+  petUntil = clock.t + 1.1;
+  sam.pose = "butt";
+  sam.facing = charlie.x > sam.x ? 1 : -1;
+  emote(sam, n % 7 === 0 ? "♪" : "♥");
+  sfx.purr();
+  if ([10, 30, 77].includes(n)) void cutscene(() => caption(n === 10 ? "샘이 찰리 다리에 몸을 비빈다. (쓰다듬은 횟수 10회)" : n === 30 ? "샘이 배를 보여 준다! 최고의 신뢰 표시다. (30회)" : "골골골골... 샘의 골골송이 멈추질 않는다. (77회 달성!)"));
+}
+function updatePet(): void {
+  if (petUntil > 0 && clock.t > petUntil) {
+    petUntil = 0;
+    sam.pose = petPrev ?? "sit";
+  }
+  if (canPet() && took("KeyC")) petSam();
+}
+
 /** 정면을 보고 계단을 내려간다 */
 async function descend(steps: number, dx = 0): Promise<void> {
   charlie.anim = { prefix: "front", frames: 8, fps: 9 };
@@ -3993,6 +4186,7 @@ export function update(dt: number): void {
   }
   if (!sc || S.mode !== "play") return;
   stepMovers(dt);
+  updatePet();
 
   if (sc.noPlayer) {
     if (S.control && !S.talk) {
@@ -4023,6 +4217,11 @@ export function update(dt: number): void {
         sfx.step();
       }
     } else {
+      if (took("KeyF") && sc.useLight && S.flags.supplies) {
+        S.flags.light = S.flags.light === 0 ? 1 : 0;
+        S.lightT = clock.t;
+        sfx.blip();
+      }
       const ax = axis();
       const speed = sneaking() ? 24 : running() ? 96 : 56;
       if (ax) {
@@ -4129,6 +4328,8 @@ function drawActor(a: Actor, camX: number): void {
     else pose = a.moving ? `walk${Math.floor(a.walkDist / 1.5) % 16}` : idle();
     const spr = cat(pose, a.facing, !!a.silhouette);
     smoothDraw(spr, sx - 15, half(a.y + bob) - 22, 32, 24);
+    if (!a.silhouette && a === sam) drawCostume(sx - 15, half(a.y + bob) - 22, a.facing, pose);
+    if (a === sam && canPet()) text("[C] 쓰담쓰담", sx, half(a.y) - 30, "#ffd6e6", "center");
     return;
   }
   const isCharlie = a.kind === "charlie";
@@ -4140,10 +4341,19 @@ function drawActor(a: Actor, camX: number): void {
   if (a.anim) pose = `${a.anim.prefix}${Math.floor(clock.t * a.anim.fps) % a.anim.frames}`;
   else if (a.pose === "stand") pose = breath;
   else if (a.pose) pose = a.pose as Pose;
-  else if (a.moving) pose = sneakNow ? `crouch${Math.floor(a.walkDist / 2.5) % 8}` : `walk${Math.floor(a.walkDist / 2) % 16}`;
-  else if (sneakNow) pose = "crouch0";
-  else if (isCharlie && S.scene?.useLight && S.flags.supplies && (S.scene.id !== "subway" || S.flags.light)) pose = "flashlight";
-  else pose = breath;
+  else {
+    const held = isCharlie && lightOn();
+    const L = held ? "L" : "";
+    const since = clock.t - S.lightT;
+    if (a.moving) pose = (sneakNow ? `crouch${Math.floor(a.walkDist / 2.5) % 8}` : `walk${Math.floor(a.walkDist / 2) % 16}`) + L;
+    else if (isCharlie && since < 0.28 && !!S.flags.supplies && S.scene?.useLight) {
+      const f = Math.min(3, Math.floor(since / 0.07));
+      pose = `raise${held ? f : 3 - f}`;
+    } else if (sneakNow) pose = `crouch0${L}`;
+    else if (held) pose = "flashlight";
+    else pose = breath;
+  }
+  if (isCharlie) a.lastPose = pose;
   const build = isCharlie ? S.build : (a.build ?? BUILD_3);
   const spr = human(look, id, pose, build, a.facing);
   const ox = a.facing === 1 ? HUMAN_ORIGIN.x : 32 - HUMAN_ORIGIN.x;
@@ -4487,6 +4697,7 @@ export function titleItems(): string[] {
   if (un >= 4) items.push("제4장부터");
   if (un >= 5) items.push("최종장부터");
   items.push(`추억 앨범 ${photosFound().length}/${PHOTOS.length}`);
+  items.push(`샘 꾸미기: ${COSTUMES.find((c) => c.id === costume())?.name ?? "없음"} (참치캔 ${cansFound().length}/${CANS_TOTAL})`);
   items.push(`체형: ${S.build === BUILD_3 ? "3등신" : "2.5등신"}`);
   return items;
 }
@@ -4530,6 +4741,12 @@ export function updateTitle(): void {
   } else if (label === "최종장부터") {
     S.flags = { supplies: 1, ch1: 1, ch2: 1, ch3: 1, ch4: 1, treats: 1 };
     void goScene("helipad", 0, false);
+  } else if (label.startsWith("샘 꾸미기")) {
+    const have = cansFound().length;
+    const open2 = COSTUMES.filter((c) => have >= c.need);
+    const i = open2.findIndex((c) => c.id === costume());
+    setCostume(open2[(i + 1) % open2.length].id);
+    if (open2.length === 1) sfx.croak();
   } else if (label.startsWith("추억 앨범")) {
     S.album = 1;
   } else if (label === "이어하기") {
@@ -4550,7 +4767,9 @@ export function drawTitle(): void {
   g.fillRect(0, 0, W, H);
   const spr = human(CHARLIE, "charlie", `stand${Math.floor(clock.t / 0.55) % 4}`, S.build, 1);
   g.drawImage(spr, W / 2 - 120, GROUND - 52, 32, 54);
-  g.drawImage(cat(`sitT${Math.floor(clock.t * 6) % 8}`, -1), W / 2 - 92, GROUND - 22, 32, 24);
+  const tpose = `sitT${Math.floor(clock.t * 6) % 8}`;
+  g.drawImage(cat(tpose, -1), W / 2 - 92, GROUND - 22, 32, 24);
+  drawCostume(W / 2 - 92, GROUND - 22, -1, tpose);
   g.save();
   g.font = "bold 30px Galmuri11";
   g.textAlign = "center";
@@ -4622,7 +4841,9 @@ export function prewarm(): void {
   for (let i = 0; i < 8; i++) poses.push(`crouch${i}`);
   for (let i = 0; i < 4; i++) poses.push(`stand${i}`);
   poses.push("flashlight", "sit", "drink", "sleep", "armsUp", "back");
-  for (let i = 0; i < 8; i++) poses.push(`climb${i}`, `stair${i}`, `front${i}`);
+  for (let i = 0; i < 8; i++) poses.push(`climb${i}`, `stair${i}`, `front${i}`, `crouch${i}L`);
+  for (let i = 0; i < 16; i++) poses.push(`walk${i}L`);
+  for (let i = 0; i < 4; i++) poses.push(`raise${i}`);
   for (const p of poses) for (const f of [1, -1] as const) human(CHARLIE, "charlie", p, S.build, f);
   const catPoses: string[] = ["blink", "startle", "loaf", "butt", "jump"];
   for (let i = 0; i < 16; i++) catPoses.push(`walk${i}`);
@@ -4643,5 +4864,5 @@ export function bakeIdle(deadline: number): void {
 }
 
 // stages.ts (추가 스테이지) 에서 쓰는 도구들
-export { SCENES, mkActor, walkTo, tween, writeSave, emote, focusCam, gameOver, hideAt, patrolKit, choose, unlock, flameTongues, smokePuffs, half, smoothDraw, playMovie, has, give, take, openKeypad, playSimon, photoSpot, findPhoto, descend, ascend, charlie, sam, drawFires };
+export { SCENES, mkActor, flashCone, canSpot, walkTo, tween, writeSave, emote, focusCam, gameOver, hideAt, patrolKit, choose, unlock, flameTongues, smokePuffs, half, smoothDraw, playMovie, has, give, take, openKeypad, playSimon, photoSpot, findPhoto, descend, ascend, charlie, sam, drawFires };
 export type { Scene, Hotspot, Light, Zone };

@@ -14,7 +14,9 @@ import {
   caption,
   charlie,
   descend,
+  canSpot,
   emote,
+  flashCone,
   flameTongues,
   give,
   goScene,
@@ -41,6 +43,11 @@ Object.assign(ITEMS, {
   crowbar: "쇠지렛대",
   sheet: "찢어진 악보",
   med: "릴리의 천식약",
+  mug: "샘 머그컵",
+  coffee: "뜨거운 커피",
+  bosskey: "부장실 열쇠",
+  drawerkey: "내 서랍 열쇠",
+  badge: "블랙컴퍼니 사원증",
 });
 
 type Door = DoorDef & {
@@ -92,7 +99,8 @@ function room(o: RoomOpts): void {
       lights: () => {
         const L: Light[] = o.lights ? o.lights() : [];
         if (!o.dark) for (let x = 65; x < o.width; x += 130) L.push({ x, y: 26, r: 80, a: 0.6, warm: "rgba(255,230,180,0.05)" });
-        if (o.dark && F().supplies) L.push({ x: charlie.x + charlie.facing * 16, y: charlie.y - 34, r: 0, a: 0.95, cone: { dir: charlie.facing, len: 160, spread: 0.3 } });
+        const cone = o.dark ? flashCone(160, 0.3) : null;
+        if (cone) L.push(cone);
         L.push({ x: charlie.x, y: charlie.y - 24, r: o.dark ? (F().supplies ? 38 : 52) : 30, a: 0.55 });
         return L;
       },
@@ -170,8 +178,9 @@ function zoned(x: number, i: number, lines: string[], pose: "stand" | "sit" | "b
       a.bubble = a.bubble ? null : lines[Math.floor(Math.random() * lines.length)];
       t = a.bubble ? 2.6 : 4 + Math.random() * 4;
     }
-    a.x = x + Math.sin(clock.t * 0.8 + x) * 1.2;
+    if (!a.moving) a.x = (a.home ?? x) + Math.sin(clock.t * 0.8 + x) * 1.2;
   };
+  a.home = x;
   (a as Actor & { tick?: () => void }).tick = tick;
   return a;
 }
@@ -199,7 +208,7 @@ room({
     { x: 470, kind: "door", label: "4C", lock: () => "문 너머에서 누군가 중얼거린다. '초록빛... 초록빛...' 문을 열어 주지 않는다." },
     { x: 700, kind: "stairs", label: "계단 ↓", to: "apt3", toX: 690, dir: "down" },
   ],
-  hotspots: () => [
+  hotspots: () => [canSpot("c1", 540, 176, "신발장 위"), 
     look(380, 120, ["관리실 공지: 「현관 비밀번호가 바뀌었습니다. 새 번호는 1층 관리실 화이트보드를 확인하세요.」", "찰리:현관 비밀번호...? 하필 이럴 때."]),
     look(600, 116, ["화재경보기가 미친 듯이 울리고 있다.", "찰리:아래층 어딘가에서 불이 났나 봐."]),
   ],
@@ -219,7 +228,7 @@ room({
   seed: 402,
   startX: 70,
   doors: [{ x: 50, kind: "door", label: "현관", to: "apt4", toX: 280, dir: "in" }],
-  hotspots: () => [
+  hotspots: () => [canSpot("c2", 270, 176, "찬장"), 
     look(200, 120, ["빈 새장. 문이 활짝 열려 있다.", "카나리아 '피코'도, 가르시아 부인도 보이지 않는다."]),
     {
       x: 340,
@@ -350,7 +359,7 @@ room({
     g.fillStyle = "#3a3a3a";
     g.fillRect(392 - camX, 196, 16, 18);
   },
-  hotspots: () => [
+  hotspots: () => [canSpot("c3", 260, 176, "소파 쿠션 밑"), 
     look(400, 150, ["화면엔 지지직거리는 초록 잡음뿐.", "남자는 눈도 깜빡이지 않고 화면만 보고 있다."], "TV"),
     {
       x: 480,
@@ -446,7 +455,7 @@ room({
   startX: 70,
   dark: true,
   doors: [{ x: 50, kind: "door", label: "현관", to: "apt2", toX: 420, dir: "in" }],
-  hotspots: () => [
+  hotspots: () => [canSpot("c4", 390, 176, "쓰레기통 옆"), 
     look(220, 130, ["냉장고 메모: 「금고 비밀번호 = 내 생일! 이번엔 까먹지 말 것」"], "냉장고"),
     look(330, 140, ["선반 위의 생일 카드.", "「사랑하는 토니에게. 생일 축하해! 4월 12일, 엄마가」"], "선반"),
     {
@@ -528,7 +537,7 @@ room({
     return super1;
   },
   update: tickAll(super1),
-  hotspots: () => [
+  hotspots: () => [canSpot("c5", 370, 176, "공구 상자"), 
     look(200, 120, ["화이트보드: 「새 현관 비밀번호: 0 4 □ 7」", "「가운데 빈칸 = 내 우편함 번호. (까먹으면 우편함 확인!)」 — 관리인"], "화이트보드"),
     look(300, 140, ["관리인 아저씨는 빈 바닥을 계속 쓸고 있다. 빗자루에는 털이 하나도 없다."], "관리인"),
     photoSpot("p2", 430, 160, "분실물 상자"),
@@ -566,7 +575,7 @@ room({
       dir: "in",
     },
   ],
-  hotspots: () => [look(560, 170, ["물갈퀴 자국이 철창 너머로 길게 이어져 있다.", "찰리:개구리 녀석, 이쪽으로 갔군."], "발자국")],
+  hotspots: () => [canSpot("c6", 440, 176, "배관 틈"), look(560, 170, ["물갈퀴 자국이 철창 너머로 길게 이어져 있다.", "찰리:개구리 녀석, 이쪽으로 갔군."], "발자국")],
   enter: async () => {
     await caption("역 아래 점검 통로. 퀴퀴한 물 냄새와 개구리 울음소리.");
   },
@@ -580,7 +589,7 @@ room({
   seed: 502,
   startX: 70,
   doors: [{ x: 50, kind: "steel", label: "통로", to: "tun1", toX: 300, dir: "in" }],
-  hotspots: () => [
+  hotspots: () => [canSpot("c7", 400, 176, "냉장고 위"), 
     look(170, 120, ["야간 근무표: 「월 2번 · 화 0번 · 수 1번 · 목 9번」", "아래에 볼펜 낙서: 「사물함 비번 = 근무표 순서대로 (외우기 싫음)」"], "근무표"),
     {
       x: 330,
@@ -613,7 +622,7 @@ room({
     { x: 200, kind: "steel", label: "펌프실", to: "pump2", toX: 70, dir: "in" },
     { x: 960, kind: "arch", to: "subway", toX: 0, dir: "in" },
   ],
-  hotspots: () => [photoSpot("p4", 820, 170, "버려진 가방"), look(350, 170, ["앞쪽 터널이 허리까지 물에 잠겨 있다.", "찰리:물을 빼지 않으면 못 지나가."], "물")],
+  hotspots: () => [canSpot("c8", 900, 176, "선로 옆"), photoSpot("p4", 820, 170, "버려진 가방"), look(350, 170, ["앞쪽 터널이 허리까지 물에 잠겨 있다.", "찰리:물을 빼지 않으면 못 지나가."], "물")],
   update: () => {
     if (!F().drained && charlie.x > 360 && S.control) {
       charlie.x = 360;
@@ -652,7 +661,7 @@ room({
   seed: 504,
   startX: 70,
   doors: [{ x: 50, kind: "steel", label: "터널", to: "tun2", toX: 200, dir: "in" }],
-  hotspots: () => [
+  hotspots: () => [canSpot("c9", 460, 176, "계기판 밑"), 
     look(130, 110, ["벽에 붙은 안내문: 「배수 밸브 4개를 모두 열어야 펌프가 돈다.」", "「※ 낡은 배관이라 밸브 하나를 돌리면 옆 밸브까지 같이 돌아감」"], "안내문"),
     ...[180, 250, 320, 390].map(
       (x, i): Hotspot => ({
@@ -740,6 +749,7 @@ room({
     await caption("교회 지하. 촛불 몇 개만이 어둠을 버티고 있다.");
     await say(charlie, "릴리 약은 '성물실'에 있다고 했지.");
   },
+  hotspots: () => [canSpot("c10", 520, 176, "촛대 아래")],
 });
 
 room({
@@ -751,7 +761,7 @@ room({
   startX: 60,
   dark: true,
   doors: [{ x: 40, kind: "arch", to: "crypt1", toX: 320, dir: "in" }],
-  hotspots: () => [
+  hotspots: () => [canSpot("c11", 420, 176, "선반 구석"), 
     {
       x: 330,
       iconY: 140,
@@ -777,7 +787,7 @@ room({
   startX: 60,
   dark: true,
   doors: [{ x: 40, kind: "steel", label: "납골당", to: "crypt1", toX: 720, dir: "in" }],
-  hotspots: () => [
+  hotspots: () => [canSpot("c12", 160, 176, "성배 뒤"), 
     {
       x: 300,
       iconY: 140,
@@ -811,7 +821,7 @@ room({
   seed: 701,
   startX: 70,
   doors: [{ x: 50, kind: "steel", label: "복도", to: "center", toX: 960, dir: "in" }],
-  hotspots: () => [
+  hotspots: () => [canSpot("c18", 340, 176, "서랍"), 
     {
       x: 260,
       iconY: 130,
@@ -845,7 +855,7 @@ room({
   startX: 70,
   dark: true,
   doors: [{ x: 50, kind: "steel", label: "복도", to: "center", toX: 1100, dir: "in" }],
-  hotspots: () => [
+  hotspots: () => [canSpot("c19", 560, 176, "서류 더미"), 
     look(150, 140, ["「실험실 보안 규정」", "「비밀번호 끝자리 = 이번 주 격리된 면역자 수의 끝자리」", "「금주 격리 인원: 125명」"], "보안 규정"),
     look(250, 140, ["「프로젝트 초록 고양이」 — 블랙컴퍼니 대외비", "「초록빛은 고양이에게 반응한다. 고양이를 미끼로 외계 기술 확보 가능.」"], "서류철"),
     look(370, 140, ["「면역자 명단」 ... 루스 오코너(67) — 전직 응급실 간호사. 혈청 적합도 '최상'.", "찰리:...절대 그냥 두지 않을 거야."], "명단"),
@@ -861,7 +871,7 @@ room({
   seed: 703,
   startX: 70,
   doors: [{ x: 50, kind: "steel", label: "복도", to: "center", toX: 300, dir: "in" }],
-  hotspots: () => [
+  hotspots: () => [canSpot("c20", 560, 176, "빈 침대 밑"), 
     look(180, 130, ["정비 메모: 「비상 해제: 레버를 '셋 → 하나 → 둘' 순서로 내릴 것. 틀리면 처음부터.」"], "정비 메모"),
     ...[300, 380, 460].map(
       (x, i): Hotspot => ({
@@ -899,6 +909,231 @@ room({
       g.fillStyle = down ? "#3ae86a" : "#e83a3a";
       g.fillRect(x - 2 - camX, down ? 172 : 146, 4, 10);
     });
+  },
+});
+
+
+// ═════════════════════════════════════════════════════════
+// 제3장 끝 → 제4장 앞: 블랙컴퍼니 사무실 (아이템 찾기 미로)
+//  머그컵 → 커피 → 인턴 → 복사기 속 부장실 열쇠 → 부장 책상의 내 서랍 열쇠 → 사원증
+// ═════════════════════════════════════════════════════════
+const lobbyGuard: Actor[] = [];
+room({
+  id: "bcLobby",
+  label: "블랙컴퍼니 로비",
+  theme: "lobby",
+  width: 720,
+  seed: 801,
+  startX: 70,
+  doors: [
+    {
+      x: 60,
+      kind: "steel",
+      label: "정문",
+      lock: () => (has("badge") ? null : "사원증부터 찾자. 그게 있어야 격리 센터에 들어갈 수 있어."),
+      use: async () => {
+        await say(charlie, "사원증 챙겼다. 이제 허드슨 강변 격리 센터로!");
+        await goScene("pier", 0);
+      },
+    },
+    { x: 400, kind: "elevator", lock: () => "엘리베이터에 팻말: 「야근 중 점검. 계단을 이용하세요 :)」" },
+    { x: 650, kind: "stairs", label: "계단 ↑", to: "bc7", toX: 60, dir: "up" },
+  ],
+  actors: () => {
+    lobbyGuard.length = 0;
+    lobbyGuard.push(zoned(300, 2, ["출근 확인... 출근 확인...", "지각... 지각입니다...", "..."]));
+    return lobbyGuard;
+  },
+  update: tickAll(lobbyGuard),
+  hotspots: () => [
+    canSpot("c13", 520, 176, "화분 뒤"),
+    look(200, 140, ["안내 데스크 팻말: 「웃으며 야근합시다 — 블랙컴퍼니」", "찰리:세상이 망해도 이 팻말은 멀쩡하네."], "안내 데스크"),
+    look(300, 140, ["경비 아저씨가 출입 게이트 앞에서 허공에 사원증을 찍고 있다.", "삑... 삑... 아무 소리도 나지 않는다."], "경비"),
+  ],
+  enter: async () => {
+    await caption("블랙컴퍼니 본사. 사흘 내내 갇혀 지냈던 그 건물이다.");
+    await say(charlie, "다시는 안 올 줄 알았는데... 내 사원증은 7층 내 책상 서랍에 있어.");
+  },
+});
+
+const team7: Actor[] = [];
+room({
+  id: "bc7",
+  label: "7층 · 영업2팀",
+  theme: "staff",
+  width: 980,
+  seed: 802,
+  startX: 60,
+  doors: [
+    { x: 40, kind: "stairs", label: "계단 ↓", to: "bcLobby", toX: 650, dir: "down" },
+    { x: 200, kind: "door", label: "탕비실", to: "bcPantry", toX: 70, dir: "in" },
+    { x: 520, kind: "door", label: "복사실", to: "bcCopy", toX: 70, dir: "in" },
+    { x: 880, kind: "steel", label: "부장실", lock: () => (has("bosskey") || F().bossOpen ? null : "부장실은 잠겨 있다. 문패: 「노크 금지. 성과로 말하라」"), to: "bcBoss", toX: 70, dir: "in" },
+  ],
+  actors: () => {
+    team7.length = 0;
+    team7.push(zoned(680, 0, ["보고서... 보고서...", "엑셀... 엑셀이...", "..."]));
+    team7.push(zoned(760, 1, ["네 부장님... 네 부장님...", "바로 하겠습니다...", "..."]));
+    return team7;
+  },
+  update: tickAll(team7),
+  hotspots: () => [
+    canSpot("c14", 600, 176, "동료 책상 밑"),
+    look(320, 120, ["모니터 포스트잇: 「샘 밥 7시!!」 내 글씨다.", "찰리:...사흘 동안 한 번도 못 지켰지."], "내 모니터"),
+    {
+      x: 400,
+      iconY: 150,
+      label: "내 책상 서랍",
+      enabled: () => !has("badge"),
+      use: async () => {
+        if (!has("drawerkey")) {
+          await say(charlie, "잠겨 있어. 열쇠는... 부장님이 '업무 태만'이라며 압수해 갔었지.");
+          return;
+        }
+        take("drawerkey");
+        await caption("서랍을 열자 사원증과... 샘 사진이 붙은 컵받침이 나왔다.");
+        await give("badge");
+        emote(charlie, "♥");
+        await say(charlie, "됐다. 이제 이 회사엔 볼일 없어.");
+      },
+    },
+  ],
+  enter: async () => {
+    await caption("영업2팀. 동료들이 꺼진 모니터 앞에서 계속 타자를 치고 있다.");
+    await say(charlie, "...다들 여기 있었구나. 세상이 망한 줄도 모르고.");
+  },
+});
+
+room({
+  id: "bcPantry",
+  label: "탕비실",
+  theme: "flat",
+  width: 520,
+  seed: 803,
+  startX: 70,
+  doors: [{ x: 50, kind: "door", label: "사무실", to: "bc7", toX: 200, dir: "in" }],
+  hotspots: () => [
+    canSpot("c15", 130, 150, "찬장 위"),
+    {
+      x: 220,
+      iconY: 130,
+      label: "컵 선반",
+      enabled: () => !F().gotMug,
+      use: async () => {
+        F().gotMug = 1;
+        await caption("수십 개의 똑같은 회사 머그컵 사이에, 샘 얼굴이 그려진 내 컵이 있다.");
+        await give("mug");
+      },
+    },
+    {
+      x: 330,
+      iconY: 140,
+      label: "커피 머신",
+      enabled: () => !F().gotCoffee,
+      use: async () => {
+        if (!has("mug")) {
+          await say(charlie, "컵이 없으면 커피를 받을 수가 없어. 종이컵도 다 떨어졌네.");
+          return;
+        }
+        take("mug");
+        F().gotCoffee = 1;
+        sfx.fridge();
+        await caption("위이잉... 커피 머신은 세상이 망해도 돌아간다. 진한 커피 한 잔.");
+        await give("coffee");
+      },
+    },
+    look(440, 140, ["냉장고 안: 「그림스 부장 전용」이라고 적힌 푸딩 열두 개.", "찰리:...하나 정도는 괜찮겠지."], "냉장고"),
+  ],
+});
+
+const intern: Actor[] = [];
+room({
+  id: "bcCopy",
+  label: "복사실",
+  theme: "staff",
+  width: 520,
+  seed: 804,
+  startX: 70,
+  doors: [{ x: 50, kind: "door", label: "사무실", to: "bc7", toX: 520, dir: "in" }],
+  actors: () => {
+    intern.length = 0;
+    const a = zoned(F().internUp ? 150 : 300, 2, F().internUp ? ["커피 맛있다...", "선배, 고마워요."] : ["커피... 커피...", "복사... 복사..."]);
+    intern.push(a);
+    return intern;
+  },
+  update: tickAll(intern),
+  hotspots: () => [
+    canSpot("c16", 470, 176, "종이 상자"),
+    {
+      x: 300,
+      iconY: 140,
+      label: "인턴",
+      enabled: () => !F().internUp,
+      use: async () => {
+        if (!has("coffee")) {
+          await caption("인턴이 복사기 앞에 붙박이처럼 서서 중얼거린다. 「커피... 커피...」");
+          await say(charlie, "비켜 줄 생각이 없어 보이네. 커피라도 있으면...");
+          return;
+        }
+        take("coffee");
+        F().internUp = 1;
+        await caption("커피를 건네자, 인턴이 두 손으로 컵을 받아 한 모금 마셨다.");
+        emote(intern[0], "!");
+        intern[0].bubble = "...어? 선배? 저 여기서 뭐 하고 있었죠?";
+        await wait(1.8);
+        intern[0].bubble = null;
+        await walkTo(intern[0], 150, 40);
+        intern[0].home = 150;
+        intern[0].pose = "stand";
+        await say(charlie, "커피 한 잔에 정신이 돌아오다니... 역시 직장인이야.");
+      },
+    },
+    {
+      x: 400,
+      iconY: 130,
+      label: "복사기",
+      enabled: () => !has("bosskey") && !F().bossOpen,
+      use: async () => {
+        if (!F().internUp) {
+          await say(charlie, "인턴이 복사기를 막고 서 있어.");
+          return;
+        }
+        await caption("「용지 걸림」 표시가 깜빡인다. 덮개를 열어 보니... 구겨진 종이 사이에 열쇠 하나!");
+        await give("bosskey");
+        await say(charlie, "부장실 열쇠잖아. 열쇠를 복사하려다 걸렸나 봐...");
+      },
+    },
+  ],
+});
+
+room({
+  id: "bcBoss",
+  label: "부장실",
+  theme: "archive",
+  width: 560,
+  seed: 805,
+  startX: 70,
+  doors: [{ x: 50, kind: "steel", label: "사무실", to: "bc7", toX: 880, dir: "in" }],
+  hotspots: () => [
+    canSpot("c17", 500, 176, "골프백 속"),
+    look(170, 140, ["트로피: 「사내 골프대회 우승 — 그림스」", "찰리:...참가자는 부장님이랑 회장님 둘뿐이었지."], "트로피"),
+    {
+      x: 290,
+      iconY: 140,
+      label: "부장 책상",
+      enabled: () => !F().gotDrawer,
+      use: async () => {
+        F().gotDrawer = 1;
+        F().bossOpen = 1;
+        take("bosskey");
+        await caption("책상 위에 「압수품」 상자. 직원들 휴대폰, 간식, 그리고... 내 서랍 열쇠.");
+        await give("drawerkey");
+      },
+    },
+    look(410, 140, ["부장의 다이어리.", "「초록빛은 고양이를 원한다. 찰리 그 녀석 고양이... 하얀 놈. 쓸 만하겠어.」", "찰리:...처음부터 샘을 노리고 있었던 거야?"], "다이어리"),
+  ],
+  enter: async () => {
+    await caption("부장실. 벽에는 「야근은 열정이다」 액자와 부장 본인의 초상화.");
   },
 });
 
