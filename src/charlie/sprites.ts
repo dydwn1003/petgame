@@ -1499,8 +1499,9 @@ function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { 
     g.stroke(path);
   };
   if (o.earsBack) {
-    ear(-8, -18, -2, 5.5, false);
-    ear(4, -6, -4, 6, true);
+    // 뒤로 젖힌 귀: 끝이 뒤쪽으로 기울어지지만 잘 보이게
+    ear(-7, -15, -17, 6.2, false);
+    ear(4.5, -3, -19.5, 7, true);
   } else {
     ear(-7.5, -9, -21.5, 6.5, false);
     ear(5, 7.5, -23, 7.2, true);
