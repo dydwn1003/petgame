@@ -9,14 +9,15 @@ export function makeCanvas(w: number, h: number): HTMLCanvasElement {
   return c;
 }
 
-export function bake(w: number, h: number, paint: (p: Px) => void, outline: string | null = "#140d0b"): HTMLCanvasElement {
+export function bake(w: number, h: number, paint: (p: Px) => void, outline: string | null = "#140d0b", thick = 1): HTMLCanvasElement {
   const c = makeCanvas(w, h);
   const g = c.getContext("2d")!;
   paint((x, y, ww, hh, col) => {
     g.fillStyle = col;
     g.fillRect(Math.round(x), Math.round(y), Math.round(ww), Math.round(hh));
   });
-  if (outline) {
+  // 외곽선: 바깥쪽으로 thick 번 넓혀 칠한다 (두 번째 줄부터는 살짝 옅게)
+  for (let pass = 0; outline && pass < thick; pass++) {
     const img = g.getImageData(0, 0, w, h);
     const d = img.data;
     const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > 0;
@@ -27,7 +28,7 @@ export function bake(w: number, h: number, paint: (p: Px) => void, outline: stri
         if (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1)) marks.push(x, y);
       }
     }
-    g.fillStyle = outline;
+    g.fillStyle = pass === 0 ? outline : `${outline}cc`;
     for (let i = 0; i < marks.length; i += 2) g.fillRect(marks[i], marks[i + 1], 1, 1);
   }
   return c;
@@ -88,3 +89,12 @@ export function mix(c: string, k: number): string {
   return `rgb(${f(r)},${f(gg)},${f(b)})`;
 }
 
+
+/** 고밀도 캔버스: 논리 좌표로 그리되 실제로는 scale 배 촘촘하게 칠한다 */
+export function makeDense(w: number, h: number, scale: number): HTMLCanvasElement {
+  const c = makeCanvas(Math.round(w * scale), Math.round(h * scale));
+  const g = c.getContext("2d")!;
+  g.scale(scale, scale);
+  g.imageSmoothingEnabled = false;
+  return c;
+}

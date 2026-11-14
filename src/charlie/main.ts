@@ -1,7 +1,7 @@
 import "../fonts.css";
 import "./style.css";
 import { FONT, H, W, canvas, clock, fx, g, keys, mouse, pressed, tickScripts, unlockAudio, updateFx } from "./core";
-import { S, debug, drawPlay, drawTitle, goScene, prewarm, update, updateTitle } from "./game";
+import { S, bakeIdle, debug, drawPlay, drawTitle, goScene, prewarm, update, updateTitle } from "./game";
 
 const stage = document.getElementById("stage")!;
 
@@ -44,7 +44,9 @@ function drawOverlays(): void {
 }
 
 let last = performance.now();
+const cost = { avg: 0, max: 0 };
 function frame(now: number): void {
+  const start = performance.now();
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   clock.t += dt;
@@ -52,8 +54,8 @@ function frame(now: number): void {
   else update(dt);
   tickScripts();
   updateFx(dt);
-  // 캔버스는 2배 해상도: 게임 좌표 1칸 = 2도트
-  g.setTransform(2, 0, 0, 2, 0, 0);
+  // 캔버스는 4배 해상도: 게임 좌표 1칸 = 4도트
+  g.setTransform(4, 0, 0, 4, 0, 0);
   g.imageSmoothingEnabled = false;
   g.fillStyle = "#000";
   g.fillRect(0, 0, W, H);
@@ -62,6 +64,11 @@ function frame(now: number): void {
   drawOverlays();
   pressed.clear();
   mouse.clicked = false;
+  const spent = performance.now() - start;
+  cost.avg = cost.avg * 0.95 + spent * 0.05;
+  cost.max = Math.max(cost.max * 0.999, spent);
+  // 144Hz 한 프레임(약 6.9ms) 안에서 남는 시간에만 미리 굽기
+  bakeIdle(start + 5);
   requestAnimationFrame(frame);
 }
 
@@ -115,4 +122,4 @@ void document.fonts.load(FONT).finally(() => {
 });
 
 // 테스트용
-(window as unknown as { __game: unknown }).__game = { S, debug, goScene };
+(window as unknown as { __game: unknown }).__game = { S, debug, goScene, cost };

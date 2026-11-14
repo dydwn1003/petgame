@@ -1,6 +1,9 @@
 // 배경: 뉴욕 거리 · 찰리의 집 · 냉장고 · 골목
 import { FONT, GROUND, H } from "./core";
-import { makeCanvas, mix, rng } from "./pixel";
+import { makeDense, mix, rng } from "./pixel";
+
+/** 배경은 논리 좌표의 2배 밀도로 칠한다 (반 칸 = 1도트) */
+export const BG_SCALE = 2;
 
 type G = CanvasRenderingContext2D;
 
@@ -11,30 +14,34 @@ function vgrad(g: G, x: number, y0: number, w: number, y1: number, stops: Array<
   g.fillRect(x, y0, w, y1 - y0);
 }
 
+const q = (v: number) => Math.round(v * BG_SCALE) / BG_SCALE;
 function rect(g: G, x: number, y: number, w: number, h: number, c: string): void {
   g.fillStyle = c;
-  g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+  g.fillRect(q(x), q(y), q(w), q(h));
 }
 
-/** 벽돌: 한 장마다 위쪽 빛, 오른쪽 그림자, 얼룩 */
+/** 벽돌: 반 칸짜리 줄눈과 하이라이트, 벽돌마다 얼룩과 결 */
 function bricks(g: G, x: number, y: number, w: number, h: number, base: string, mortar: string, vary: string[], r: () => number): void {
   rect(g, x, y, w, h, mortar);
   for (let by = 0; by < h; by += 4) {
     const off = (by / 4) % 2 ? 4 : 0;
-    const bh = Math.min(3, h - by);
+    const bh = Math.min(3.5, h - by);
     for (let bx = -off; bx < w; bx += 8) {
       const cx = Math.max(0, bx);
-      const cw = Math.min(w, bx + 7) - cx;
+      const cw = Math.min(w, bx + 7.5) - cx;
       if (cw <= 0) continue;
       const col = r() < 0.3 ? vary[Math.floor(r() * vary.length)] : base;
       rect(g, x + cx, y + by, cw, bh, col);
-      rect(g, x + cx, y + by, cw, 1, mix(col, 0.1));
-      if (bx + 6 < w && bx + 6 >= 0) rect(g, x + bx + 6, y + by + 1, 1, bh - 1, mix(col, -0.15));
-      if (bh === 3) rect(g, x + cx, y + by + 2, cw, 1, mix(col, -0.06));
-      if (r() < 0.35) rect(g, x + cx + Math.floor(r() * cw), y + by + 1, 1, 1, mix(col, -0.22));
-      if (r() < 0.06) rect(g, x + cx, y + by, 1, 1, mortar);
+      rect(g, x + cx, y + by, cw, 0.5, mix(col, 0.16));
+      rect(g, x + cx, y + by + 0.5, 0.5, bh - 0.5, mix(col, 0.08));
+      if (bx + 7 < w && bx + 7 >= 0) rect(g, x + bx + 7, y + by + 0.5, 0.5, bh - 0.5, mix(col, -0.2));
+      rect(g, x + cx, y + by + bh - 0.5, cw, 0.5, mix(col, -0.14));
+      // 얼룩과 결
+      for (let k = 0; k < 3; k++) if (r() < 0.55) rect(g, x + cx + 0.5 + Math.floor(r() * (cw - 1) * 2) / 2, y + by + 1 + Math.floor(r() * 4) / 2, 0.5, 0.5, mix(col, r() < 0.5 ? -0.22 : 0.12));
+      if (r() < 0.2) rect(g, x + cx + 1, y + by + 1.5, Math.min(3, cw - 1.5), 0.5, mix(col, -0.1));
+      if (r() < 0.07) rect(g, x + cx, y + by, 1, 1, mortar);
     }
-    rect(g, x, y + by + 3, w, 1, mix(mortar, -0.12));
+    rect(g, x, y + by + 3.5, w, 0.5, mix(mortar, -0.15));
   }
 }
 
@@ -52,8 +59,8 @@ function windowAt(g: G, x: number, y: number, w: number, h: number, state: "dark
   const dk = mix(frame, -0.3);
   // 석재 상인방 + 쐐기돌
   rect(g, x - 3, y - 5, w + 6, 4, frame);
-  rect(g, x - 3, y - 5, w + 6, 1, lt);
-  rect(g, x - 3, y - 2, w + 6, 1, dk);
+  rect(g, x - 3, y - 5, w + 6, 0.5, lt);
+  rect(g, x - 3, y - 1.5, w + 6, 0.5, dk);
   rect(g, x + w / 2 - 2, y - 6, 4, 5, mix(frame, 0.12));
   // 유리 + 깊이
   rect(g, x - 1, y - 1, w + 2, h + 2, dk);
@@ -89,17 +96,22 @@ function windowAt(g: G, x: number, y: number, w: number, h: number, state: "dark
     vgrad(g, x + 1, y + 1, w - 2, y + h - 1, [[0, "#3c4c70"], [1, "#1a2032"]]);
     // 유리 반사
     g.fillStyle = "rgba(160,190,230,0.35)";
-    for (let i = 0; i < 4; i++) g.fillRect(x + 3 + i, y + h - 4 - i * 2, 1, 2);
-    g.fillRect(x + w - 6, y + 2, 1, 3);
+    for (let i = 0; i < 8; i++) g.fillRect(x + 3 + i * 0.5, y + h - 4 - i, 0.5, 1);
+    g.fillRect(x + w - 6, y + 2, 0.5, 3);
+    g.fillRect(x + w - 5, y + 2.5, 0.5, 1.5);
     if (r() < 0.3) for (let by = y + 1; by < y + h / 2; by += 2) rect(g, x + 1, by, w - 2, 1, "#5a5e6a");
   }
   // 창틀
-  rect(g, x + Math.floor(w / 2), y, 1, h, frame);
-  rect(g, x, y + Math.floor(h / 2), w, 1, frame);
-  rect(g, x, y, w, 1, dk);
+  rect(g, x + Math.floor(w / 2) - 0.5, y, 1, h, frame);
+  rect(g, x + Math.floor(w / 2) - 0.5, y, 0.5, h, lt);
+  rect(g, x, y + Math.floor(h / 2) - 0.5, w, 1, frame);
+  rect(g, x, y + Math.floor(h / 2) - 0.5, w, 0.5, lt);
+  rect(g, x, y, w, 0.5, dk);
+  rect(g, x, y, 0.5, h, dk);
   // 창턱 + 그림자
   rect(g, x - 2, y + h, w + 4, 2, frame);
-  rect(g, x - 2, y + h, w + 4, 1, lt);
+  rect(g, x - 2, y + h, w + 4, 0.5, lt);
+  rect(g, x - 2, y + h + 1.5, w + 4, 0.5, dk);
   rect(g, x - 1, y + h + 2, w + 2, 1, "rgba(0,0,0,0.35)");
 }
 
@@ -165,7 +177,7 @@ const POSTERS: Array<[string[], string, string, string]> = [
 ];
 
 export function buildStreet(width: number, after: boolean, seed: number, home = true): StreetInfo {
-  const c = makeCanvas(width, H);
+  const c = makeDense(width, H, BG_SCALE);
   const g = c.getContext("2d")!;
   const r = rng(seed);
   const info: StreetInfo = { canvas: c, lamps: [], dumpsters: [], door: 170, posters: [], fires: [], bodega: -1, alley: -1 };
@@ -509,7 +521,7 @@ export const ROOM = {
 
 export function buildRoom(): HTMLCanvasElement {
   const W2 = ROOM.width;
-  const c = makeCanvas(W2, H);
+  const c = makeDense(W2, H, BG_SCALE);
   const g = c.getContext("2d")!;
   const r = rng(777);
   bricks(g, 0, 0, W2, GROUND, "#5a3428", "#40241c", ["#64392c", "#4e2c22", "#6a4030"], r);
@@ -725,10 +737,12 @@ export function buildRoom(): HTMLCanvasElement {
 /** 한 칸짜리 상자: 위쪽 빛, 오른쪽·아래 그림자 */
 function box(g: G, x: number, y: number, w: number, h: number, col: string): void {
   rect(g, x, y, w, h, col);
-  rect(g, x, y, w, 1, mix(col, 0.18));
-  rect(g, x, y, 1, h, mix(col, 0.1));
-  rect(g, x + w - 1, y + 1, 1, h - 1, mix(col, -0.25));
-  rect(g, x + 1, y + h - 1, w - 1, 1, mix(col, -0.3));
+  rect(g, x, y, w, 0.5, mix(col, 0.25));
+  rect(g, x, y + 0.5, w, 0.5, mix(col, 0.1));
+  rect(g, x, y, 0.5, h, mix(col, 0.12));
+  rect(g, x + w - 0.5, y + 0.5, 0.5, h - 0.5, mix(col, -0.3));
+  rect(g, x + w - 1, y + 1, 0.5, h - 1.5, mix(col, -0.12));
+  rect(g, x + 0.5, y + h - 0.5, w - 0.5, 0.5, mix(col, -0.35));
 }
 
 function fridgeOutside(g: G, x: number, y: number): void {
@@ -877,7 +891,7 @@ function hangingFish(g: G, x: number, top: number, len: number): void {
 }
 
 export function buildFridge(): HTMLCanvasElement {
-  const c = makeCanvas(480, H);
+  const c = makeDense(480, H, BG_SCALE);
   const g = c.getContext("2d")!;
   const r = rng(99);
   // 부엌 벽 (타일)
@@ -1052,7 +1066,7 @@ export function buildFridge(): HTMLCanvasElement {
 export const ALLEY = { width: 600, lamp: 330, dumpster: 150, cat: 420 };
 
 export function buildAlley(): HTMLCanvasElement {
-  const c = makeCanvas(ALLEY.width, H);
+  const c = makeDense(ALLEY.width, H, BG_SCALE);
   const g = c.getContext("2d")!;
   const r = rng(4242);
   bricks(g, 0, 0, ALLEY.width, 168, "#3a3434", "#262222", ["#423c3a", "#322c2c", "#2e2a2a"], r);
@@ -1100,7 +1114,7 @@ export const SUBWAY = {
 
 export function buildSubway(): HTMLCanvasElement {
   const Wd = SUBWAY.width;
-  const c = makeCanvas(Wd, H);
+  const c = makeDense(Wd, H, BG_SCALE);
   const g = c.getContext("2d")!;
   const r = rng(2077);
   // 천장
@@ -1112,10 +1126,11 @@ export function buildSubway(): HTMLCanvasElement {
     for (let tx = (ty / 4) % 2 ? 4 : 0; tx < Wd; tx += 8) {
       const grime = ty > 150 ? 0.25 : r() < 0.15 ? 0.15 : 0.05;
       const col = mix("#d8d4c4", -grime - r() * 0.05);
-      rect(g, tx, ty, 7, 3, col);
-      rect(g, tx, ty, 7, 1, mix(col, 0.15));
+      rect(g, tx, ty, 7.5, 3.5, col);
+      rect(g, tx, ty, 7.5, 0.5, mix(col, 0.2));
+      rect(g, tx + 7, ty, 0.5, 3.5, mix(col, -0.1));
     }
-    rect(g, 0, ty + 3, Wd, 1, "#7a766a");
+    rect(g, 0, ty + 3.5, Wd, 0.5, "#7a766a");
   }
   // 물 얼룩 줄
   for (let i = 0; i < Wd / 40; i++) {

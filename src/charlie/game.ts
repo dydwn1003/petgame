@@ -24,7 +24,7 @@ import {
   wait,
   wrap,
 } from "./core";
-import { ALLEY, FRIDGE_SPOTS, ROOM, SUBWAY, buildAlley, buildFridge, buildRoom, buildStreet, buildSubway, type StreetInfo } from "./bg";
+import { ALLEY, BG_SCALE, FRIDGE_SPOTS, ROOM, SUBWAY, buildAlley, buildFridge, buildRoom, buildStreet, buildSubway, type StreetInfo } from "./bg";
 import {
   BUILD_25,
   BUILD_3,
@@ -1702,8 +1702,8 @@ function nearestHotspot(): Hotspot | null {
 // ═════════════════════════════════════════════════════════
 // 그리기
 // ═════════════════════════════════════════════════════════
-/** 0.5 화면픽셀 단위로 반올림 (2배 해상도 캔버스에서 1도트) */
-const half = (v: number) => Math.round(v * 2) / 2;
+/** 0.25 화면칸 단위로 반올림 (4배 해상도 캔버스에서 1도트) */
+const half = (v: number) => Math.round(v * 4) / 4;
 
 const dark = makeCanvas(W, H);
 const dg = dark.getContext("2d")!;
@@ -1832,7 +1832,7 @@ export function drawPlay(): void {
   const sy = fx.shake > 0 ? Math.round((Math.random() - 0.5) * fx.shake * 10) : 0;
   g.save();
   g.translate(sx, sy);
-  g.drawImage(sc.bg, camX, 0, W, H, 0, 0, W, H);
+  g.drawImage(sc.bg, camX * BG_SCALE, 0, W * BG_SCALE, H * BG_SCALE, 0, 0, W, H);
   sc.back?.(camX);
   if (!sc.noPlayer) {
     const all = [...sc.actors, charlie, sam].filter((a, i, arr) => arr.indexOf(a) === i);
@@ -1969,7 +1969,7 @@ export function updateTitle(): void {
 export function drawTitle(): void {
   if (!titleBg) titleBg = buildStreet(1200, false, 11);
   const pan = (clock.t * 8) % (1200 - W);
-  g.drawImage(titleBg.canvas, pan, 0, W, H, 0, 0, W, H);
+  g.drawImage(titleBg.canvas, pan * BG_SCALE, 0, W * BG_SCALE, H * BG_SCALE, 0, 0, W, H);
   g.fillStyle = "rgba(6,5,14,0.55)";
   g.fillRect(0, 0, W, H);
   const spr = human(CHARLIE, "charlie", `stand${Math.floor(clock.t / 0.55) % 4}`, S.build, 1);
@@ -2015,4 +2015,15 @@ export function prewarm(): void {
   for (let i = 0; i < 16; i++) catPoses.push(`walk${i}`);
   for (let i = 0; i < 8; i++) catPoses.push(`sitT${i}`);
   for (const p of catPoses) for (const f of [1, -1] as const) cat(p, f);
+  // 다른 등장인물은 게임 중 남는 시간에 조금씩 굽는다
+  const others: Array<[Look, string]> = [[ADDICT, "addict"], [ZOMBIES[0], "z0"], [ZOMBIES[1], "z1"], [ZOMBIES[2], "z2"], [SKELETON, "sk"], [FROGMAN, "frog"], [FROG_KING, "frogking"]];
+  for (const [look, id] of others) {
+    for (const p of [...poses.slice(0, 20), "sit"]) for (const f of [1, -1] as const) bakeQueue.push(() => human(look, id, p, BUILD_3, f));
+  }
+}
+
+const bakeQueue: Array<() => void> = [];
+/** 프레임 여유가 있을 때 미리 굽기를 조금씩 진행한다 */
+export function bakeIdle(deadline: number): void {
+  while (bakeQueue.length && performance.now() < deadline) bakeQueue.shift()!();
 }
