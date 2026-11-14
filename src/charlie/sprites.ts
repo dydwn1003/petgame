@@ -474,12 +474,11 @@ function paintHead(p: Px, L: Look, hx: number, ft: number, mode: { closed?: bool
     g.stroke();
     p(ex + 1, ey + h, w - 1, 1, mix(L.skin, -0.06));
   };
-  eye(hx - 7, 4.6, 6, true);
+  // 옆모습: 먼 쪽 눈은 얼굴에 가려 보이지 않는다
   eye(hx + 5, 8, 7, false);
   // 눈썹
   const brow = L.brow ?? L.hairShade;
   const lift = mode.shock ? 3 : 0;
-  curve(p, hx - 11, ey - 5 - lift, hx - 7, ey - 7 - lift, hx - 2, ey - 6 - lift, brow, 2);
   curve(p, hx + 3, ey - 6 - lift, hx + 9, ey - 9 - lift, hx + 16, ey - 6 - lift, brow, 2);
   if (L.glasses) {
     const fr = "#6a3a1a";
@@ -496,10 +495,10 @@ function paintHead(p: Px, L: Look, hx: number, ft: number, mode: { closed?: bool
       p(x0 + w - 4, ey - 2, 1, 2, "rgba(255,255,255,0.6)");
       p(x0 + 3, ey + 5, 2, 1, "rgba(255,255,255,0.35)");
     };
-    lens(hx - 12, 13);
     lens(hx + 3, 16);
-    p(hx + 1, ey - 1, 2, 2, fr);
-    p(hx - 18, ey - 2, 6, 2, fr);
+    // 안경다리: 렌즈에서 귀까지
+    p(hx - 15, ey - 2, 18, 2, fr);
+    p(hx - 15, ey - 2, 18, 0.6, "#a8682e");
   }
   // 입
   if (mode.shock) {
@@ -1387,7 +1386,6 @@ function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { 
     g.quadraticCurveTo(ex + w / 2 + 1.6, ey + 2.2, ex + w / 2 + 1.2, ey + 4);
     g.stroke();
   };
-  eye(-4, -1.8, 4.6, 5.6, false);
   eye(6, -2, 6.8, 6.8, true);
   g.restore();
   whiskerAt = { x: hx + 12, y: hy + 5, tilt: o.tilt ?? 0 };
