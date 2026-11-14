@@ -1046,8 +1046,8 @@ SCENES.alley = () => {
         const blink = Math.floor(clock.t * 1.5) % 5 !== 0;
         if (blink) {
           g.fillStyle = "#e8b04a";
-          g.fillRect(sx - 3, GROUND - 17, 2, 1);
-          g.fillRect(sx + 0, GROUND - 17, 2, 1);
+          g.fillRect(sx - 3.6, GROUND - 15.6, 1.6, 0.75);
+          g.fillRect(sx - 1, GROUND - 15.6, 1.4, 0.75);
         }
       }
     },
