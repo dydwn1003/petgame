@@ -2,7 +2,7 @@
 // 각 컷은 시간 t(초)와 진행도 k(0~1)를 받아 화면 전체를 그린다.
 import { H, W, clock, g } from "./core";
 import { ALLEY, BG_SCALE, buildAlley } from "./bg";
-import { BUILD_3, CHARLIE, cat, human } from "./sprites";
+import { BUILD_3, CHARLIE, cat, human, tintCat } from "./sprites";
 import { rng } from "./pixel";
 
 export interface Shot {
@@ -465,5 +465,58 @@ export function farewellShots(stay: boolean): Shot[] {
             g.imageSmoothingEnabled = false;
           },
         },
+  ];
+}
+
+// ── 비밀 엔딩: 지구의 모든 고양이가 하늘로 ──────────────────────
+export function catsRiseShots(): Shot[] {
+  const cols = ["#f0a050", "#3a3a44", "#c8a878", "#e8e0d0", "#8a8aa0", "#b86a3a", "#ffffff"];
+  return [
+    {
+      dur: 7,
+      text: "그날 밤, 지구의 모든 고양이가 초록빛을 타고 하늘로 올라갔다.",
+      draw: (t, k) => {
+        sky([[0, "#04060e"], [1, "#16203a"]]);
+        stars(81, 140, H, 0);
+        drawUfoAt(240, 40, 1.4);
+        // 빛기둥들
+        for (const bx of [80, 200, 330, 430]) {
+          const gr = g.createLinearGradient(0, 50, 0, H);
+          gr.addColorStop(0, "rgba(160,255,190,0.25)");
+          gr.addColorStop(1, "rgba(120,255,170,0.06)");
+          g.fillStyle = gr;
+          g.beginPath();
+          g.moveTo(240 - 10, 50);
+          g.lineTo(240 + 10, 50);
+          g.lineTo(bx + 24, H);
+          g.lineTo(bx - 24, H);
+          g.fill();
+        }
+        skyline(82, 275, 40, 130, "#080a14", 0.18, 0);
+        // 떠오르는 고양이들
+        g.imageSmoothingEnabled = true;
+        for (let i = 0; i < 26; i++) {
+          const p = (k * 1.3 + i / 26) % 1;
+          const lane = [80, 200, 330, 430][i % 4];
+          const x = lane + (240 - lane) * p + Math.sin(t * 2 + i) * 6;
+          const y = 250 - p * 200;
+          const s = 1 - p * 0.6;
+          g.globalAlpha = Math.min(1, (1 - p) * 2);
+          g.drawImage(tintCat(i % 3 ? `sitT${(i + Math.floor(t * 5)) % 8}` : "jump", i % 2 ? 1 : -1, cols[i % cols.length]), x - 16 * s, y - 12 * s, 32 * s, 24 * s);
+        }
+        g.globalAlpha = 1;
+        g.imageSmoothingEnabled = false;
+      },
+    },
+    {
+      dur: 6,
+      text: "「고마웠다, 인간들. 고양이는 우리가 잘 키우겠다. 츄르도 챙겨 가겠다.」",
+      draw: (t, k) => {
+        sky([[0, "#02030a"], [1, "#0c1020"]]);
+        stars(83, 220, H, t * 4);
+        const e = ease(k);
+        drawUfoAt(lerp(240, 420, e), lerp(120, 30, e), lerp(1.2, 0.25, e));
+      },
+    },
   ];
 }

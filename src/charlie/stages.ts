@@ -3,9 +3,9 @@
 //  · 제2장: 지하철 점검 통로 (사물함 비밀번호, 쇠지렛대, 밸브 퍼즐)
 //  · 제3장: 교회 지하 납골당 (악보와 종 퍼즐, 릴리의 약)
 //  · 제4장: 격리 센터 보안실 · 기록 보관실 · 격리 구역
-import { GROUND, W, clock, fadeTo, g, sfx, shake, text, wait } from "./core";
-import { buildInterior, type DoorDef, type Theme } from "./bg";
-import { STRANGERS } from "./sprites";
+import { GROUND, W, clock, fadeTo, flash, g, sfx, shake, sneaking, text, wait } from "./core";
+import { buildInterior, buildStreet, type DoorDef, type Theme } from "./bg";
+import { SKELETON, STRANGERS, ZOMBIES } from "./sprites";
 import {
   ITEMS,
   S,
@@ -15,7 +15,13 @@ import {
   charlie,
   descend,
   canSpot,
+  credits,
   emote,
+  gameOver,
+  hideAt,
+  tintedCat,
+  smoothDraw,
+  half,
   flashCone,
   flameTongues,
   give,
@@ -48,6 +54,7 @@ Object.assign(ITEMS, {
   bosskey: "부장실 열쇠",
   drawerkey: "내 서랍 열쇠",
   badge: "블랙컴퍼니 사원증",
+  battery: "새 건전지",
 });
 
 type Door = DoorDef & {
@@ -100,6 +107,11 @@ function room(o: RoomOpts): void {
         const L: Light[] = o.lights ? o.lights() : [];
         if (!o.dark) for (let x = 65; x < o.width; x += 130) L.push({ x, y: 26, r: 80, a: 0.6, warm: "rgba(255,230,180,0.05)" });
         const cone = o.dark ? flashCone(160, 0.3) : null;
+        if (cone && o.id === "drug1" && !F().battery) {
+          // 건전지가 다 돼 가는 손전등: 짧고 깜빡인다
+          cone.a = Math.sin(clock.t * 37) > 0.75 ? 0.1 : 0.55;
+          if (cone.cone) cone.cone.len = 80;
+        }
         if (cone) L.push(cone);
         L.push({ x: charlie.x, y: charlie.y - 24, r: o.dark ? (F().supplies ? 38 : 52) : 30, a: 0.55 });
         return L;
@@ -933,7 +945,7 @@ room({
       lock: () => (has("badge") ? null : "사원증부터 찾자. 그게 있어야 격리 센터에 들어갈 수 있어."),
       use: async () => {
         await say(charlie, "사원증 챙겼다. 이제 허드슨 강변 격리 센터로!");
-        await goScene("pier", 0);
+        await goScene("march5", 0);
       },
     },
     { x: 400, kind: "elevator", lock: () => "엘리베이터에 팻말: 「야근 중 점검. 계단을 이용하세요 :)」" },
@@ -1042,7 +1054,7 @@ room({
         await give("coffee");
       },
     },
-    look(440, 140, ["냉장고 안: 「그림스 부장 전용」이라고 적힌 푸딩 열두 개.", "찰리:...하나 정도는 괜찮겠지."], "냉장고"),
+    look(440, 140, ["냉장고 안: 「그림스 부장 전용」이라고 적힌 푸딩 열두 개.", "푸딩 뚜껑에 메모: 「부장님 금고 비번 아직도 0000이세요?? 바꾸세요!! — 정보보안팀」", "찰리:...하나 정도는 괜찮겠지."], "냉장고"),
   ],
 });
 
@@ -1130,12 +1142,416 @@ room({
         await give("drawerkey");
       },
     },
+    {
+      x: 230,
+      iconY: 170,
+      label: "작은 금고",
+      enabled: () => !F().bossSafe,
+      use: async () => {
+        const ok = await openKeypad("부장의 금고 (4자리)", "0000");
+        if (!ok) return;
+        F().bossSafe = 1;
+        await caption("...열렸다. 안에는 돈 대신 낡은 사진 한 장.");
+        await caption("어린 그림스가 고양이를 품에 안고 활짝 웃고 있다. 뒷면: 「나비야, 사랑해. 꼭 다시 만나자.」");
+        await say(charlie, "...부장님도 고양이를 잃어버린 적이 있었구나.");
+      },
+    },
     look(410, 140, ["부장의 다이어리.", "「초록빛은 고양이를 원한다. 찰리 그 녀석 고양이... 하얀 놈. 쓸 만하겠어.」", "찰리:...처음부터 샘을 노리고 있었던 거야?"], "다이어리"),
   ],
   enter: async () => {
     await caption("부장실. 벽에는 「야근은 열정이다」 액자와 부장 본인의 초상화.");
   },
 });
+
+
+// ═════════════════════════════════════════════════════════
+// 제2장 앞: 24시 약국 (기획안의 '좀비 = 약을 갈망하는 사람들')
+//  손전등 건전지가 다 됐다. 약국에는 약을 찾아 서성이는 사람들.
+//  선반을 쳐서 약통 소리를 내면 그쪽으로 몰려간다 → 그 틈에 지나가기
+// ═════════════════════════════════════════════════════════
+type Zed = Actor & { a: number; b: number; lure: number; lureX: number; chase: boolean };
+room({
+  id: "drug1",
+  label: "24시 약국",
+  theme: "staff",
+  width: 960,
+  seed: 901,
+  startX: 60,
+  dark: true,
+  ambient: 0.8,
+  doors: [
+    { x: 40, kind: "steel", label: "입구", lock: () => "샘은 지하철 쪽으로 갔어. 건전지만 챙겨서 나가자." },
+    { x: 470, kind: "door", label: "창고", to: "drug2", toX: 70, dir: "in" },
+    {
+      x: 920,
+      kind: "steel",
+      label: "뒷문",
+      lock: () => (F().battery ? null : "건전지부터 찾자. 이대로는 지하철에서 아무것도 안 보여."),
+      use: async () => {
+        await say(charlie, "됐다. 이제 지하철역으로!");
+        await goScene("subwayGate", 0);
+      },
+    },
+  ],
+  actors: () => {
+    zeds.length = 0;
+    const mk = (x: number, a: number, b: number, i: number): Zed => Object.assign(mkActor("person", x, -1, { look: ZOMBIES[i], lookId: `z${i}` }), { a, b, lure: 0, lureX: x, chase: false });
+    zeds.push(mk(300, 200, 420, 0), mk(640, 540, 760, 1), mk(820, 760, 880, 2));
+    return zeds;
+  },
+  hotspots: () => [
+    ...[250, 600, 780].map(
+      (x): Hotspot => ({
+        x,
+        iconY: 150,
+        label: "약 선반 치기",
+        range: 22,
+        enabled: () => true,
+        use: async () => {
+          sfx.glass();
+          sfx.can();
+          shake(0.15);
+          await caption("와르르— 약통이 바닥에 쏟아지며 요란한 소리가 났다!");
+          for (const z of zeds) {
+            if (Math.abs(z.x - x) < 300) {
+              z.lure = 7;
+              z.lureX = x + (z.x < x ? -10 : 10);
+              z.chase = false;
+              z.bubble = "약...! 약이다...!";
+            }
+          }
+        },
+      }),
+    ),
+    hideAt(560, "계산대 뒤에 숨기", 160),
+    {
+      x: 860,
+      iconY: 140,
+      label: "건전지 진열대",
+      enabled: () => !F().battery,
+      use: async () => {
+        F().battery = 1;
+        await give("battery");
+        take("battery");
+        sfx.blip();
+        await caption("건전지를 갈아 끼웠다. 딸깍— 손전등이 환하게 살아났다!");
+      },
+    },
+    canSpot("c21", 120, 176, "쓰러진 진열대"),
+    look(160, 140, ["벽 포스터: 「진통제 1+1! 종말 기념 세일」", "찰리:...이 와중에 세일이라니."], "포스터"),
+  ],
+  lights: () => [
+    // 깜빡이는 녹색 약국 십자 간판과 비상구 등, 서성이는 사람들의 실루엣
+    { x: 330, y: 40, r: 70, a: Math.sin(clock.t * 9) > -0.6 ? 0.5 : 0.1, warm: "rgba(80,255,120,0.08)" },
+    { x: 920, y: 120, r: 50, a: 0.5, warm: "rgba(255,60,60,0.08)" },
+    ...zeds.map((z): Light => ({ x: z.x, y: z.y - 26, r: 30, a: 0.35, warm: z.chase ? "rgba(255,80,60,0.08)" : undefined })),
+  ],
+  update: (dt) => {
+    if (!S.control) return;
+    for (const z of zeds) {
+      const d = charlie.x - z.x;
+      const dist = Math.abs(d);
+      if (z.lure > 0) {
+        z.lure -= dt;
+        const t = z.lureX - z.x;
+        if (Math.abs(t) > 2) {
+          z.x += Math.sign(t) * 40 * dt;
+          z.walkDist += 40 * dt * 0.6;
+          z.moving = true;
+          z.facing = t > 0 ? 1 : -1;
+        } else {
+          z.moving = false;
+          z.pose = "crouch2";
+        }
+        if (z.lure <= 0) {
+          z.pose = null;
+          z.bubble = null;
+        }
+        continue;
+      }
+      z.pose = null;
+      const hear = S.hidden ? 0 : sneaking() ? 22 : charlie.moving ? 60 : 30;
+      if (!z.chase && dist < hear) {
+        z.chase = true;
+        z.bubble = "으어어... 약... 약 줘...";
+        sfx.groan();
+      }
+      if (z.chase) {
+        if (dist > 170 || S.hidden) {
+          z.chase = false;
+          z.bubble = null;
+        } else {
+          z.x += Math.sign(d) * 30 * dt;
+          z.walkDist += 30 * dt * 0.6;
+          z.moving = true;
+          z.facing = d > 0 ? 1 : -1;
+          if (dist < 12) gameOver("GAME OVER", "약에 취한 사람들에게 둘러싸여 주머니를 다 털렸다...", 0);
+        }
+        continue;
+      }
+      // 느릿느릿 서성이기
+      const target = z.facing > 0 ? z.b : z.a;
+      z.x += Math.sign(target - z.x) * 12 * dt;
+      z.walkDist += 12 * dt * 0.6;
+      z.moving = true;
+      if (Math.abs(target - z.x) < 1) z.facing = z.facing > 0 ? -1 : 1;
+    }
+  },
+  enter: async () => {
+    await caption("24시 약국. 셔터는 반쯤 부서졌고, 안에서 약통 흔드는 소리가 들린다.");
+    await say(charlie, "건전지만 찾으면 돼. 계산대 너머 진열대에 있을 거야.");
+    await caption("약을 찾아 서성이는 사람들이 있다. 가까이 가면 달려든다. ↓(살금살금)로 걷거나...");
+    await caption("약 선반을 쳐서 [Space] 약통 소리를 내면, 그쪽으로 몰려간다. 그 틈에 지나가자!");
+  },
+});
+const zeds: Zed[] = [];
+
+room({
+  id: "drug2",
+  label: "약국 창고",
+  theme: "archive",
+  width: 520,
+  seed: 902,
+  startX: 70,
+  dark: true,
+  doors: [{ x: 50, kind: "door", label: "매장", to: "drug1", toX: 470, dir: "in" }],
+  hotspots: () => [
+    canSpot("c22", 300, 176, "상자 더미"),
+    look(200, 140, ["처방전 더미. 맨 위 처방전: 「환자: 그림스 / 처방: 수면제 · 위장약 · 탈모약」", "찰리:...부장님 처방전이 왜 여기."], "처방전"),
+    look(420, 140, ["유통기한 지난 고양이 영양제 상자.", "찰리:샘이 이거 먹으면 토하던데."], "선반"),
+  ],
+});
+
+// ═════════════════════════════════════════════════════════
+// 제4장 앞: 채식 시위대 행진 (기획안의 '닿으면 해골, 게임오버')
+// ═════════════════════════════════════════════════════════
+const MARCH_DOORS = [180, 360, 540, 720, 900];
+const CHANT = ["고기를 버려라!", "우리처럼 가벼워져라!", "채식만이 살 길!", "단백질은 죄악이다!", "뼈만 남아도 행복하다!"];
+SCENES.march5 = () => {
+  const info = buildStreet(1100, true, 61, false);
+  const marchers: Actor[] = [];
+  let spawnX = 700;
+  let caught = false;
+  const spawnGroup = (x: number) => {
+    const n = 3 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < n; i++) marchers.push(mkActor("person", x + i * 30, -1, { look: SKELETON, lookId: "sk", sign: CHANT[(i + marchers.length) % CHANT.length].slice(0, 4) }));
+  };
+  const sc: Scene = {
+    id: "march5",
+    label: "브로드웨이",
+    width: 1100,
+    bg: info.canvas,
+    ambient: 0.45,
+    tint: "rgba(120,30,10,0.10)",
+    lights: () => [{ x: charlie.x, y: charlie.y - 24, r: 40, a: 0.4 }],
+    minX: 30,
+    maxX: 1080,
+    get actors() {
+      return marchers;
+    },
+    hotspots: MARCH_DOORS.map((x) => hideAt(x, "문틈에 숨기", 160)),
+    zones: [
+      {
+        x: 1050,
+        dir: 1,
+        run: async () => {
+          await say(charlie, "하아... 겨우 빠져나왔다. 부두는 이쪽이야.");
+          await goScene("pier", 0);
+        },
+      },
+    ],
+    update: (dt) => {
+      if (S.mode !== "play") return;
+      for (const m of marchers) {
+        m.x -= 34 * dt;
+        m.walkDist += 34 * dt;
+        m.moving = true;
+        m.facing = -1;
+        if (!caught && S.control && !S.hidden && Math.abs(m.x - charlie.x) < 10) {
+          caught = true;
+          S.control = false;
+          charlie.look = SKELETON;
+          charlie.lookId = "sk";
+          flash("#ffffff", 1);
+          gameOver("GAME OVER", "시위대에 휩쓸려... 찰리도 뼈만 남았다. (채식만이 살 길!)", 0);
+        }
+      }
+      while (marchers.length && marchers[0].x < S.camX - 60) marchers.shift();
+      // 무리와 무리 사이 간격을 두고 계속 행진해 온다
+      spawnX -= 34 * dt;
+      if (spawnX < S.camX + W + 60) {
+        spawnGroup(Math.max(spawnX, S.camX + W + 60));
+        spawnX = S.camX + W + 60 + 520;
+      }
+      if (Math.floor(clock.t * 0.6) !== Math.floor((clock.t - dt) * 0.6)) {
+        for (const m of marchers) m.bubble = null;
+        const vis = marchers.filter((m) => m.x > S.camX && m.x < S.camX + W);
+        if (vis.length) {
+          vis[Math.floor(Math.random() * vis.length)].bubble = CHANT[Math.floor(Math.random() * CHANT.length)];
+          sfx.chant();
+        }
+      }
+    },
+    back: (camX) => {
+      for (const x of MARCH_DOORS) {
+        const sx = x - camX;
+        g.fillStyle = "#0a0808";
+        g.fillRect(half(sx - 13), 160, 26, 54);
+        g.fillStyle = "#3a2a22";
+        g.fillRect(half(sx - 15), 156, 30, 4);
+      }
+    },
+    front: (camX) => {
+      for (const m of marchers) {
+        const sx = Math.round(m.x - camX);
+        if (sx < -30 || sx > W + 30) continue;
+        g.fillStyle = "#6a4a2a";
+        g.fillRect(sx - 1, GROUND - 74, 2, 34);
+        g.fillStyle = "#e8e0c8";
+        g.fillRect(sx - 14, GROUND - 88, 26, 14);
+        g.fillStyle = "#2a6a2a";
+        g.fillRect(sx - 14, GROUND - 88, 26, 2);
+        text(m.sign ?? "", sx - 1, GROUND - 80, "#2a6a2a", "center", "");
+      }
+    },
+    start: async () => {
+      charlie.x = 60;
+      charlie.y = GROUND;
+      charlie.facing = 1;
+      writeSave("march5", 0);
+      spawnGroup(560);
+      spawnX = 560 + 520;
+      await fadeTo(0, 0.8);
+      if (!F().seenMarch) {
+        F().seenMarch = 1;
+        sfx.chant();
+        await caption("브로드웨이가 해골이 된 채식 시위대로 가득 찼다. 「고기를 버려라! 우리처럼 가벼워져라!」");
+        await say(charlie, "저 사람들... 운석 가루를 마시고 정말로 뼈만 남았어.");
+        await caption("닿으면 찰리도 해골이 된다! 행렬이 다가오면 문틈에 [Space]로 숨고, 지나가면 달려(Shift) 다음 문틈으로!");
+      }
+      S.control = true;
+    },
+  };
+  return sc;
+};
+
+// ═════════════════════════════════════════════════════════
+// 이스터에그: 펫숍 뒤 '냥이 집회소' — 초록빛을 피해 숨은 동네 고양이들
+// ═════════════════════════════════════════════════════════
+const MEET = [
+  { x: 150, col: "#f0a050", name: "치즈", line: "「냐옹. 초록빛이 부르면 귀를 막아라냥. 츄르 냄새로 버티는 거다냥.」" },
+  { x: 220, col: "#3a3a44", name: "까망이", line: "「...저 하얀 녀석(샘) 말이냐옹. 원래 저 별 왕족이다냥. 비밀이다냥.」" },
+  { x: 290, col: "#c8a878", name: "고등어", line: "「인간, 너 냄새가 좋다냥. 츄르 냄새냥. 쓰다듬는 걸 허락한다냥.」" },
+  { x: 360, col: "#e8e0d0", name: "삼색이", line: "「개구리 녀석들이 우리 생선을 다 훔쳐 갔다냥! 지하철에 소굴이 있다냥!」" },
+  { x: 430, col: "#8a8aa0", name: "회색이", line: "「옆 동네 나비는... 빛 따라 올라갔다냥. 언젠가 돌아올 거다냥.」" },
+  { x: 500, col: "#b86a3a", name: "대장", line: "「인간이 여기까지 오다니. 좋다, 비밀 하나 알려 주지냥. 마지막 순간, 빛에게 '사람은?' 하고 물어봐라냥.」" },
+];
+room({
+  id: "catMeet",
+  label: "??? 냥이 집회소",
+  theme: "vault",
+  width: 600,
+  seed: 999,
+  startX: 60,
+  ambient: 0.55,
+  doors: [{ x: 40, kind: "arch", to: "chapter1", toX: 1420, dir: "in" }],
+  lights: () => MEET.map((m): Light => ({ x: m.x, y: 180, r: 40, a: 0.6, warm: "rgba(255,210,150,0.10)" })),
+  hotspots: () => [
+    ...MEET.map(
+      (m, i): Hotspot => ({
+        x: m.x,
+        iconY: 160,
+        label: `${m.name} 쓰다듬기`,
+        range: 22,
+        enabled: () => true,
+        use: async () => {
+          sfx.purr();
+          await caption(`${m.name}: ${m.line}`);
+          F()[`meet${i}`] = 1;
+          if (MEET.every((_, j) => F()[`meet${j}`]) && !F().meetAll) {
+            F().meetAll = 1;
+            try {
+              localStorage.setItem("charlie_cat_secret", "1");
+            } catch {
+              /* 무시 */
+            }
+            sfx.item();
+            await caption("집회소의 고양이들이 모두 찰리를 인정했다! (비밀 꾸미기 「무지개 목도리」 해금)");
+            await caption("대장 고양이가 마지막 말을 남겼다. 「잊지 마라냥. 마지막에 빛에게 물어봐라냥.」");
+          }
+        },
+      }),
+    ),
+    canSpot("c23", 560, 176, "방석 밑"),
+  ],
+  back: (camX) => {
+    // 박스와 방석 위에 앉은 고양이들
+    MEET.forEach((m, i) => {
+      const sx = m.x - camX;
+      g.fillStyle = "#6a4a2a";
+      g.fillRect(half(sx - 14), 200, 28, 14);
+      g.fillStyle = "#8a6a3a";
+      g.fillRect(half(sx - 14), 200, 28, 2);
+      const pose = `sitT${Math.floor(clock.t * 5 + i * 3) % 8}`;
+      smoothDraw(tintedCat(pose, i % 2 ? -1 : 1, m.col), half(sx - 15), 178, 32, 24);
+    });
+    text("냥냥 비밀 집회 · 인간 출입 금지", 300 - camX, 60, "#c8b890", "center");
+  },
+  enter: async () => {
+    await caption("작은 고양이 문을 기어서 통과했다... 그 너머엔 촛불과 방석, 그리고 동네 고양이들의 비밀 집회!");
+    emote(charlie, "!");
+    await say(charlie, "여, 여기 이런 곳이...?");
+  },
+});
+
+
+// ═════════════════════════════════════════════════════════
+// 비밀 엔딩 C: 월요일 아침, 블랙컴퍼니
+// ═════════════════════════════════════════════════════════
+SCENES.epiC = () => {
+  const crew = [zoned(330, 0, ["보고서... 보고서...", "..."]), zoned(420, 1, ["네 부장님...", "..."])];
+  const sc: Scene = {
+    id: "epiC",
+    width: 600,
+    bg: buildInterior("staff", 600, 802, []),
+    ambient: 0.3,
+    tint: "rgba(40,60,90,0.12)",
+    lights: () => [{ x: 220, y: 160, r: 60, a: 0.7, warm: "rgba(120,255,170,0.06)" }],
+    minX: 30,
+    maxX: 570,
+    actors: crew,
+    hotspots: [],
+    zones: [],
+    update: tickAll(crew),
+    back: (camX) => {
+      g.fillStyle = "#3a3e46";
+      g.fillRect(200 - camX, 176, 50, 38);
+      g.fillStyle = "#1a1e24";
+      g.fillRect(208 - camX, 156, 30, 20);
+      g.fillStyle = "#1a3a2a";
+      g.fillRect(210 - camX, 158, 26, 16);
+    },
+    start: async () => {
+      charlie.x = 230;
+      charlie.y = 200;
+      charlie.pose = "sit";
+      charlie.facing = -1;
+      await fadeTo(0, 1.2);
+      await caption("월요일 아침. 지구에서 고양이가 모두 사라졌다.");
+      await caption("좀비도, 해골도, 개구리도 그대로다. 그리고 블랙컴퍼니는... 정상 영업 중이다.");
+      await say(charlie, "...샘, 보고 싶다.");
+      await wait(1);
+      sfx.blip();
+      await caption("그때, 모니터에 초록 글씨가 떴다.");
+      await caption("「샘은 잘 지낸다. 새 별에서도 츄르를 제일 좋아한다. 가끔 너를 찾는다. — 우주에서」");
+      emote(charlie, "💧");
+      await say(charlie, "...그래. 잘 지내라, 샘. 나도 열심히... 아니, 적당히 살게.");
+      await fadeTo(1, 2);
+      await credits("— 병맛 엔딩: 고양이는 귀엽다 —");
+    },
+  };
+  return sc;
+};
 
 export const STAGES_READY = true;
 void W;

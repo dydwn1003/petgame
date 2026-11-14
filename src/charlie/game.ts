@@ -3,6 +3,7 @@ import {
   ADVANCE,
   FONT,
   GROUND,
+  pressed,
   H,
   W,
   axis,
@@ -68,6 +69,7 @@ import {
   HUMAN_ORIGIN,
   catHead,
   lightTip,
+  tintCat,
   SKELETON,
   cat,
   human,
@@ -78,7 +80,7 @@ import {
   type Pose,
 } from "./sprites";
 import { makeCanvas, mix } from "./pixel";
-import { farewellShots, introShots, memoryShots, type Shot } from "./movies";
+import { catsRiseShots, farewellShots, introShots, memoryShots, type Shot } from "./movies";
 
 // ── 타입 ─────────────────────────────────────────────────
 type Kind = "charlie" | "sam" | "person";
@@ -1173,6 +1175,19 @@ SCENES.chapter1 = (checkpoint) => {
         },
       },
       {
+        x: PET + 46,
+        iconY: 190,
+        label: "작은 고양이 문?",
+        range: 16,
+        enabled: () => !!F.supplies && !F.robbed,
+        use: async () => {
+          await caption("펫숍 문 아래쪽에 고양이 전용 작은 문이 있다. 안쪽에서 '냐옹' 소리가 여럿 들린다...");
+          await say(charlie, "...기어서라도 들어가 볼까.");
+          await descend(2);
+          await goScene("catMeet", 60);
+        },
+      },
+      {
         x: PET,
         iconY: 128,
         label: "살펴보다",
@@ -1503,8 +1518,11 @@ SCENES.alley = () => {
           S.flags.ch1 = 1;
           unlock(2);
           await fadeTo(1, 1.5);
+          await caption("...그때, 손전등이 깜빡이더니 툭 꺼졌다.");
+          emote(charlie, "💧");
+          await say(charlie, "건전지가 다 됐어... 길 건너 24시 약국에 건전지가 있을 거야.");
           await chapterCard("제1장 끝", "");
-          await goScene("subwayGate", 0, false);
+          await goScene("drug1", 0, false);
         },
       },
     ],
@@ -3498,8 +3516,34 @@ SCENES.helipad = (checkpoint) => {
     await playMovie(memoryShots());
     await say(charlie, "...그날 비 오는 골목. 상자 속에서 떨던 게 너였구나.");
     await caption("샘이 빛 속에서 찰리를 돌아본다.");
-    const pick = await choose(["샘, 가지 마! 내 곁에 있어 줘.", "...가고 싶으면, 가도 돼."]);
-    markEnding(pick === 0 ? "A" : "B");
+    const opts = ["샘, 가지 마! 내 곁에 있어 줘.", "...가고 싶으면, 가도 돼."];
+    // 비밀 집회소의 대장 고양이가 알려 준 질문
+    if (secretOn("charlie_cat_secret")) opts.push("(대장 고양이의 말이 떠올랐다) ...사람은요?");
+    const pick = await choose(opts);
+    markEnding(["A", "B", "C"][pick]);
+    if (pick === 2) {
+      await say(charlie, "...저기요. 고양이 말고, 사람은요? 사람은 어떻게 되는 거죠?");
+      await caption("빛이 잠시 멈췄다. 그리고—");
+      await caption("「인간? 필요 없다.」");
+      await caption("「우리가 운석을 떨어뜨렸다. 이 별의 고양이를 전부 데려가기 위해. 이 별의 고양이는... 너무 귀여우니까.」");
+      emote(charlie, "💧");
+      await say(charlie, "그, 그럼 운석도, 좀비도, 해골도, 개구리도 전부...");
+      await caption("「부작용이다. 미안하다. 하지만 고양이는 귀엽다.」");
+      await say(charlie, "그 이유 하나로 지구를 망쳤다고?!");
+      await caption("「너도 고양이를 키우지 않나. 이해할 텐데.」");
+      await say(charlie, "...반박을 못 하겠네.");
+      sam.pose = "jump";
+      await tween(sam, sam.x, 20, 1.6, 0);
+      sam.visible = false;
+      emote(charlie, "💢");
+      await say(charlie, "샘!! 안 돼!!");
+      focusCam(null, 1);
+      await playMovie(catsRiseShots());
+      F.endC = 1;
+      await fadeTo(1, 1.4);
+      await goScene("epiC", 0, false);
+      return;
+    }
     if (pick === 0) {
       F.endA = 1;
       await say(charlie, "샘, 가지 마! 너 없으면 난... 맥주만 마시다 잠드는 사람이야.");
@@ -3952,7 +3996,7 @@ function markEnding(e: string): void {
 }
 
 // ── 참치캔 (수집 → 샘 꾸미기 해금) ─────────────────────────────
-export const CANS_TOTAL = 20;
+export const CANS_TOTAL = 24;
 const CAN_KEY = "charlie_cat_cans";
 export function cansFound(): string[] {
   try {
@@ -3967,7 +4011,22 @@ export const COSTUMES = [
   { id: "glasses", name: "선글라스", need: 8 },
   { id: "crown", name: "왕관", need: 13 },
   { id: "helmet", name: "우주 헬멧", need: 20 },
+  { id: "rainbow", name: "무지개 목도리", need: 999 },
 ];
+function secretOn(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+/** 이 꾸미기를 쓸 수 있나 (참치캔 개수 · 비밀 집회소 · 코나미 코드) */
+function costumeOpen(c: { id: string; need: number }): boolean {
+  if (secretOn("charlie_cat_konami")) return true;
+  if (c.id === "rainbow") return secretOn("charlie_cat_secret");
+  return cansFound().length >= c.need;
+}
+const tintedCat = tintCat;
 export function costume(): string {
   try {
     return localStorage.getItem("charlie_cat_costume") ?? "none";
@@ -4062,6 +4121,17 @@ function drawCostume(left: number, top: number, facing: 1 | -1, pose: string, id
     g.beginPath();
     g.arc(0, -5, 0.55, 0, Math.PI * 2);
     g.fill();
+  } else if (id === "rainbow") {
+    const cols = ["#e84a4a", "#f0a03a", "#f0e04a", "#5ac85a", "#4a8ae8", "#9a5ae8"];
+    cols.forEach((c, i) => {
+      g.strokeStyle = c;
+      g.lineWidth = 0.55;
+      g.beginPath();
+      g.arc(f * 0.5, 2.6 + i * 0.5, 3.4, Math.PI * 0.15, Math.PI * 0.85);
+      g.stroke();
+    });
+    g.fillStyle = "#e84a4a";
+    g.fillRect(-f * 2.6 - 0.6, 4, 1.2, 3.4 + Math.sin(clock.t * 4));
   } else if (id === "helmet") {
     g.fillStyle = "rgba(190,225,255,0.22)";
     g.strokeStyle = "rgba(220,240,255,0.85)";
@@ -4760,7 +4830,25 @@ export function titleItems(): string[] {
 }
 
 const titleTop = (n: number) => 128 - Math.max(0, n - 5) * 9;
+const KONAMI = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight"];
+const konamiBuf: string[] = [];
+let konamiMsg = 0;
 export function updateTitle(): void {
+  for (const k of pressed) {
+    if (!k.startsWith("Arrow")) continue;
+    konamiBuf.push(k);
+    if (konamiBuf.length > 8) konamiBuf.shift();
+    if (konamiBuf.join() === KONAMI.join()) {
+      try {
+        localStorage.setItem("charlie_cat_konami", "1");
+      } catch {
+        /* 무시 */
+      }
+      konamiMsg = clock.t + 3.5;
+      sfx.meow();
+      sfx.item();
+    }
+  }
   if (S.album > 0) {
     const n = PHOTOS.length;
     if (took("ArrowUp", "KeyW", "ArrowLeft")) S.album = ((S.album - 2 + n) % n) + 1;
@@ -4788,19 +4876,18 @@ export function updateTitle(): void {
     void goScene("intro", 0, false);
   } else if (label === "제2장부터") {
     S.flags = { supplies: 1, ch1: 1 };
-    void goScene("subwayGate", 0, false);
+    void goScene("drug1", 0, false);
   } else if (label === "제3장부터") {
     S.flags = { supplies: 1, ch1: 1, ch2: 1, treats: 1 };
     void goScene("roofs", 0, false);
   } else if (label === "제4장부터") {
     S.flags = { supplies: 1, ch1: 1, ch2: 1, ch3: 1, treats: 1 };
-    void goScene("pier", 0, false);
+    void goScene("bcLobby", 70, false);
   } else if (label === "최종장부터") {
     S.flags = { supplies: 1, ch1: 1, ch2: 1, ch3: 1, ch4: 1, treats: 1 };
     void goScene("helipad", 0, false);
   } else if (label.startsWith("샘 꾸미기")) {
-    const have = cansFound().length;
-    const open2 = COSTUMES.filter((c) => have >= c.need);
+    const open2 = COSTUMES.filter(costumeOpen);
     const i = open2.findIndex((c) => c.id === costume());
     setCostume(open2[(i + 1) % open2.length].id);
     if (open2.length === 1) sfx.croak();
@@ -4843,8 +4930,13 @@ export function drawTitle(): void {
   });
   text("↑↓ 선택 · Space 결정", W / 2, H - 10, "rgba(220,214,232,0.6)", "center");
   const ends = endingsSeen();
-  if (ends.length) text(`엔딩 ${["A", "B"].map((e) => (ends.includes(e) ? `${e}✓` : `${e}·`)).join(" ")}`, W - 8, 12, "#ffd36a", "right");
+  if (ends.length) text(`엔딩 ${["A", "B", "C"].map((e) => (ends.includes(e) ? `${e}✓` : e === "C" ? "?" : `${e}·`)).join(" ")}`, W - 8, 12, "#ffd36a", "right");
   if (S.album > 0) drawAlbum();
+  if (clock.t < konamiMsg) {
+    g.fillStyle = "rgba(6,5,10,0.85)";
+    g.fillRect(W / 2 - 150, 40, 300, 22);
+    text("★ 치트 냥! 모든 꾸미기가 해금되었다냥 ★", W / 2, 51, "#ffd36a", "center");
+  }
 }
 
 function drawAlbum(): void {
@@ -4921,5 +5013,5 @@ export function bakeIdle(deadline: number): void {
 }
 
 // stages.ts (추가 스테이지) 에서 쓰는 도구들
-export { SCENES, mkActor, flashCone, canSpot, walkTo, tween, writeSave, emote, focusCam, gameOver, hideAt, patrolKit, choose, unlock, flameTongues, smokePuffs, half, smoothDraw, playMovie, has, give, take, openKeypad, playSimon, photoSpot, findPhoto, descend, ascend, charlie, sam, drawFires };
+export { SCENES, mkActor, flashCone, canSpot, tintedCat, credits, walkTo, tween, writeSave, emote, focusCam, gameOver, hideAt, patrolKit, choose, unlock, flameTongues, smokePuffs, half, smoothDraw, playMovie, has, give, take, openKeypad, playSimon, photoSpot, findPhoto, descend, ascend, charlie, sam, drawFires };
 export type { Scene, Hotspot, Light, Zone };

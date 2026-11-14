@@ -1826,6 +1826,22 @@ function paintCat(p: Px, pose: string): void {
   else paintCatHead(g, 95, by + 9 + nod, {}, 34);
 }
 
+/** 털색만 바꾼 고양이 (동네 고양이들, 엔딩 영상) */
+export function tintCat(pose: CatPose, facing: 1 | -1, col: string): HTMLCanvasElement {
+  return cached(`ct:${pose}:${facing}:${col}`, () => {
+    const src = cat(pose, facing);
+    const c = makeCanvas(src.width, src.height);
+    const g = c.getContext("2d")!;
+    g.drawImage(src, 0, 0);
+    g.globalCompositeOperation = "multiply";
+    g.fillStyle = col;
+    g.fillRect(0, 0, c.width, c.height);
+    g.globalCompositeOperation = "destination-in";
+    g.drawImage(src, 0, 0);
+    return c;
+  });
+}
+
 /** 고양이 스프라이트 (화면 32×24 자리에 촘촘한 도트) */
 export function cat(pose: CatPose, facing: 1 | -1, silhouette = false): HTMLCanvasElement {
   const key = `c:${pose}:${facing}:${silhouette}`;
