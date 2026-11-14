@@ -791,249 +791,495 @@ export function human(look: Look, lookId: string, pose: Pose, build: Build, faci
 /** 화면에 그릴 때 기준점 (발 가운데, 화면 좌표) */
 export const HUMAN_ORIGIN = { x: CX / 4, y: FEET / 4 };
 
-// ── 고양이 샘 (밝은 회색 페르시안) ─────────────────────────
-// 실제 고양이 몸 구조: 삼각형 귀, 아몬드 눈, 깊은 가슴, 꺾인 뒷다리, 긴 꼬리
+// ── 고양이 샘 (밝은 회색 페르시안, 실사풍) ─────────────────
+// 몸을 타원·원뿔 조각으로 만든 실루엣에 빛과 그림자를 칠하고,
+// 그 안에 몸의 결을 따라 가는 털을 수백 가닥 그린다.
 export type CatPose = string;
 const CW = 128;
 const CH = 96;
-const CFEET = 88;
+const GROUND_Y = 88;
 
-const F = "#c9ccd4";
-const FL = "#e3e6ec";
-const FLL = "#f5f6f9";
-const FS = "#a6aab8";
-const FD = "#878c9d";
-const FDD = "#5e6375";
-const PT = "#959aaa"; // 귀·꼬리 끝의 조금 진한 회색
-const IRIS = "#e89a34";
-const IRIS_L = "#ffc866";
-const PUP = "#1a0f08";
-const NOSE = "#e8a0aa";
-const EAR = "#e8b4bc";
+const C = {
+  base: "#c5c8d0",
+  light: "#e9ebef",
+  pale: "#f3f4f6",
+  shade: "#9a9eab",
+  deep: "#5d6272",
+  ruff: "#e8eaee",
+  earIn: "#d9a6ae",
+  earDeep: "#8a6a72",
+  nose: "#c98892",
+  noseDark: "#7a4a52",
+  iris: "#e0922c",
+  irisIn: "#f6c860",
+  irisRim: "#9a5a1a",
+  pupil: "#120a06",
+  lid: "#3e3f4a",
+};
 
-/** 다각형 채우기 (귀 같은 뾰족한 모양) */
-function poly(p: Px, pts: Array<[number, number]>, col: string): void {
-  if (p.ctx) {
-    const g = p.ctx;
-    g.fillStyle = col;
-    g.beginPath();
-    pts.forEach(([x, y], i) => (i ? g.lineTo(x + 0.5, y + 0.5) : g.moveTo(x + 0.5, y + 0.5)));
-    g.closePath();
-    g.fill();
+/** 결정적 난수 */
+function seeded(seed: number): () => number {
+  let s2 = seed >>> 0;
+  return () => {
+    s2 = (s2 * 1664525 + 1013904223) >>> 0;
+    return s2 / 4294967296;
+  };
+}
+
+type Ell = { kind: "e"; x: number; y: number; rx: number; ry: number; rot?: number };
+type Cap = { kind: "c"; x0: number; y0: number; r0: number; x1: number; y1: number; r1: number };
+type Part = Ell | Cap;
+
+function addPart(path: Path2D, s2: Part): void {
+  if (s2.kind === "e") {
+    path.moveTo(s2.x + s2.rx, s2.y);
+    path.ellipse(s2.x, s2.y, s2.rx, s2.ry, s2.rot ?? 0, 0, Math.PI * 2);
     return;
   }
-  for (const [x, y] of pts) p(x, y, 1, 1, col);
+  const dx = s2.x1 - s2.x0;
+  const dy = s2.y1 - s2.y0;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+  path.moveTo(s2.x0 + nx * s2.r0, s2.y0 + ny * s2.r0);
+  path.lineTo(s2.x1 + nx * s2.r1, s2.y1 + ny * s2.r1);
+  path.lineTo(s2.x1 - nx * s2.r1, s2.y1 - ny * s2.r1);
+  path.lineTo(s2.x0 - nx * s2.r0, s2.y0 - ny * s2.r0);
+  path.closePath();
+  path.moveTo(s2.x0 + s2.r0, s2.y0);
+  path.ellipse(s2.x0, s2.y0, s2.r0, s2.r0, 0, 0, Math.PI * 2);
+  path.moveTo(s2.x1 + s2.r1, s2.y1);
+  path.ellipse(s2.x1, s2.y1, s2.r1, s2.r1, 0, 0, Math.PI * 2);
 }
 
-/** 털 덩어리: 그림자 → 바탕 → 빛, 가장자리는 부드러운 털 결 */
-function fur(p: Px, cx: number, cy: number, rx: number, ry: number, base = F, light = FL, shade = FS, seed = 1): void {
-  ellipse(p, cx + 1, cy + 1.4, rx, ry, shade);
-  ellipse(p, cx, cy, Math.max(1, rx - 1.2), Math.max(1, ry - 1.2), base);
-  ellipse(p, cx - rx * 0.25, cy - ry * 0.35, Math.max(1, rx * 0.6), Math.max(1, ry * 0.4), light);
-  // 가장자리 털 결: 짧은 곡선이 바깥쪽으로 흐른다
-  const step = Math.max(0.25, 2.6 / Math.max(rx, ry));
-  for (let a = 0; a < Math.PI * 2; a += step) {
-    const up = Math.sin(a) < 0.3;
-    const ex = cx + Math.cos(a) * (rx - 1.2);
-    const ey = cy + Math.sin(a) * (ry - 1.2);
-    const len = 0.9 + ((Math.floor(a * 9) + seed) % 3) * 0.45;
-    curve(p, ex - Math.cos(a) * 1.5, ey - Math.sin(a) * 1.5, ex, ey, ex + Math.cos(a) * len, ey + Math.sin(a) * len + 0.4, up ? base : shade, 1.6);
+/**
+ * 털 덩어리 하나 그리기: 실루엣 → 빛/그림자 → 결 따라 털 → 가장자리 털
+ * flow: 털이 흐르는 방향(라디안), far: 멀리 있는 쪽(어둡게)
+ */
+function furMass(g: CanvasRenderingContext2D, parts: Part[], o: { flow: number; seed: number; far?: boolean; tone?: number; strands?: number; edge?: number; light?: [number, number] }): void {
+  const path = new Path2D();
+  for (const s2 of parts) addPart(path, s2);
+  // 경계 상자
+  let x0 = 999, y0 = 999, x1 = -999, y1 = -999;
+  for (const s2 of parts) {
+    const bx = s2.kind === "e" ? [s2.x - s2.rx, s2.x + s2.rx] : [Math.min(s2.x0 - s2.r0, s2.x1 - s2.r1), Math.max(s2.x0 + s2.r0, s2.x1 + s2.r1)];
+    const byy = s2.kind === "e" ? [s2.y - s2.ry, s2.y + s2.ry] : [Math.min(s2.y0 - s2.r0, s2.y1 - s2.r1), Math.max(s2.y0 + s2.r0, s2.y1 + s2.r1)];
+    x0 = Math.min(x0, bx[0]);
+    x1 = Math.max(x1, bx[1]);
+    y0 = Math.min(y0, byy[0]);
+    y1 = Math.max(y1, byy[1]);
   }
-  // 안쪽 털 결
-  const n = Math.floor(rx * ry * 0.035);
+  const tone = (o.tone ?? 0) + (o.far ? -0.16 : 0);
+  const base = mix(C.base, tone);
+  const r = seeded(o.seed * 977 + 13);
+  // 가장자리 털 (실루엣 밖으로 삐져나옴)
+  const edge = o.edge ?? 1.6;
+  g.lineCap = "round";
+  for (const s2 of parts) {
+    if (s2.kind !== "e") continue;
+    const per = (s2.rx + s2.ry) * 1.6;
+    for (let i = 0; i < per; i++) {
+      const a = (i / per) * Math.PI * 2;
+      const px = s2.x + Math.cos(a) * s2.rx * 0.97;
+      const py = s2.y + Math.sin(a) * s2.ry * 0.97;
+      const out = edge * (0.5 + r());
+      const fx = Math.cos(o.flow) * 0.8 + Math.cos(a) * 0.6;
+      const fy = Math.sin(o.flow) * 0.8 + Math.sin(a) * 0.6;
+      g.strokeStyle = Math.sin(a) > 0.3 ? mix(base, -0.08) : base;
+      g.lineWidth = 0.95;
+      g.beginPath();
+      g.moveTo(px - fx * 0.6, py - fy * 0.6);
+      g.quadraticCurveTo(px + fx * out * 0.6, py + fy * out * 0.6, px + fx * out, py + fy * out + 0.3);
+      g.stroke();
+    }
+  }
+  // 바탕
+  g.fillStyle = base;
+  g.fill(path);
+  g.save();
+  g.clip(path);
+  // 빛 (왼쪽 위) + 그림자 (아래)
+  const [lx, ly] = o.light ?? [x0 + (x1 - x0) * 0.35, y0 + (y1 - y0) * 0.2];
+  const rad = Math.max(x1 - x0, y1 - y0);
+  const lg = g.createRadialGradient(lx, ly, 0, lx, ly, rad * 0.75);
+  lg.addColorStop(0, mix(C.light, tone + 0.05));
+  lg.addColorStop(0.55, mix(C.base, tone + 0.06));
+  lg.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = lg;
+  g.fillRect(x0 - 2, y0 - 2, x1 - x0 + 4, y1 - y0 + 4);
+  const sg = g.createLinearGradient(0, y0, 0, y1);
+  sg.addColorStop(0, "rgba(40,44,60,0)");
+  sg.addColorStop(0.6, "rgba(40,44,60,0.06)");
+  sg.addColorStop(1, `rgba(50,54,70,${o.far ? 0.34 : 0.22})`);
+  g.fillStyle = sg;
+  g.fillRect(x0 - 2, y0 - 2, x1 - x0 + 4, y1 - y0 + 4);
+  // 결을 따라 흐르는 털
+  const n = o.strands ?? Math.floor((x1 - x0) * (y1 - y0) * 0.55);
   for (let i = 0; i < n; i++) {
-    const a = (i * 2.399 + seed) % (Math.PI * 2);
-    const d = 0.3 + ((i * 0.618 + seed * 0.1) % 1) * 0.55;
-    const tx = cx + Math.cos(a) * rx * d;
-    const ty = cy + Math.sin(a) * ry * d;
-    const col = ty < cy - ry * 0.25 ? mix(base, 0.08) : mix(base, -0.07);
-    curve(p, tx, ty, tx - 0.4, ty + 1.2, tx - 0.8, ty + 2.6, col, 0.7);
+    const sx = x0 + r() * (x1 - x0);
+    const sy = y0 + r() * (y1 - y0);
+    const t = (sy - y0) / (y1 - y0 || 1);
+    const len = 2.2 + r() * 3.2;
+    const ang = o.flow + (r() - 0.5) * 0.5;
+    const light = r() < 0.5 - t * 0.35;
+    g.strokeStyle = light ? `rgba(248,249,252,${0.25 + r() * 0.3})` : `rgba(90,94,110,${0.05 + r() * 0.1})`;
+    g.lineWidth = 0.45 + r() * 0.35;
+    g.beginPath();
+    g.moveTo(sx, sy);
+    g.quadraticCurveTo(sx + Math.cos(ang) * len * 0.5 + (r() - 0.5), sy + Math.sin(ang) * len * 0.5, sx + Math.cos(ang) * len, sy + Math.sin(ang) * len + 0.4);
+    g.stroke();
   }
+  g.restore();
 }
 
-/** 앞다리: 곧은 다리 + 앞으로 굽는 손목 + 작은 발 */
-function frontLeg(p: Px, hx: number, hy: number, ang: number, lift: number, near: boolean): number {
-  const c = near ? FL : FS;
-  const [ex, ey] = bend(hx, hy, 10, ang);
-  const [ax, ay] = bend(ex, ey, 10, ang + lift * 0.9);
-  capsule(p, hx + 0.8, hy, ex + 0.8, ey, 4.4, mix(c, -0.2));
-  capsule(p, hx, hy, ex, ey, 3.8, c);
-  capsule(p, ex + 0.6, ey, ax + 0.6, ay, 3.4, mix(c, -0.2));
-  capsule(p, ex, ey, ax, ay, 2.9, c);
-  ellipse(p, ax + 2, ay + 1.2, 4.2, 2.4, near ? FLL : F);
-  if (near) {
-    p(ax + 1.5, ay + 2, 1, 1.4, FD);
-    p(ax + 3.5, ay + 2, 1, 1.4, FD);
-  }
-  return ay + 3.6;
-}
-
-/** 뒷다리: 허벅지 → 뒤로 꺾인 발뒤꿈치 → 발 (고양이 다리 모양) */
-function hindLeg(p: Px, hx: number, hy: number, ang: number, lift: number, near: boolean): number {
-  const c = near ? F : FS;
-  // 허벅지 털 뭉치
-  fur(p, hx + 2, hy + 2, 8, 9, c, near ? FL : F, mix(c, -0.15), 4);
-  const [kx, ky] = bend(hx + 3, hy + 4, 9, ang + 0.55);
-  const [hk, hky] = bend(kx, ky, 9, ang - 0.65 - lift * 0.5);
-  const [ax, ay] = bend(hk, hky, 4, ang + 0.1);
-  capsule(p, kx + 0.6, ky, hk + 0.6, hky, 3.4, mix(c, -0.2));
-  capsule(p, kx, ky, hk, hky, 2.8, c);
-  capsule(p, hk, hky, ax, ay, 2.6, c);
-  ellipse(p, ax + 2.5, ay + 1, 4.6, 2.3, near ? FL : F);
-  return ay + 3.3;
-}
-
-/** 머리 (오른쪽 3/4): 삼각형 귀, 페르시안 볼털, 아몬드 눈 */
-function catHead(p: Px, hx: number, hy: number, o: { closed?: boolean; wide?: boolean; happy?: boolean; hiss?: boolean; earsBack?: boolean }): void {
-  // 귀 (뒤쪽 귀 → 앞쪽 귀)
-  const ears: Array<[number, number, number]> = o.earsBack
-    ? [[-9, -2, -10], [5, -1, -8]]
-    : [[-8, -4, -15], [5, -3, -16]];
-  ears.forEach(([dx, , ty], i) => {
-    const bx = hx + dx;
-    const by = hy - 6;
-    const tip: [number, number] = o.earsBack ? [bx - 9, hy + ty + 6] : [bx + (i ? 3 : -1), hy + ty];
-    poly(p, [[bx - 6, by + 2], tip, [bx + 7, by]], i ? PT : mix(PT, -0.1));
-    poly(p, [[bx - 3, by + 1], [tip[0] + (o.earsBack ? 3 : 0), tip[1] + 4], [bx + 4, by]], EAR);
-    curve(p, bx - 1, by, tip[0] + 1, tip[1] + 5, tip[0], tip[1] + 2, FLL, 1);
-  });
-  // 머리통 + 페르시안 볼털
-  fur(p, hx, hy, 14, 12.5, F, FL, FS, 3);
-  fur(p, hx + 1, hy + 6.5, 15.5, 8, FL, FLL, F, 5);
-  // 주둥이 (짧고 납작한 페르시안 코)
-  ellipse(p, hx + 10.5, hy + 4.5, 4.6, 3.6, FLL);
-  ellipse(p, hx + 12.5, hy + 2, 1.8, 1.3, NOSE);
-  p(hx + 12, hy + 1.4, 1, 0.8, "#ffd0d8");
-  if (o.hiss) {
-    ellipse(p, hx + 11, hy + 7.5, 3.4, 2.6, "#4a1e24");
-    p(hx + 8.6, hy + 6, 1, 2, "#ffffff");
-    p(hx + 12.8, hy + 6, 1, 2, "#ffffff");
+/** 머리 (오른쪽 3/4) */
+function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { closed?: boolean; wide?: boolean; happy?: boolean; hiss?: boolean; earsBack?: boolean; tilt?: number }, seed: number): void {
+  g.save();
+  g.translate(hx, hy);
+  g.rotate(o.tilt ?? 0);
+  // 귀
+  const ear = (bx: number, tipX: number, tipY: number, w: number, near: boolean) => {
+    const path = new Path2D();
+    path.moveTo(bx - w, -4);
+    path.quadraticCurveTo(bx - w * 0.7, tipY * 0.55, tipX, tipY);
+    path.quadraticCurveTo(bx + w * 0.75, tipY * 0.5, bx + w, -3);
+    path.closePath();
+    g.fillStyle = near ? C.base : mix(C.base, -0.15);
+    g.fill(path);
+    g.save();
+    g.clip(path);
+    const eg = g.createLinearGradient(0, tipY, 0, 0);
+    eg.addColorStop(0, C.earDeep);
+    eg.addColorStop(0.5, C.earIn);
+    eg.addColorStop(1, mix(C.earIn, -0.15));
+    g.fillStyle = eg;
+    g.beginPath();
+    g.moveTo(bx - w * 0.55, -3);
+    g.quadraticCurveTo(bx - w * 0.35, tipY * 0.45, tipX + 0.5, tipY + 3);
+    g.quadraticCurveTo(bx + w * 0.45, tipY * 0.45, bx + w * 0.6, -2);
+    g.fill();
+    // 귓속 털
+    const r = seeded(seed + (near ? 7 : 3));
+    g.lineCap = "round";
+    for (let i = 0; i < 14; i++) {
+      const sx = bx - w * 0.4 + r() * w * 0.8;
+      g.strokeStyle = `rgba(248,248,252,${0.5 + r() * 0.4})`;
+      g.lineWidth = 0.5;
+      g.beginPath();
+      g.moveTo(sx, -2);
+      g.quadraticCurveTo(sx + (r() - 0.5) * 2, tipY * 0.35, tipX + (r() - 0.5) * 3, tipY * (0.5 + r() * 0.3));
+      g.stroke();
+    }
+    g.restore();
+    // 귀 테두리 털
+    g.strokeStyle = mix(C.base, -0.28);
+    g.lineWidth = 0.7;
+    g.stroke(path);
+  };
+  if (o.earsBack) {
+    ear(-8, -18, -2, 5.5, false);
+    ear(4, -6, -4, 6, true);
   } else {
-    p(hx + 12.2, hy + 3.2, 0.8, 1.6, FD);
-    curve(p, hx + 9.5, hy + 5, hx + 11, hy + 6.4, hx + 12.5, hy + 4.8, FD, 0.8);
-    curve(p, hx + 12.5, hy + 4.8, hx + 13.8, hy + 6.2, hx + 15, hy + 4.6, FD, 0.8);
+    ear(-8, -11, -17, 6, false);
+    ear(5, 7, -18, 6.5, true);
   }
-  // 아몬드 모양 눈
-  const eye = (ex: number, ey: number, w: number, h: number) => {
+  // 머리통 + 볼털 + 주둥이
+  furMass(g, [{ kind: "e", x: 0, y: 0, rx: 13, ry: 11.5 }], { flow: Math.PI * 0.85, seed: seed + 1, strands: 160, edge: 1.4, light: [-4, -6] });
+  furMass(g, [{ kind: "e", x: 1, y: 7, rx: 15, ry: 7.5 }, { kind: "e", x: -9, y: 5, rx: 6, ry: 6 }], { flow: Math.PI * 0.7, seed: seed + 2, tone: 0.12, strands: 120, edge: 2.4, light: [0, 2] });
+  // 이마 줄무늬 (옅은 태비)
+  g.strokeStyle = "rgba(90,94,110,0.35)";
+  g.lineWidth = 0.7;
+  for (const dx of [-3, 0, 3]) {
+    g.beginPath();
+    g.moveTo(dx + 1, -10);
+    g.quadraticCurveTo(dx, -7, dx + 0.5, -5);
+    g.stroke();
+  }
+  // 주둥이 (수염 자리 볼록)
+  const pad = g.createRadialGradient(10, 5, 0.5, 10, 5, 6);
+  pad.addColorStop(0, C.pale);
+  pad.addColorStop(1, mix(C.light, -0.06));
+  g.fillStyle = pad;
+  g.beginPath();
+  g.ellipse(9.5, 5.2, 4.2, 3.3, 0, 0, Math.PI * 2);
+  g.ellipse(13.4, 5.6, 3.2, 2.9, 0, 0, Math.PI * 2);
+  g.fill();
+  // 수염 모공
+  g.fillStyle = "rgba(90,94,110,0.6)";
+  for (const [dx, dy] of [[8, 4.4], [9.6, 5.6], [11, 4.6], [12.6, 5.8], [14, 4.8]]) g.fillRect(dx, dy, 0.5, 0.5);
+  // 턱
+  g.fillStyle = C.pale;
+  g.beginPath();
+  g.ellipse(11, 8.8, 3, 1.8, 0, 0, Math.PI * 2);
+  g.fill();
+  // 코 (분홍 가죽 + 콧구멍) 와 콧등
+  g.strokeStyle = "rgba(120,124,140,0.4)";
+  g.lineWidth = 0.6;
+  g.beginPath();
+  g.moveTo(5.5, -3);
+  g.quadraticCurveTo(9.5, -1, 11.5, 1.5);
+  g.stroke();
+  g.fillStyle = C.nose;
+  g.beginPath();
+  g.moveTo(10.2, 1.2);
+  g.lineTo(14.4, 1.0);
+  g.quadraticCurveTo(13.8, 3.2, 12.2, 3.6);
+  g.quadraticCurveTo(10.8, 3.0, 10.2, 1.2);
+  g.fill();
+  g.fillStyle = C.noseDark;
+  g.fillRect(11, 2, 0.8, 0.6);
+  g.fillRect(13, 1.9, 0.8, 0.6);
+  g.fillStyle = "rgba(255,230,236,0.8)";
+  g.fillRect(11.6, 1.2, 1.2, 0.5);
+  // 입 (인중 → 양쪽)
+  g.strokeStyle = C.lid;
+  g.lineWidth = 0.55;
+  g.beginPath();
+  g.moveTo(12.2, 3.6);
+  g.lineTo(12.2, 5.2);
+  if (o.hiss) {
+    g.stroke();
+    g.fillStyle = "#3a1a1e";
+    g.beginPath();
+    g.ellipse(12, 7.4, 3.2, 2.2, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#ffffff";
+    g.fillRect(9.6, 5.8, 0.8, 1.8);
+    g.fillRect(13.8, 5.8, 0.8, 1.8);
+  } else {
+    g.quadraticCurveTo(10.6, 6.6, 9.2, 5.6);
+    g.moveTo(12.2, 5.2);
+    g.quadraticCurveTo(13.6, 6.5, 15, 5.3);
+    g.stroke();
+  }
+  // 눈
+  const eye = (ex: number, ey: number, w: number, h: number, near: boolean) => {
     if (o.closed || o.happy) {
-      const dir = o.happy ? -1 : 1;
-      curve(p, ex - w / 2, ey, ex, ey + dir * h * 0.35, ex + w / 2, ey - 0.4, FDD, 1.4);
+      g.strokeStyle = C.lid;
+      g.lineWidth = 0.9;
+      g.beginPath();
+      g.moveTo(ex - w / 2, ey);
+      g.quadraticCurveTo(ex, ey + (o.happy ? -h * 0.5 : h * 0.4), ex + w / 2 + 0.6, ey - 0.4);
+      g.stroke();
       return;
     }
-    // 아몬드: 바깥 꼬리가 살짝 올라간 눈매
-    poly(p, [[ex - w / 2 - 0.6, ey + 0.4], [ex - w / 4, ey - h / 2 - 0.4], [ex + w / 3, ey - h / 2 - 0.6], [ex + w / 2 + 1, ey - 0.8], [ex + w / 4, ey + h / 2 + 0.4], [ex - w / 4, ey + h / 2 + 0.2]], FDD);
-    poly(p, [[ex - w / 2, ey + 0.3], [ex - w / 4, ey - h / 2 + 0.2], [ex + w / 3, ey - h / 2], [ex + w / 2 + 0.2, ey - 0.7], [ex + w / 4, ey + h / 2 - 0.2], [ex - w / 4, ey + h / 2 - 0.3]], IRIS);
-    ellipse(p, ex, ey + h * 0.18, w * 0.32, h * 0.22, IRIS_L);
-    const pw = o.wide ? w * 0.28 : w * 0.11;
-    ellipse(p, ex + 0.2, ey, pw, h * 0.42, PUP);
-    p(ex - w * 0.22, ey - h * 0.3, 1.1, 1.1, "#ffffff");
-    p(ex + w * 0.22, ey + h * 0.15, 0.7, 0.7, "#fff4dc");
-    // 눈물 자국 같은 눈 앞 그늘 (고양이 특유의 라인)
-    curve(p, ex + w / 2 + 0.4, ey + 0.2, ex + w / 2 + 1.4, ey + 2, ex + w / 2 + 1, ey + 3.6, FS, 0.8);
+    const shape = new Path2D();
+    shape.moveTo(ex - w / 2, ey + 0.4);
+    shape.bezierCurveTo(ex - w / 3, ey - h * 0.62, ex + w / 3, ey - h * 0.66, ex + w / 2 + 0.8, ey - 0.6);
+    shape.bezierCurveTo(ex + w / 3, ey + h * 0.6, ex - w / 3, ey + h * 0.58, ex - w / 2, ey + 0.4);
+    // 눈가 그늘
+    g.fillStyle = "rgba(70,74,90,0.35)";
+    g.beginPath();
+    g.ellipse(ex, ey + 0.2, w / 2 + 1.6, h / 2 + 1.4, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = C.lid;
+    g.fill(shape);
+    g.save();
+    g.clip(shape);
+    const ig = g.createRadialGradient(ex - w * 0.08, ey + h * 0.12, 0.2, ex, ey, w * 0.62);
+    ig.addColorStop(0, C.irisIn);
+    ig.addColorStop(0.55, C.iris);
+    ig.addColorStop(1, C.irisRim);
+    g.fillStyle = ig;
+    g.beginPath();
+    g.ellipse(ex + 0.2, ey, w / 2 - 0.35, h / 2 - 0.15, 0, 0, Math.PI * 2);
+    g.fill();
+    // 홍채 결
+    g.strokeStyle = "rgba(150,80,20,0.35)";
+    g.lineWidth = 0.3;
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      g.beginPath();
+      g.moveTo(ex + Math.cos(a) * w * 0.12, ey + Math.sin(a) * h * 0.12);
+      g.lineTo(ex + Math.cos(a) * w * 0.42, ey + Math.sin(a) * h * 0.4);
+      g.stroke();
+    }
+    // 동공 (세로로 긴 고양이 동공)
+    g.fillStyle = C.pupil;
+    g.beginPath();
+    g.ellipse(ex + 0.3, ey, o.wide ? w * 0.3 : w * 0.12, h * 0.45, 0, 0, Math.PI * 2);
+    g.fill();
+    // 윗눈꺼풀 그림자
+    g.fillStyle = "rgba(20,16,24,0.35)";
+    g.fillRect(ex - w, ey - h, w * 2, h * 0.45);
+    g.restore();
+    // 반사광
+    g.fillStyle = "#ffffff";
+    g.beginPath();
+    g.ellipse(ex - w * 0.16, ey - h * 0.18, near ? 0.9 : 0.7, near ? 0.75 : 0.6, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "rgba(255,255,255,0.5)";
+    g.fillRect(ex + w * 0.15, ey + h * 0.22, 0.9, 0.45);
+    // 아래 눈꺼풀 촉촉한 빛 + 눈물 자국 라인
+    g.strokeStyle = "rgba(240,240,248,0.6)";
+    g.lineWidth = 0.4;
+    g.beginPath();
+    g.moveTo(ex - w / 3, ey + h * 0.5);
+    g.quadraticCurveTo(ex, ey + h * 0.62, ex + w / 3, ey + h * 0.45);
+    g.stroke();
+    g.strokeStyle = "rgba(70,74,90,0.55)";
+    g.lineWidth = 0.6;
+    g.beginPath();
+    g.moveTo(ex + w / 2 + 0.6, ey + 0.2);
+    g.quadraticCurveTo(ex + w / 2 + 1.6, ey + 2.2, ex + w / 2 + 1.2, ey + 4);
+    g.stroke();
   };
-  eye(hx - 4.4, hy - 1.6, 5.8, 4.2);
-  eye(hx + 5.6, hy - 1.8, 7.4, 5.2);
-  // 이마 무늬 (살짝 진한 회색 M자)
-  curve(p, hx - 3, hy - 9, hx - 1, hy - 6, hx + 1, hy - 9, FS, 0.9);
-  curve(p, hx + 1, hy - 9, hx + 3, hy - 6, hx + 5, hy - 9, FS, 0.9);
-  whiskerAt = { x: hx + 14.5, y: hy + 3.6 };
+  eye(-4.2, -2.2, 5.4, 3.9, false);
+  eye(5.4, -2.4, 6.8, 4.8, true);
+  g.restore();
+  whiskerAt = { x: hx + 12, y: hy + 5, tilt: o.tilt ?? 0 };
 }
 
 /** 마지막으로 그린 고양이 얼굴 위치 (수염을 외곽선 위에 그리기 위해) */
-let whiskerAt: { x: number; y: number } | null = null;
+let whiskerAt: { x: number; y: number; tilt: number } | null = null;
 
-/** 풍성한 꼬리: 곡선을 따라 털 뭉치를 이어 붙인다 */
-function tail(p: Px, pts: Array<[number, number]>, thick: number): void {
-  const n = 12;
-  for (let i = 0; i <= n; i++) {
-    const t = i / n;
-    // 2차 곡선 위의 점
-    const [a, b, c] = pts;
-    const x = (1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * b[0] + t * t * c[0];
-    const y = (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * b[1] + t * t * c[1];
-    const r = thick * (0.75 + Math.sin(t * Math.PI) * 0.45) * (t > 0.85 ? 0.85 : 1);
-    const tip = t > 0.78;
-    fur(p, x, y, r, r * 0.95, tip ? PT : F, tip ? F : FL, tip ? FD : FS, i);
+/** 다리 하나 (어깨/엉덩이 → 관절 → 발) */
+function catLegPath(pts: Array<[number, number]>, radii: number[]): Part[] {
+  const parts: Part[] = [];
+  for (let i = 0; i < pts.length - 1; i++) parts.push({ kind: "c", x0: pts[i][0], y0: pts[i][1], r0: radii[i], x1: pts[i + 1][0], y1: pts[i + 1][1], r1: radii[i + 1] });
+  return parts;
+}
+
+function paw(g: CanvasRenderingContext2D, x: number, y: number, far: boolean): void {
+  g.fillStyle = far ? mix(C.light, -0.18) : C.light;
+  g.beginPath();
+  g.ellipse(x + 1.6, y, 4.2, 2.4, 0, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = "rgba(80,84,100,0.6)";
+  g.lineWidth = 0.45;
+  for (const dx of [0.6, 2.4]) {
+    g.beginPath();
+    g.moveTo(x + dx, y + 0.4);
+    g.lineTo(x + dx + 0.3, y + 2.2);
+    g.stroke();
   }
 }
 
+function frontLegParts(sx: number, sy: number, ang: number, lift: number): { parts: Part[]; foot: [number, number] } {
+  const [ex, ey] = bend(sx, sy, 10, ang);
+  const [wx, wy] = bend(ex, ey, 9, ang + lift * 0.9);
+  const [fx, fy] = bend(wx, wy, 2.5, ang + lift * 1.4 + 0.2);
+  return { parts: catLegPath([[sx, sy], [ex, ey], [wx, wy], [fx, fy]], [5, 3.6, 2.8, 2.6]), foot: [fx, fy] };
+}
+
+function hindLegParts(hx: number, hy: number, ang: number, lift: number): { parts: Part[]; foot: [number, number] } {
+  const [kx, ky] = bend(hx + 2, hy + 3, 9, ang + 0.6);
+  const [ax, ay] = bend(kx, ky, 8.5, ang - 0.7 - lift * 0.5);
+  const [fx, fy] = bend(ax, ay, 6, ang + 0.15 - lift * 0.2);
+  return { parts: [{ kind: "e", x: hx + 1, y: hy + 3, rx: 8.5, ry: 9.5, rot: 0.2 }, ...catLegPath([[kx, ky], [ax, ay], [fx, fy]], [4.2, 2.8, 2.6])], foot: [fx, fy] };
+}
+
+/** 꼬리 (풍성하게 퍼지는 긴 털) */
+function catTail(g: CanvasRenderingContext2D, a: [number, number], b: [number, number], c: [number, number], thick: number, seed: number): void {
+  const pts: Array<[number, number]> = [];
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 10;
+    pts.push([(1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * b[0] + t * t * c[0], (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * b[1] + t * t * c[1]]);
+  }
+  const radii = pts.map((_, i) => thick * (0.7 + Math.sin((i / 10) * Math.PI) * 0.5) * (i === 10 ? 0.6 : 1));
+  const dir = Math.atan2(c[1] - a[1], c[0] - a[0]);
+  furMass(g, catLegPath(pts, radii), { flow: dir, seed, strands: 260, edge: 3, tone: -0.02 });
+  // 꼬리 끝 조금 진하게
+  g.fillStyle = "rgba(80,84,100,0.25)";
+  g.beginPath();
+  g.ellipse(c[0], c[1], thick * 0.9, thick * 0.8, 0, 0, Math.PI * 2);
+  g.fill();
+}
+
 function paintCat(p: Px, pose: string): void {
+  const g = p.ctx!;
   if (pose.startsWith("sit") || pose === "blink") {
-    // 앉은 고양이 (옆모습, 오른쪽): 엉덩이 → 가슴 → 곧은 앞다리 → 발을 감싼 꼬리
     const k = pose.startsWith("sitT") ? Number(pose.slice(4)) : 0;
     const flick = Math.sin((k / 8) * Math.PI * 2);
-    tail(p, [[40, 80], [62, 90], [90 + flick * 2, 84 - flick * 4]], 5.2);
-    fur(p, 50, 66, 18, 17, F, FL, FS, 7); // 엉덩이
-    fur(p, 64, 54, 14, 21, F, FL, FS, 2); // 몸통 (세운)
-    fur(p, 72, 50, 9, 15, FLL, "#ffffff", FL, 9); // 가슴 갈기
-    hindLeg(p, 46, 70, 1.35, 0.4, true);
-    ellipse(p, 54, 85, 9, 3, F); // 뒷발
-    frontLeg(p, 66, 62, 0, 0, false);
-    frontLeg(p, 73, 62, 0.04, 0, true);
-    catHead(p, 74, 28, { closed: pose === "blink" });
+    catTail(g, [42, 82], [62, 92], [88 + flick * 2, 85 - flick * 4], 4.6, 21);
+    // 엉덩이 + 세운 몸통 + 가슴 갈기
+    furMass(g, [{ kind: "e", x: 50, y: 68, rx: 17, ry: 16 }, { kind: "e", x: 62, y: 54, rx: 12.5, ry: 19, rot: 0.15 }, { kind: "e", x: 70, y: 40, rx: 8, ry: 9 }], { flow: Math.PI * 0.55, seed: 1, light: [52, 44] });
+    // 앞다리 (먼 쪽, 가까운 쪽)
+    const legFar = catLegPath([[66, 60], [66, 76], [66.5, 85]], [4.2, 3.2, 2.8]);
+    furMass(g, legFar, { flow: Math.PI / 2, seed: 4, far: true, strands: 50, edge: 0.8 });
+    paw(g, 65, 86, true);
+    furMass(g, [{ kind: "e", x: 70, y: 50, rx: 8.5, ry: 13 }], { flow: Math.PI * 0.55, seed: 9, tone: 0.18, strands: 180, edge: 2.6 });
+    const legNear = catLegPath([[73, 62], [73, 77], [73.5, 85]], [4.4, 3.4, 2.9]);
+    furMass(g, legNear, { flow: Math.PI / 2, seed: 5, tone: 0.06, strands: 60, edge: 0.8 });
+    paw(g, 72, 86, false);
+    // 뒷발
+    furMass(g, [{ kind: "e", x: 54, y: 84, rx: 9, ry: 3.4 }], { flow: 0, seed: 6, strands: 30, edge: 0.8 });
+    paintCatHead(g, 74, 27, { closed: pose === "blink" }, 30);
     return;
   }
   if (pose === "loaf") {
-    tail(p, [[30, 82], [24, 86], [44, 86]], 4.6);
-    fur(p, 60, 72, 28, 14, F, FL, FS, 4);
-    fur(p, 78, 74, 12, 10, FL, FLL, F, 6);
-    ellipse(p, 88, 84, 6, 3, FLL);
-    catHead(p, 90, 56, { closed: true });
+    catTail(g, [36, 84], [30, 88], [52, 87], 4, 22);
+    furMass(g, [{ kind: "e", x: 58, y: 73, rx: 27, ry: 13 }, { kind: "e", x: 78, y: 70, rx: 12, ry: 12 }], { flow: Math.PI, seed: 2, light: [50, 62] });
+    furMass(g, [{ kind: "e", x: 82, y: 78, rx: 9, ry: 7 }], { flow: Math.PI / 2, seed: 3, tone: 0.18, strands: 90, edge: 2 });
+    paintCatHead(g, 88, 57, { closed: true }, 31);
     return;
   }
   if (pose === "jump") {
-    // 쭉 뻗은 점프: 앞발은 앞으로, 뒷발은 뒤로, 꼬리는 균형을 잡는다
-    tail(p, [[30, 50], [16, 46], [6, 34]], 5);
-    hindLeg(p, 34, 54, -0.9, 0, false);
-    frontLeg(p, 84, 52, 1.3, -0.4, false);
-    fur(p, 58, 48, 28, 12, F, FL, FS, 1);
-    fur(p, 80, 48, 12, 12, FL, FLL, F, 6);
-    hindLeg(p, 38, 56, -1.0, 0.1, true);
-    frontLeg(p, 88, 54, 1.4, -0.3, true);
-    catHead(p, 98, 36, { wide: true });
+    catTail(g, [32, 50], [14, 46], [6, 32], 4.6, 23);
+    const hf = hindLegParts(34, 50, -0.9, 0);
+    furMass(g, hf.parts, { flow: Math.PI * 0.9, seed: 11, far: true, strands: 80 });
+    const ff = frontLegParts(84, 52, 1.35, -0.4);
+    furMass(g, ff.parts, { flow: 0.2, seed: 12, far: true, strands: 50 });
+    furMass(g, [{ kind: "e", x: 44, y: 50, rx: 13, ry: 11 }, { kind: "e", x: 62, y: 50, rx: 19, ry: 10 }, { kind: "e", x: 80, y: 50, rx: 12, ry: 11 }], { flow: Math.PI, seed: 13 });
+    const hn = hindLegParts(38, 52, -1.0, 0.1);
+    furMass(g, hn.parts, { flow: Math.PI * 0.9, seed: 14, strands: 80 });
+    const fn = frontLegParts(88, 54, 1.45, -0.3);
+    furMass(g, fn.parts, { flow: 0.2, seed: 15, strands: 50 });
+    paw(g, fn.foot[0], fn.foot[1], false);
+    furMass(g, [{ kind: "e", x: 88, y: 48, rx: 9, ry: 10 }], { flow: Math.PI * 0.6, seed: 16, tone: 0.16, strands: 100, edge: 2.2 });
+    paintCatHead(g, 98, 37, { wide: true, earsBack: true, tilt: 0.1 }, 32);
     return;
   }
   if (pose === "startle") {
-    // 놀란 고양이: 활처럼 굽은 등, 곤두선 꼬리, 젖힌 귀, 하악
-    tail(p, [[30, 48], [22, 30], [26, 8]], 7.5);
-    for (const [x, near] of [[38, false], [80, false]] as const) (x < 50 ? hindLeg : frontLeg)(p, x, 56, x < 50 ? -0.3 : 0, 0, near);
-    fur(p, 58, 42, 28, 14, F, FL, FS, 2);
-    fur(p, 56, 32, 20, 10, F, FL, FS, 8);
-    for (let x = 36; x < 78; x += 2.5) {
-      const top = 24 - Math.sin(((x - 34) / 46) * Math.PI) * 4;
-      poly(p, [[x - 2, top + 2], [x + 0.5, top - 4 - ((x * 3) % 3)], [x + 2.5, top + 2]], x % 5 < 2.5 ? FL : F);
+    catTail(g, [32, 46], [20, 28], [28, 6], 7, 24);
+    for (const [x, far] of [[36, true], [80, true]] as const) {
+      const leg = x < 50 ? hindLegParts(x, 50, -0.3, 0) : frontLegParts(x, 50, 0, 0);
+      furMass(g, leg.parts, { flow: Math.PI / 2, seed: x, far, strands: 60 });
+      paw(g, leg.foot[0], leg.foot[1], true);
     }
-    hindLeg(p, 42, 58, -0.3, 0, true);
-    frontLeg(p, 84, 56, 0, 0, true);
-    catHead(p, 96, 44, { wide: true, hiss: true, earsBack: true });
+    furMass(g, [{ kind: "e", x: 44, y: 44, rx: 14, ry: 13 }, { kind: "e", x: 60, y: 34, rx: 20, ry: 13 }, { kind: "e", x: 80, y: 44, rx: 12, ry: 12 }], { flow: Math.PI * 1.1, seed: 17, edge: 3.4 });
+    for (const [x, far] of [[42, false], [84, false]] as const) {
+      const leg = x < 50 ? hindLegParts(x, 52, -0.3, 0) : frontLegParts(x, 52, 0, 0);
+      furMass(g, leg.parts, { flow: Math.PI / 2, seed: x + 1, far, strands: 60 });
+      paw(g, leg.foot[0], leg.foot[1], false);
+    }
+    paintCatHead(g, 95, 44, { wide: true, hiss: true, earsBack: true }, 33);
     return;
   }
   // 걷기 16프레임 (+ 박치기)
   const butt = pose === "butt";
   const ph = butt ? 0 : (Number(pose.slice(4)) / 16) * Math.PI * 2;
-  const swing = (q: number) => Math.sin(q) * 0.45;
-  const lift = (q: number) => Math.max(0, Math.cos(q)) * 0.9;
-  // 낮은 발 기준으로 몸 높이
-  const by = CFEET - 66 + Math.abs(Math.sin(ph)) * -1.2;
-  const sway = Math.sin(ph + 1) * 2;
-  // 꼬리: 위로 우아하게 휘었다가 끝이 살랑
-  tail(p, [[30, by + 30], [10, by + 22], [14 + sway, by + 2]], 5.4);
-  // 먼 쪽 다리
-  hindLeg(p, 36, by + 32, swing(ph + Math.PI), lift(ph + Math.PI), false);
-  frontLeg(p, 82, by + 38, swing(ph), lift(ph), false);
-  // 몸통: 엉덩이 · 허리 · 깊은 가슴
-  fur(p, 40, by + 30, 15, 13, F, FL, FS, 1);
-  fur(p, 60, by + 31, 20, 11.5, F, FL, FS, 3);
-  fur(p, 80, by + 31, 13, 13.5, F, FL, FS, 5);
-  fur(p, 64, by + 38, 18, 5, FL, FLL, F, 4); // 배 털
-  // 가까운 쪽 다리
-  hindLeg(p, 40, by + 33, swing(ph), lift(ph), true);
-  frontLeg(p, 86, by + 39, swing(ph + Math.PI), lift(ph + Math.PI), true);
-  // 가슴 갈기 + 머리
-  fur(p, 90, by + 30, 9, 11, FLL, "#ffffff", FL, 6);
-  const nod = Math.sin(ph * 2) * 0.8;
-  if (butt) catHead(p, 102, by + 22, { happy: true });
-  else catHead(p, 100, by + 14 + nod, {});
+  const swing = (q: number) => Math.sin(q) * 0.42;
+  const lift = (q: number) => Math.max(0, Math.cos(q)) * 0.95;
+  // 다리를 먼저 계산해 낮은 발이 땅에 닿도록 몸 높이를 정한다
+  const legsAt = (by: number) => ({
+    hf: hindLegParts(38, by + 33, swing(ph + Math.PI), lift(ph + Math.PI)),
+    ff: frontLegParts(80, by + 36, swing(ph), lift(ph)),
+    hn: hindLegParts(42, by + 34, swing(ph), lift(ph)),
+    fn: frontLegParts(85, by + 37, swing(ph + Math.PI), lift(ph + Math.PI)),
+  });
+  const probe = legsAt(0);
+  const low = Math.max(probe.hf.foot[1], probe.ff.foot[1], probe.hn.foot[1], probe.fn.foot[1]);
+  const by = GROUND_Y - 2 - low;
+  const L = legsAt(by);
+  const sway = Math.sin(ph + 1) * 2.5;
+  catTail(g, [28, by + 28], [6, by + 20], [12 + sway, by - 2], 5, 25);
+  furMass(g, L.hf.parts, { flow: Math.PI * 0.6, seed: 41, far: true, strands: 90 });
+  paw(g, L.hf.foot[0], L.hf.foot[1], true);
+  furMass(g, L.ff.parts, { flow: Math.PI * 0.55, seed: 42, far: true, strands: 60 });
+  paw(g, L.ff.foot[0], L.ff.foot[1], true);
+  // 몸통: 엉덩이 · 허리 · 깊은 가슴 · 목
+  furMass(g, [{ kind: "e", x: 40, y: by + 29, rx: 14, ry: 12.5 }, { kind: "e", x: 60, y: by + 30, rx: 20, ry: 11 }, { kind: "e", x: 80, y: by + 29, rx: 12.5, ry: 13 }, { kind: "e", x: 89, y: by + 20, rx: 7.5, ry: 9, rot: -0.4 }], { flow: Math.PI * 1.02, seed: 43 });
+  furMass(g, [{ kind: "e", x: 62, y: by + 38, rx: 18, ry: 4.5 }], { flow: Math.PI * 0.55, seed: 44, tone: 0.14, strands: 120, edge: 2.4 });
+  furMass(g, L.hn.parts, { flow: Math.PI * 0.6, seed: 45, strands: 90 });
+  paw(g, L.hn.foot[0], L.hn.foot[1], false);
+  furMass(g, L.fn.parts, { flow: Math.PI * 0.55, seed: 46, tone: 0.04, strands: 60 });
+  paw(g, L.fn.foot[0], L.fn.foot[1], false);
+  // 가슴 갈기
+  furMass(g, [{ kind: "e", x: 89, y: by + 28, rx: 8, ry: 10 }], { flow: Math.PI * 0.55, seed: 47, tone: 0.18, strands: 140, edge: 2.6 });
+  const nod = Math.sin(ph * 2) * 0.7;
+  if (butt) paintCatHead(g, 100, by + 20, { happy: true, tilt: 0.25 }, 34);
+  else paintCatHead(g, 99, by + 13 + nod, {}, 34);
 }
 
 /** 고양이 스프라이트 (화면 32×24 자리에 촘촘한 도트) */
@@ -1043,17 +1289,30 @@ export function cat(pose: CatPose, facing: 1 | -1, silhouette = false): HTMLCanv
     const base = cached(`c:${pose}:1:false`, () => {
       whiskerAt = null;
       const k = density / 4;
-      const c = bakeVec(CW, CH, k, (p) => paintCat(p, pose), "#4e5162", 1);
-      const w = whiskerAt as { x: number; y: number } | null;
+      const c = bakeVec(CW, CH, k, (p) => paintCat(p, pose), "#4a4d5c", 0.7);
+      const w = whiskerAt as { x: number; y: number; tilt: number } | null;
       if (w) {
+        // 수염은 외곽선 위에, 가늘고 길게
         const g = c.getContext("2d")!;
         g.setTransform(k, 0, 0, k, 0, 0);
-        const px = ((x: number, y: number, ww: number, hh: number, col: string) => {
-          g.fillStyle = col;
-          g.fillRect(x, y, ww, hh);
-        }) as Px;
-        px.ctx = g;
-        for (const [dy, len, b] of [[-1, 11, -2], [1, 12, 0], [3, 10, 2]]) curve(px, w.x, w.y + dy, w.x + len / 2, w.y + dy + b * 0.4, w.x + len, w.y + dy + b, "rgba(255,255,255,0.85)", 0.6);
+        g.translate(w.x, w.y);
+        g.rotate(w.tilt);
+        g.lineCap = "round";
+        for (const [dy, len, b] of [[-1.5, 14, -3], [0, 16, -0.5], [1.5, 15, 2], [3, 12, 4]]) {
+          g.strokeStyle = "rgba(252,252,255,0.85)";
+          g.lineWidth = 0.35;
+          g.beginPath();
+          g.moveTo(-2, dy);
+          g.quadraticCurveTo(len * 0.45, dy + b * 0.3, len, dy + b);
+          g.stroke();
+        }
+        // 눈썹 수염
+        g.beginPath();
+        g.moveTo(-8, -12);
+        g.quadraticCurveTo(-4, -18, 2, -19);
+        g.moveTo(-6, -12);
+        g.quadraticCurveTo(-1, -16, 5, -16);
+        g.stroke();
         g.setTransform(1, 0, 0, 1, 0, 0);
       }
       return c;
