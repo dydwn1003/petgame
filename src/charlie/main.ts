@@ -7,7 +7,7 @@ const stage = document.getElementById("stage")!;
 
 function resize(): void {
   const k = Math.min(window.innerWidth / W, window.innerHeight / H);
-  const u = k >= 1 ? Math.max(1, Math.floor(k)) : k;
+  const u = k >= 2 ? Math.floor(k) : k;
   stage.style.width = `${W * u}px`;
   stage.style.height = `${H * u}px`;
 }
@@ -78,6 +78,26 @@ canvas.addEventListener("pointerdown", (e) => {
   mouse.y = ((e.clientY - r.top) / r.height) * H;
   mouse.clicked = true;
   pressed.add("click");
+});
+
+// 터치 버튼 → 키 입력으로 바꿔 준다
+document.querySelectorAll<HTMLButtonElement>("#touch [data-key]").forEach((b) => {
+  const key = b.dataset.key!;
+  const down = (e: Event) => {
+    e.preventDefault();
+    unlockAudio();
+    keys.add(key);
+    pressed.add(key);
+    b.classList.add("on");
+  };
+  const up = () => {
+    keys.delete(key);
+    b.classList.remove("on");
+  };
+  b.addEventListener("pointerdown", down);
+  b.addEventListener("pointerup", up);
+  b.addEventListener("pointercancel", up);
+  b.addEventListener("pointerleave", up);
 });
 
 window.addEventListener("resize", resize);

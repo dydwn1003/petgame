@@ -2,12 +2,24 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>찰리와 고양이</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   </head>
   <body>
     <div id="stage"><canvas id="screen" width="480" height="270"></canvas></div>
+    <div id="touch" aria-hidden="true">
+      <div class="pad pad-left">
+        <button data-key="ArrowLeft">◀</button>
+        <button data-key="ArrowRight">▶</button>
+      </div>
+      <div class="pad pad-right">
+        <button data-key="ArrowDown" class="small">살금</button>
+        <button data-key="ShiftLeft" class="small">달리기</button>
+        <button data-key="Space" class="big">조사</button>
+      </div>
+    </div>
+    <div id="rotate">📱 가로로 돌려서 플레이해 주세요</div>
     <script type="module" src="/src/charlie/main.ts"></script>
   </body>
 </html>

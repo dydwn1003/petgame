@@ -5,8 +5,13 @@ body {
   height: 100%;
   overflow: hidden;
   background: #000;
+  color: #ece6f4;
+  color-scheme: dark;
+  touch-action: none;
+  overscroll-behavior: none;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 #stage {
   position: absolute;
@@ -20,4 +25,71 @@ body {
   height: 100%;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+}
+
+/* 터치 버튼: 손가락으로 쓰는 기기에서만 보인다 */
+#touch {
+  display: none;
+}
+@media (pointer: coarse) {
+  #touch {
+    display: block;
+  }
+}
+.pad {
+  position: fixed;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  z-index: 5;
+}
+.pad-left {
+  left: calc(14px + env(safe-area-inset-left, 0px));
+}
+.pad-right {
+  right: calc(14px + env(safe-area-inset-right, 0px));
+}
+.pad button {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 2px solid rgba(236, 230, 244, 0.35);
+  background: rgba(14, 10, 20, 0.45);
+  color: #ece6f4;
+  font: 700 18px "Galmuri11", system-ui, sans-serif;
+  touch-action: none;
+}
+.pad button.small {
+  width: 52px;
+  height: 52px;
+  font-size: 10px;
+  white-space: nowrap;
+  letter-spacing: -0.5px;
+}
+.pad button.big {
+  width: 70px;
+  height: 70px;
+  font-size: 14px;
+  border-color: rgba(255, 211, 106, 0.6);
+}
+.pad button.on {
+  background: rgba(255, 211, 106, 0.35);
+}
+#rotate {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: calc(env(safe-area-inset-top, 0px));
+  padding: 10px 16px;
+  text-align: center;
+  font: 13px "Galmuri11", system-ui, sans-serif;
+  background: rgba(20, 14, 26, 0.9);
+  z-index: 6;
+}
+@media (orientation: portrait) and (pointer: coarse) {
+  #rotate {
+    display: block;
+  }
 }
