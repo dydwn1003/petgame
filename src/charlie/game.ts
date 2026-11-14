@@ -1839,7 +1839,14 @@ function drawLighting(sc: Scene, camX: number): void {
 }
 
 function magnifier(x: number, y: number, active: boolean): void {
-  const by = Math.round(y + Math.sin(clock.t * 3 + x) * 2);
+  // 위치는 고정 (스크롤 중 떨림 방지). 가까이 있을 때만 테두리가 천천히 반짝인다
+  const by = y;
+  if (active) {
+    g.globalAlpha = 0.35 + Math.sin(clock.t * 4) * 0.2;
+    g.fillStyle = "#ffd36a";
+    g.fillRect(x - 6.5, by - 7.5, 14, 14);
+    g.globalAlpha = 1;
+  }
   g.fillStyle = "#000";
   g.fillRect(x - 5, by - 6, 11, 11);
   g.fillStyle = active ? "#ffd36a" : "#d8d0c0";
