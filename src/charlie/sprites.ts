@@ -40,7 +40,7 @@ export interface Look {
   hair: string;
   hairShade: string;
   hairLight: string;
-  hairStyle: "pomp" | "messy" | "skull" | "frog" | "hood" | "bun" | "pony" | "beanie" | "mask";
+  hairStyle: "pomp" | "messy" | "skull" | "frog" | "hood" | "bun" | "pony" | "beanie" | "mask" | "comb";
   /** 몸통 무늬 (lx, ly = 몸통 안 좌표, 도트 단위) */
   shirt: (lx: number, ly: number, w: number, h: number) => string;
   sleeve: string;
@@ -270,6 +270,13 @@ function paintHair(p: Px, L: Look, hx: number, ft: number): void {
     }
     curve(p, hx - 6, ft - 10, hx + 4, ft - 13, hx + 14, ft - 8, Li);
     p(hx - 2, ft - 11, 5, 1, X);
+  } else if (L.hairStyle === "comb") {
+    // 옆머리만 남고, 정수리는 몇 가닥을 빗어 넘긴 머리
+    p(hx - 20, ft + 4, 8, 14, H);
+    p(hx - 20, ft + 8, 2, 10, S);
+    ellipse(p, hx - 14, ft + 4, 6, 7, H);
+    for (let k = 0; k < 5; k++) curve(p, hx - 16, ft + 2 - k * 1.2, hx - 2, ft - 8 - k * 0.6, hx + 12, ft - 4 + k * 0.4, k % 2 ? Li : H, 1);
+    ellipse(p, hx + 2, ft - 4, 6, 2, "rgba(255,255,255,0.35)");
   } else if (L.hairStyle === "beanie") {
     // 짧은 옆머리 + 털모자
     p(hx - 19, ft + 2, 7, 14, H);
@@ -413,26 +420,62 @@ function paintHead(p: Px, L: Look, hx: number, ft: number, mode: { closed?: bool
   ellipse(p, hx + 11, ft + 27, 3.5, 1.6, "#f0a28e");
   // 눈
   const ey = ft + 18;
-  const eye = (ex: number, w: number, h: number) => {
+  const eye = (ex: number, w: number, h: number, far: boolean) => {
     if (mode.closed) {
       curve(p, ex - 1, ey + 2, ex + w / 2, ey + 4, ex + w + 1, ey + 2, mix(L.skinShade, -0.35), 1);
       return;
     }
-    ellipse(p, ex + w / 2, ey + h / 2, w / 2 + 0.5, h / 2, "#f8f4ec");
-    ellipse(p, ex + w - 2, ey + h / 2, 2.6, h / 2 - 0.3, L.eye);
-    p(ex + w - 3, ey + h / 2, 3, h / 2 - 0.5, mix(L.eye, -0.35));
-    p(ex + w - 2.5, ey + 1.5, 1.6, h - 2.5, "#0c0a08");
-    p(ex + w - 3, ey + 1, 1, 1, "#ffffff");
-    p(ex + w - 1, ey + h - 2, 1, 1, "rgba(255,255,255,0.7)");
-    // 윗눈꺼풀 (굵게) + 속눈썹
-    curve(p, ex - 1, ey + 1, ex + w / 2, ey - 1.5, ex + w + 1, ey + 0.5, mix(L.skinShade, -0.45), 1);
-    p(ex + w, ey - 1, 2, 1, mix(L.skinShade, -0.45));
-    p(ex, ey + h, w, 1, mix(L.skin, -0.06));
-    if (mode.shock) ellipse(p, ex + w / 2, ey + h / 2, w / 2, h / 2 + 0.5, "#f8f4ec");
-    if (mode.shock) p(ex + w / 2 - 0.5, ey + h / 2 - 0.5, 2, 2, "#0c0a08");
+    const g = p.ctx;
+    if (!g || mode.shock) {
+      ellipse(p, ex + w / 2, ey + h / 2, w / 2 + 0.5, h / 2 + 0.5, "#f8f4ec");
+      p(ex + w / 2 - 0.5, ey + h / 2 - 0.5, 2, 2, "#0c0a08");
+      return;
+    }
+    // 옆을 보는 눈: 뒤쪽은 둥글고 앞(코 방향)이 뾰족한 눈매, 홍채는 앞쪽에
+    const cy = ey + h / 2;
+    const shape = new Path2D();
+    shape.moveTo(ex, cy);
+    shape.bezierCurveTo(ex, cy - h * 0.62, ex + w * 0.62, cy - h * 0.64, ex + w + 0.8, cy - h * 0.08);
+    shape.bezierCurveTo(ex + w * 0.62, cy + h * 0.6, ex, cy + h * 0.56, ex, cy);
+    g.fillStyle = "#f8f4ec";
+    g.fill(shape);
+    g.save();
+    g.clip(shape);
+    g.fillStyle = L.eye;
+    g.beginPath();
+    g.ellipse(ex + w * 0.74, cy + 0.2, w * 0.34, h * 0.52, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = mix(L.eye, -0.35);
+    g.fillRect(ex + w * 0.4, cy + h * 0.15, w, h);
+    g.fillStyle = "#0c0a08";
+    g.beginPath();
+    g.ellipse(ex + w * 0.82, cy + 0.3, w * 0.15, h * 0.3, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "rgba(60,30,20,0.22)";
+    g.fillRect(ex - 1, cy - h, w + 2, h * 0.62);
+    g.restore();
+    g.fillStyle = "#ffffff";
+    g.beginPath();
+    g.ellipse(ex + w * 0.68, cy - h * 0.16, far ? 0.6 : 0.85, far ? 0.6 : 0.85, 0, 0, Math.PI * 2);
+    g.fill();
+    // 윗눈꺼풀 + 바깥쪽 속눈썹
+    const lid = mix(L.skinShade, -0.45);
+    g.strokeStyle = lid;
+    g.lineCap = "round";
+    g.lineWidth = far ? 1.1 : 1.4;
+    g.beginPath();
+    g.moveTo(ex - 0.4, cy - 0.3);
+    g.bezierCurveTo(ex, cy - h * 0.62, ex + w * 0.62, cy - h * 0.66, ex + w + 0.8, cy - h * 0.08);
+    g.stroke();
+    g.lineWidth = 0.9;
+    g.beginPath();
+    g.moveTo(ex, cy - h * 0.3);
+    g.lineTo(ex - 1.6, cy - h * 0.55);
+    g.stroke();
+    p(ex + 1, ey + h, w - 1, 1, mix(L.skin, -0.06));
   };
-  eye(hx - 9, 6, 6);
-  eye(hx + 5, 8, 7);
+  eye(hx - 7, 4.6, 6, true);
+  eye(hx + 5, 8, 7, false);
   // 눈썹
   const brow = L.brow ?? L.hairShade;
   const lift = mode.shock ? 3 : 0;
@@ -920,6 +963,37 @@ export const LILY: Look = {
   eye: "#4a3a2a",
   mouth: "#c86a6a",
   brow: "#6a3e22",
+};
+
+/** 블랙컴퍼니(주) 그림스 부장: 남색 정장, 빨간 넥타이, 빗어 넘긴 머리 */
+export const BOSS: Look = {
+  skin: "#eebc9c",
+  skinShade: "#cc947a",
+  skinLight: "#fcd6bc",
+  hair: "#8a8682",
+  hairShade: "#5e5a56",
+  hairLight: "#b8b4ae",
+  hairStyle: "comb",
+  shirt: (lx, ly, w) => {
+    const mid = w / 2 + 2;
+    const v = 12 - ly * 0.45;
+    if (Math.abs(lx - mid) < 1.6 && ly < 26) return ly < 3 ? "#8a1a1a" : ly % 5 === 0 ? "#9a2626" : "#c03030";
+    if (Math.abs(lx - mid) < v && ly < 24) return ly % 7 === 0 ? "#dcd8d0" : "#f0ece4";
+    if (lx === Math.floor(mid) + 5 && ly % 9 === 4 && ly > 24) return "#c8b070";
+    return (lx + ly * 2) % 11 === 0 ? "#2a2e48" : "#323856";
+  },
+  sleeve: "#323856",
+  sleeveShade: "#22263c",
+  cuff: "#f0ece4",
+  pants: "#2c3150",
+  pantsShade: "#1e2238",
+  shoes: "#1a1210",
+  belt: "#1a1210",
+  buckle: "#c8b070",
+  eye: "#3a2a20",
+  mouth: "#8a4a3a",
+  brow: "#5e5a56",
+  mustache: "#6e6a66",
 };
 
 /** 면역자를 찾는 방호복 요원 */

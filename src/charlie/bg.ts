@@ -1640,3 +1640,384 @@ export function buildChurch(): HTMLCanvasElement {
   }
   return c;
 }
+
+// ── 제4장: 허드슨 강 부두 ────────────────────────────────────
+export const PIER = {
+  width: 1400,
+  hide: [270, 530, 770, 1010, 1190],
+  lamps: [150, 450, 700, 950, 1250],
+  dock: 1350,
+};
+
+/** 화물 컨테이너 (숨을 수 있는 크기) */
+function container(g: G, x: number, w: number, h: number, col: string, r: () => number): void {
+  const top = 214 - h;
+  rect(g, x, top, w, h, col);
+  for (let k = 2; k < w - 1; k += 3) {
+    rect(g, x + k, top + 2, 1, h - 4, mix(col, -0.18));
+    rect(g, x + k + 1, top + 2, 0.5, h - 4, mix(col, 0.1));
+  }
+  rect(g, x, top, w, 2, mix(col, 0.2));
+  rect(g, x, top + h - 2, w, 2, mix(col, -0.3));
+  rect(g, x, top, 1.5, h, mix(col, -0.25));
+  rect(g, x + w - 1.5, top, 1.5, h, mix(col, -0.25));
+  for (let k = 0; k < 8; k++) rect(g, x + r() * (w - 4), top + r() * (h - 4), 2 + r() * 4, 1 + r() * 2, "rgba(120,60,30,0.35)");
+  rect(g, x + w - 1, top + 2, 8, h - 2, "rgba(0,0,0,0.25)");
+}
+
+export function buildPier(): HTMLCanvasElement {
+  const Wd = PIER.width;
+  const c = makeDense(Wd, H, BG_SCALE);
+  const g = c.getContext("2d")!;
+  const r = rng(4242);
+  vgrad(g, 0, 0, Wd, 120, [[0, "#060814"], [0.7, "#141a32"], [1, "#2a2a44"]]);
+  for (let i = 0; i < Wd / 7; i++) rect(g, Math.floor(r() * Wd), Math.floor(r() * 70), 0.5, 0.5, "#9aa0c8");
+  for (let i = 0; i < Wd / 90; i++) {
+    g.fillStyle = "rgba(40,44,70,0.6)";
+    g.beginPath();
+    g.ellipse(r() * Wd, 20 + r() * 50, 50 + r() * 60, 6 + r() * 6, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  // 강 건너 뉴저지 불빛
+  for (let x = 0; x < Wd; ) {
+    const w = 10 + r() * 26;
+    const h = 8 + r() * 26;
+    rect(g, x, 120 - h, w, h, "#10132a");
+    for (let wy = 120 - h + 2; wy < 119; wy += 4) for (let wx = x + 1; wx < x + w - 1; wx += 3) if (r() < 0.2) rect(g, wx, wy, 1, 1.5, "#e8c070");
+    x += w + r() * 6;
+  }
+  // 강물 + 불빛 반사
+  vgrad(g, 0, 120, Wd, 190, [[0, "#141a30"], [1, "#0a0e1a"]]);
+  for (let i = 0; i < Wd / 3; i++) {
+    const y = 122 + r() * 66;
+    rect(g, r() * Wd, y, 2 + r() * 8, 0.5, r() < 0.3 ? "rgba(232,192,112,0.35)" : "rgba(120,140,190,0.25)");
+  }
+  // 철조망 울타리
+  rect(g, 0, 160, Wd, 1, "#4a4a56");
+  rect(g, 0, 190, Wd, 1, "#4a4a56");
+  g.strokeStyle = "rgba(110,110,126,0.45)";
+  g.lineWidth = 0.35;
+  for (let x = -40; x < Wd; x += 4) {
+    g.beginPath();
+    g.moveTo(x, 160);
+    g.lineTo(x + 30, 214);
+    g.moveTo(x + 30, 160);
+    g.lineTo(x, 214);
+    g.stroke();
+  }
+  for (let x = 0; x < Wd; x += 40) rect(g, x, 152, 1.5, 62, "#3a3a46");
+  for (let x = 0; x < Wd; x += 2) rect(g, x, 152 + (x % 4 === 0 ? 0 : 1), 1, 1, "#6a6a78");
+  // 부두 바닥
+  rect(g, 0, 214, Wd, H - 214, "#3a3632");
+  for (let x = 0; x < Wd; x += 10) rect(g, x, 214, 0.5, H - 214, "#2a2622");
+  rect(g, 0, 214, Wd, 1, "#5a5448");
+  for (let x = 0; x < Wd; x += 6) rect(g, x, 236, 3, 1, "#c8a82a");
+  for (let i = 0; i < Wd / 30; i++) {
+    g.fillStyle = "rgba(20,24,34,0.5)";
+    g.beginPath();
+    g.ellipse(r() * Wd, 240 + r() * 25, 8 + r() * 14, 1.5 + r() * 2, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  // 가로등
+  for (const lx of PIER.lamps) {
+    rect(g, lx, 120, 2, 94, "#26262e");
+    rect(g, lx - 6, 118, 10, 3, "#26262e");
+    rect(g, lx - 6, 121, 6, 2, "#fff0c0");
+  }
+  // 컨테이너 (숨는 곳)
+  const cols = ["#8a3a2a", "#2a5a7a", "#3a6a3a", "#9a7a2a", "#6a3a5a"];
+  PIER.hide.forEach((x, i) => {
+    if (i % 2 === 0) {
+      // 두 단으로 쌓인 컨테이너
+      g.save();
+      g.translate(0, -40);
+      container(g, x - 24, 50, 30, cols[(i + 2) % cols.length], r);
+      g.restore();
+    }
+    container(g, x - 30, 60, 40, cols[i % cols.length], r);
+    smallText(g, ["MAERSK", "COSCO", "EVERGRN", "HAPAG", "ONE"][i], x, 214 - 20, "rgba(255,255,255,0.45)", 7);
+  });
+  // 컨벤션 센터 (격리 센터) 유리 건물
+  const bx = 1220;
+  rect(g, bx, 40, Wd - bx, 174, "#1a2232");
+  for (let gy = 44; gy < 210; gy += 10) {
+    for (let gx = bx + 2; gx < Wd; gx += 12) {
+      const lit = r() < 0.25;
+      rect(g, gx, gy, 11, 9, lit ? "#5a7a8a" : "#22303e");
+      rect(g, gx, gy, 11, 0.5, "#3a4a5a");
+      if (lit) rect(g, gx + 1, gy + 1, 2, 7, "rgba(255,255,255,0.15)");
+    }
+  }
+  g.fillStyle = "#2a3244";
+  g.beginPath();
+  g.moveTo(bx - 10, 44);
+  for (let k = 0; k <= 6; k++) g.lineTo(bx - 10 + k * 30, 40 - (k % 2) * 10);
+  g.lineTo(Wd, 44);
+  g.fill();
+  rect(g, bx + 10, 60, 160, 22, "#e8e0c8");
+  smallText(g, "특별대응단 격리 센터", bx + 90, 67, "#8a1a1a", 8);
+  smallText(g, "후원: 블랙컴퍼니(주)", bx + 90, 76, "#1a1a1a", 7);
+  // 하역장 셔터
+  const dx = PIER.dock;
+  rect(g, dx - 26, 160, 52, 54, "#4a4e56");
+  for (let y = 162; y < 214; y += 3) rect(g, dx - 25, y, 50, 0.5, "#2a2e36");
+  rect(g, dx - 28, 156, 56, 4, "#c8a82a");
+  for (let x = dx - 28; x < dx + 28; x += 6) rect(g, x, 156, 3, 4, "#1a1a1a");
+  rect(g, dx + 14, 132, 10, 6, "#2a2e36");
+  for (let k = 0; k < 4; k++) rect(g, dx + 15, 133 + k * 1.4, 8, 0.5, "#6a6e76");
+  smallText(g, "환기구", dx + 19, 128, "#8a8e96", 6);
+  return c;
+}
+
+// ── 제4장: 격리 센터 내부 ────────────────────────────────────
+export const CENTER = {
+  width: 1300,
+  button: 80,
+  vent: 200,
+  carts: [380, 520, 860, 1010],
+  desk: 660,
+  labDoor: 1220,
+  lights: [120, 300, 480, 660, 840, 1020, 1200],
+};
+
+export function buildCenter(): HTMLCanvasElement {
+  const Wd = CENTER.width;
+  const c = makeDense(Wd, H, BG_SCALE);
+  const g = c.getContext("2d")!;
+  const r = rng(5151);
+  // 천장 + 벽
+  rect(g, 0, 0, Wd, 24, "#1a1e24");
+  for (const lx of CENTER.lights) {
+    rect(g, lx - 20, 20, 40, 3, "#d8e8f0");
+    rect(g, lx - 20, 23, 40, 0.5, "#8a9aa0");
+  }
+  vgrad(g, 0, 24, Wd, 214, [[0, "#c8ccd0"], [1, "#9aa0a6"]]);
+  for (let y = 30; y < 214; y += 16) rect(g, 0, y, Wd, 0.5, "rgba(0,0,0,0.08)");
+  for (let x = 0; x < Wd; x += 32) rect(g, x, 24, 0.5, 190, "rgba(0,0,0,0.06)");
+  rect(g, 0, 150, Wd, 8, "#6a7a86");
+  rect(g, 0, 150, Wd, 1, "#8a9aa6");
+  // 경고 띠
+  for (let x = 0; x < Wd; x += 8) {
+    rect(g, x, 206, 4, 8, "#d8b82a");
+    rect(g, x + 4, 206, 4, 8, "#1a1a1a");
+  }
+  // 하역장 셔터 (왼쪽)
+  rect(g, 20, 120, 100, 94, "#5a5e66");
+  for (let y = 122; y < 214; y += 3) rect(g, 21, y, 98, 0.5, "#3a3e46");
+  rect(g, 16, 116, 108, 4, "#c8a82a");
+  // 열림 버튼
+  rect(g, CENTER.button + 44, 160, 8, 12, "#3a3e46");
+  rect(g, CENTER.button + 46, 162, 4, 4, "#3ac83a");
+  rect(g, CENTER.button + 46, 167, 4, 4, "#c83a3a");
+  // 환기구
+  rect(g, CENTER.vent - 12, 28, 24, 12, "#5a5e66");
+  for (let k = 0; k < 5; k++) rect(g, CENTER.vent - 11, 30 + k * 2, 22, 0.75, "#2a2e36");
+  // 격리실 (유리방 + 사람 실루엣)
+  for (let x = 150; x < 1160; x += 110) {
+    if (Math.abs(x - CENTER.desk) < 70) continue;
+    rect(g, x, 60, 80, 90, "#2a3a44");
+    rect(g, x + 2, 62, 76, 86, "#5a7a88");
+    vgrad(g, x + 2, 62, 76, 148, [[0, "rgba(220,240,250,0.35)"], [1, "rgba(120,160,180,0.2)"]]);
+    for (let k = 0; k < 3; k++) rect(g, x + 8 + k * 9, 66, 1, 70, "rgba(255,255,255,0.25)");
+    // 앉아 있는 사람 실루엣
+    const px = x + 24 + r() * 30;
+    g.fillStyle = "rgba(30,40,50,0.65)";
+    g.beginPath();
+    g.ellipse(px, 112, 6, 6.5, 0, 0, Math.PI * 2);
+    g.fill();
+    rect(g, px - 8, 118, 16, 22, "rgba(30,40,50,0.65)");
+    rect(g, px - 10, 136, 22, 6, "rgba(30,40,50,0.65)");
+    rect(g, x + 64, 140, 12, 4, "#8a9aa6");
+    rect(g, x + 2, 52, 76, 8, "#e8e4d8");
+    smallText(g, `면역자 ${String(100 + Math.floor(r() * 899))}`, x + 40, 56, "#3a3a3a", 6);
+  }
+  // 현수막
+  rect(g, 300, 30, 420, 16, "#1a1a2a");
+  smallText(g, "면역은 자산이다 — 블랙컴퍼니(주) 특별대응단", 510, 38, "#e8c84a", 8);
+  // 경비 책상 + 모니터
+  const dx = CENTER.desk;
+  rect(g, dx - 36, 180, 72, 34, "#5a5e66");
+  rect(g, dx - 38, 176, 76, 5, "#7a7e86");
+  rect(g, dx - 38, 176, 76, 1, "#9a9ea6");
+  for (const mx of [-28, -6, 16]) {
+    rect(g, mx + dx, 156, 18, 14, "#1a1e24");
+    rect(g, mx + dx + 1, 157, 16, 12, "#2a4a5a");
+    rect(g, mx + dx + 2, 159, 8, 1, "#6ac8e8");
+    rect(g, mx + dx + 2, 162, 12, 1, "#4a8aa8");
+    rect(g, mx + dx + 8, 170, 2, 6, "#2a2e36");
+  }
+  // 의료용 수레 (숨는 곳)
+  for (const cx of CENTER.carts) {
+    rect(g, cx - 16, 190, 32, 3, "#c8ccd0");
+    rect(g, cx - 16, 202, 32, 2, "#9aa0a6");
+    rect(g, cx - 15, 176, 2, 34, "#8a9096");
+    rect(g, cx + 13, 176, 2, 34, "#8a9096");
+    rect(g, cx - 16, 175, 32, 2, "#c8ccd0");
+    rect(g, cx - 10, 180, 8, 10, "#e8e8f0");
+    rect(g, cx + 2, 182, 6, 8, "#c84a4a");
+    for (const wx of [-14, 12]) {
+      g.fillStyle = "#2a2a2a";
+      g.beginPath();
+      g.arc(cx + wx, 212, 2, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = "rgba(240,240,248,0.7)";
+    g.fillRect(cx - 16, 193, 32, 9);
+    for (let k = 0; k < 4; k++) rect(g, cx - 16 + k * 8, 193, 0.5, 9, "rgba(160,160,170,0.6)");
+  }
+  // 실험실 문 + 카드 리더
+  const lx = CENTER.labDoor;
+  rect(g, lx - 26, 120, 52, 94, "#3a3e46");
+  rect(g, lx - 24, 122, 23, 92, "#8a9aa6");
+  rect(g, lx + 1, 122, 23, 92, "#8a9aa6");
+  rect(g, lx - 20, 132, 15, 24, "#4a6a78");
+  rect(g, lx + 5, 132, 15, 24, "#4a6a78");
+  rect(g, lx - 28, 106, 56, 12, "#c83a3a");
+  smallText(g, "실험실 · 관계자 외 출입금지", lx, 112, "#ffffff", 6);
+  rect(g, lx + 32, 160, 8, 12, "#1a1e24");
+  rect(g, lx + 34, 162, 4, 2, "#c83a3a");
+  // 바닥
+  rect(g, 0, 214, Wd, H - 214, "#7a8086");
+  for (let x = 0; x < Wd; x += 16) rect(g, x, 214, 0.5, H - 214, "#6a7076");
+  for (let y = 222; y < H; y += 12) rect(g, 0, y, Wd, 0.5, "#6a7076");
+  rect(g, 0, 214, Wd, 1, "#9aa0a6");
+  return c;
+}
+
+// ── 제4장: 실험실 ──────────────────────────────────────────
+export const LAB = { width: 480, gurney: 230, door: 40, lift: 440 };
+
+export function buildLab(): HTMLCanvasElement {
+  const c = makeDense(LAB.width, H, BG_SCALE);
+  const g = c.getContext("2d")!;
+  const r = rng(6161);
+  vgrad(g, 0, 0, LAB.width, 214, [[0, "#20282e"], [1, "#3a464e"]]);
+  for (let x = 0; x < LAB.width; x += 24) rect(g, x, 0, 0.5, 214, "rgba(0,0,0,0.15)");
+  // 큰 창: 밤하늘과 초록빛
+  rect(g, 120, 30, 240, 90, "#0a0e18");
+  vgrad(g, 122, 32, 236, 118, [[0, "#06081a"], [1, "#1a2a3a"]]);
+  g.fillStyle = "rgba(140,255,170,0.25)";
+  g.beginPath();
+  g.ellipse(300, 50, 40, 10, 0, 0, Math.PI * 2);
+  g.fill();
+  for (let i = 0; i < 30; i++) rect(g, 122 + r() * 234, 34 + r() * 40, 0.5, 0.5, "#9aa0c8");
+  for (let x = 120; x <= 360; x += 60) rect(g, x, 30, 2, 90, "#5a6670");
+  rect(g, 118, 120, 244, 4, "#5a6670");
+  // 기계 + 혈액 팩
+  for (const mx of [80, 300, 360]) {
+    rect(g, mx - 14, 140, 28, 74, "#5a6670");
+    rect(g, mx - 12, 144, 24, 16, "#1a2a2e");
+    for (let k = 0; k < 4; k++) rect(g, mx - 10 + k * 5, 148 + (k % 2) * 4, 3, 1, k % 2 ? "#3ae86a" : "#e8c83a");
+    for (let k = 0; k < 5; k++) rect(g, mx - 10, 166 + k * 8, 20, 1, "#4a565e");
+  }
+  rect(g, 186, 120, 2, 60, "#8a9aa6");
+  rect(g, 180, 120, 14, 2, "#8a9aa6");
+  rect(g, 182, 124, 8, 14, "#a82a2a");
+  rect(g, 183, 125, 2, 12, "#c84a4a");
+  // 수술대
+  const gx = LAB.gurney;
+  rect(g, gx - 34, 184, 68, 5, "#c8ccd0");
+  rect(g, gx - 34, 184, 68, 1, "#e8ecf0");
+  rect(g, gx - 30, 189, 3, 25, "#8a9096");
+  rect(g, gx + 27, 189, 3, 25, "#8a9096");
+  // 문 / 옥상 엘리베이터
+  rect(g, LAB.door - 20, 124, 40, 90, "#3a464e");
+  rect(g, LAB.door - 18, 126, 36, 88, "#6a7a86");
+  const ex = LAB.lift;
+  rect(g, ex - 24, 120, 48, 94, "#5a6670");
+  rect(g, ex - 22, 124, 21, 90, "#a8b0b8");
+  rect(g, ex + 1, 124, 21, 90, "#a8b0b8");
+  rect(g, ex - 18, 110, 36, 9, "#1a1e24");
+  smallText(g, "▲ 옥상", ex, 115, "#e8c84a", 6);
+  rect(g, 0, 214, LAB.width, H - 214, "#5a6268");
+  for (let x = 0; x < LAB.width; x += 16) rect(g, x, 214, 0.5, H - 214, "#4a5258");
+  rect(g, 0, 214, LAB.width, 1, "#7a848a");
+  return c;
+}
+
+// ── 최종장: 격리 센터 옥상 헬기장 ──────────────────────────────
+export const HELIPAD = { width: 960, hide: [230, 400, 570], cage: 820, door: 60 };
+
+export function buildHelipad(): HTMLCanvasElement {
+  const Wd = HELIPAD.width;
+  const c = makeDense(Wd, H, BG_SCALE);
+  const g = c.getContext("2d")!;
+  const r = rng(7373);
+  // 폭풍 하늘
+  vgrad(g, 0, 0, Wd, 214, [[0, "#04060c"], [0.5, "#0e1a1e"], [1, "#1e3a32"]]);
+  for (let i = 0; i < Wd / 40; i++) {
+    g.fillStyle = `rgba(${20 + r() * 20},${40 + r() * 30},${40 + r() * 20},0.6)`;
+    g.beginPath();
+    g.ellipse(r() * Wd, 20 + r() * 80, 60 + r() * 80, 12 + r() * 14, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  // 아래로 보이는 도시 불빛
+  for (let x = 0; x < Wd; ) {
+    const w = 12 + r() * 30;
+    const h = 20 + r() * 60;
+    rect(g, x, 200 - h, w, h + 14, "#0a1214");
+    for (let wy = 200 - h + 3; wy < 210; wy += 5) for (let wx = x + 2; wx < x + w - 2; wx += 4) if (r() < 0.12) rect(g, wx, wy, 1.5, 2, r() < 0.5 ? "#ff9a3a" : "#e8c070");
+    x += w + r() * 4;
+  }
+  // 옥상 바닥 + 난간
+  rect(g, 0, 206, Wd, 8, "#4a4e52");
+  rect(g, 0, 206, Wd, 1, "#7a7e82");
+  for (let x = 0; x < Wd; x += 12) rect(g, x, 190, 1.5, 16, "#6a6e72");
+  rect(g, 0, 190, Wd, 1.5, "#8a8e92");
+  rect(g, 0, 214, Wd, H - 214, "#3a3e42");
+  for (let x = 0; x < Wd; x += 20) rect(g, x, 214, 0.5, H - 214, "#2e3236");
+  rect(g, 0, 214, Wd, 1, "#5a5e62");
+  // 헬기장 H
+  g.fillStyle = "rgba(232,200,74,0.6)";
+  g.beginPath();
+  g.ellipse(HELIPAD.cage - 40, 238, 110, 14, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#3a3e42";
+  g.beginPath();
+  g.ellipse(HELIPAD.cage - 40, 238, 104, 12, 0, 0, Math.PI * 2);
+  g.fill();
+  smallText(g, "H", HELIPAD.cage - 40, 238, "rgba(232,200,74,0.8)", 11);
+  // 옥상 출입문
+  const dx = HELIPAD.door;
+  rect(g, dx - 26, 150, 52, 64, "#5a5e62");
+  rect(g, dx - 28, 146, 56, 5, "#3a3e42");
+  rect(g, dx - 9, 172, 18, 42, "#3a2e28");
+  rect(g, dx + 4, 192, 2, 2, "#c8a83a");
+  // 냉각탑 / 환풍기 (숨는 곳)
+  HELIPAD.hide.forEach((x, i) => {
+    if (i === 1) {
+      rect(g, x - 20, 164, 40, 50, "#6a6e72");
+      rect(g, x - 20, 164, 40, 1, "#9a9ea2");
+      for (let k = 0; k < 8; k++) rect(g, x - 18, 168 + k * 5, 36, 2, "#4a4e52");
+      rect(g, x - 22, 160, 44, 5, "#5a5e62");
+    } else {
+      rect(g, x - 18, 176, 36, 38, "#7a7e82");
+      rect(g, x - 18, 176, 36, 1, "#aaaeb2");
+      g.fillStyle = "#3a3e42";
+      g.beginPath();
+      g.arc(x, 194, 12, 0, Math.PI * 2);
+      g.fill();
+      for (let k = 0; k < 4; k++) {
+        g.strokeStyle = "#6a6e72";
+        g.lineWidth = 1.5;
+        g.beginPath();
+        g.moveTo(x, 194);
+        g.lineTo(x + Math.cos(k * 1.57 + 0.4) * 11, 194 + Math.sin(k * 1.57 + 0.4) * 11);
+        g.stroke();
+      }
+    }
+    rect(g, x + 14, 168, 10, 46, "rgba(0,0,0,0.2)");
+  });
+  // 안테나 탑
+  rect(g, 680, 60, 3, 146, "#2a2e32");
+  for (let k = 0; k < 10; k++) {
+    g.strokeStyle = "#2a2e32";
+    g.lineWidth = 0.6;
+    g.beginPath();
+    g.moveTo(676, 70 + k * 14);
+    g.lineTo(687, 84 + k * 14);
+    g.stroke();
+  }
+  rect(g, 680, 56, 3, 3, "#ff3a2a");
+  return c;
+}
