@@ -164,7 +164,7 @@ const POSTERS: Array<[string[], string, string, string]> = [
   [["채식이", "인류를", "구한다"], "#d8f0d0", "#2a6a2a", "채식이 인류를 구한다"],
 ];
 
-export function buildStreet(width: number, after: boolean, seed: number): StreetInfo {
+export function buildStreet(width: number, after: boolean, seed: number, home = true): StreetInfo {
   const c = makeCanvas(width, H);
   const g = c.getContext("2d")!;
   const r = rng(seed);
@@ -204,9 +204,13 @@ export function buildStreet(width: number, after: boolean, seed: number): Street
   let x = 0;
   const apt = { x: 30, w: 260 };
   // 찰리의 아파트 (브라운스톤)
-  drawBrownstone(g, apt.x, apt.w, after, r);
-  info.door = apt.x + apt.w / 2;
-  x = apt.x + apt.w + 6;
+  if (home) {
+    drawBrownstone(g, apt.x, apt.w, after, r);
+    info.door = apt.x + apt.w / 2;
+    x = apt.x + apt.w + 6;
+  } else {
+    x = 0;
+  }
   let posterIdx = 0;
   let k = 0;
   while (x < width - 40) {
@@ -1077,5 +1081,159 @@ export function buildAlley(): HTMLCanvasElement {
   rect(g, 230, 196, 22, 18, "#5a4630");
   rect(g, 240, 186, 18, 12, "#4a3a28");
   rect(g, 500, 204, 12, 10, "#1e1e24");
+  return c;
+}
+
+// ── 제2장: 지하철역 (개구리 굴) ───────────────────────────
+export const SUBWAY = {
+  width: 1840,
+  lights: [140, 330, 520, 710, 900, 1090, 1280, 1470, 1660],
+  pillars: [250, 440, 630, 820, 1240, 1430],
+  tv: 520,
+  ad: 360,
+  train: [900, 1160] as [number, number],
+  den: 1500,
+  treats: 1556,
+  turnstile: 1700,
+  exit: 1800,
+};
+
+export function buildSubway(): HTMLCanvasElement {
+  const Wd = SUBWAY.width;
+  const c = makeCanvas(Wd, H);
+  const g = c.getContext("2d")!;
+  const r = rng(2077);
+  // 천장
+  rect(g, 0, 0, Wd, 30, "#16161a");
+  for (let x = 0; x < Wd; x += 24) rect(g, x, 22, 20, 8, "#1e1e24");
+  rect(g, 0, 29, Wd, 1, "#0a0a0c");
+  // 하얀 타일 벽 (때 묻음)
+  for (let ty = 30; ty < 184; ty += 4) {
+    for (let tx = (ty / 4) % 2 ? 4 : 0; tx < Wd; tx += 8) {
+      const grime = ty > 150 ? 0.25 : r() < 0.15 ? 0.15 : 0.05;
+      const col = mix("#d8d4c4", -grime - r() * 0.05);
+      rect(g, tx, ty, 7, 3, col);
+      rect(g, tx, ty, 7, 1, mix(col, 0.15));
+    }
+    rect(g, 0, ty + 3, Wd, 1, "#7a766a");
+  }
+  // 물 얼룩 줄
+  for (let i = 0; i < Wd / 40; i++) {
+    const sx = Math.floor(r() * Wd);
+    const len = 20 + Math.floor(r() * 60);
+    rect(g, sx, 30, 2, len, "rgba(90,80,50,0.35)");
+  }
+  // 모자이크 역명 띠
+  rect(g, 0, 70, Wd, 14, "#2a5a4a");
+  rect(g, 0, 70, Wd, 1, "#c8a85a");
+  rect(g, 0, 83, Wd, 1, "#c8a85a");
+  for (let x = 6; x < Wd; x += 12) rect(g, x, 76, 4, 2, "#c8a85a");
+  for (let x = 60; x < Wd; x += 300) {
+    rect(g, x, 66, 120, 22, "#f0e8d0");
+    rect(g, x + 2, 68, 116, 18, "#2a5a4a");
+    smallText(g, "HOLLOW ST", x + 60, 77, "#f0e8d0", 11);
+  }
+  // 승강장 바닥 + 노란 안전선
+  rect(g, 0, 184, Wd, 38, "#6a6660");
+  for (let x = 0; x < Wd; x += 16) rect(g, x, 184, 1, 38, "#5a5650");
+  rect(g, 0, 184, Wd, 2, "#3a3834");
+  for (let i = 0; i < Wd / 30; i++) {
+    g.fillStyle = "rgba(30,40,50,0.45)";
+    g.beginPath();
+    g.ellipse(r() * Wd, 200 + r() * 18, 10 + r() * 16, 2 + r() * 2, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  rect(g, 0, 216, Wd, 6, "#d8b82a");
+  for (let x = 0; x < Wd; x += 3) rect(g, x, 217, 1, 4, "#a88a1a");
+  rect(g, 0, 222, Wd, 3, "#3a3834");
+  // 선로 (물에 잠김)
+  rect(g, 0, 225, Wd, H - 225, "#121216");
+  vgrad(g, 0, 238, Wd, H, [[0, "#1a2630"], [1, "#0a1016"]]);
+  for (let x = 0; x < Wd; x += 10) rect(g, x, 232, 6, 3, "#2a2420");
+  rect(g, 0, 230, Wd, 2, "#6a6a72");
+  rect(g, 0, 248, Wd, 2, "#6a6a72");
+  for (let i = 0; i < Wd / 20; i++) rect(g, Math.floor(r() * Wd), 242 + Math.floor(r() * 26), 6 + Math.floor(r() * 10), 1, "#3a5a6a");
+
+  // 광고판 (풍자)
+  const ad = (x: number, lines: string[], bg: string, ink: string) => {
+    box(g, x - 3, 96, 86, 54, "#2a2a30");
+    rect(g, x, 99, 80, 48, bg);
+    lines.forEach((l, i) => smallText(g, l, x + 40, 109 + i * 12, ink));
+    rect(g, x + 50, 120, 20, 22, "rgba(0,0,0,0.12)");
+  };
+  ad(SUBWAY.ad - 40, ["야근은 열정이다!", "블랙컴퍼니(주)", "인재 상시 채용"], "#e8e0c8", "#1a1a1a");
+  ad(760, ["운석 기념", "한정판 굿즈", "SALE"], "#c83a2a", "#fff0c8");
+  ad(1340, ["실종 고양이를", "찾습니다", "☎ ???"], "#f4f4ec", "#2a2a2a");
+  // 기둥 (초록 철골 + 리벳)
+  for (const px of SUBWAY.pillars) {
+    rect(g, px - 7, 30, 14, 186, "#2e4a3a");
+    rect(g, px - 7, 30, 3, 186, "#3e5e4a");
+    rect(g, px + 4, 30, 3, 186, "#1e3428");
+    for (let y = 40; y < 210; y += 12) {
+      rect(g, px - 5, y, 2, 2, "#5a7a64");
+      rect(g, px + 3, y, 2, 2, "#5a7a64");
+    }
+    rect(g, px - 9, 206, 18, 10, "#26402e");
+  }
+  // TV (뉴스)
+  box(g, SUBWAY.tv - 18, 92, 36, 26, "#1a1a1e");
+  rect(g, SUBWAY.tv - 15, 95, 30, 20, "#3a5a6a");
+  rect(g, SUBWAY.tv - 13, 97, 12, 8, "#c8c8c8");
+  rect(g, SUBWAY.tv - 15, 110, 30, 5, "#c82a2a");
+  rect(g, SUBWAY.tv - 1, 86, 2, 6, "#1a1a1e");
+  // 벤치
+  for (const bx of [180, 600, 1060]) {
+    box(g, bx, 196, 40, 4, "#7a5430");
+    box(g, bx, 186, 40, 4, "#7a5430");
+    rect(g, bx + 3, 200, 3, 14, "#2a2a2e");
+    rect(g, bx + 34, 200, 3, 14, "#2a2a2e");
+  }
+  // 버려진 열차 (승강장 뒤편)
+  const [t0, t1] = SUBWAY.train;
+  rect(g, t0, 92, t1 - t0, 92, "#9aa0a8");
+  rect(g, t0, 92, t1 - t0, 3, "#c8ccd2");
+  rect(g, t0, 150, t1 - t0, 4, "#6a3a8a");
+  for (let wx = t0 + 10; wx < t1 - 30; wx += 36) {
+    rect(g, wx, 104, 26, 26, "#14161c");
+    rect(g, wx, 104, 26, 1, "#6a6e76");
+    rect(g, wx + 2, 106, 4, 8, "rgba(160,190,220,0.3)");
+  }
+  rect(g, t0 + 120, 104, 22, 80, "#0c0c10");
+  rect(g, t0 + 120, 104, 1, 80, "#6a6e76");
+  for (let i = 0; i < 4; i++) graffiti(g, t0 + 20 + i * 60, 136, 50, r);
+  // 개구리 굴: 훔친 물건 더미
+  const dx = SUBWAY.den;
+  for (let i = 0; i < 70; i++) {
+    const ix = dx - 30 + Math.floor(r() * 120);
+    const iy = 196 + Math.floor(r() * 18);
+    const kind = Math.floor(r() * 5);
+    const col = ["#3a2a1a", "#1a1a20", "#c83a2a", "#4a6a9a", "#d8c8a8"][kind];
+    rect(g, ix, iy, 5 + Math.floor(r() * 6), 3 + Math.floor(r() * 3), col);
+    if (kind === 1) rect(g, ix + 1, iy + 1, 3, 2, "#3a6a8a");
+  }
+  for (let i = 0; i < 4; i++) graffiti(g, dx - 40 + i * 40, 120, 40, r);
+  smallText(g, "개굴 왕국", dx + 30, 160, "#4ab84a", 11);
+  // 개찰구 + 출구 계단
+  const tx = SUBWAY.turnstile;
+  rect(g, tx - 4, 180, 8, 34, "#6a6a72");
+  rect(g, tx - 4, 180, 8, 2, "#a8a8b0");
+  rect(g, tx + 4, 192, 14, 2, "#c8c8d0");
+  rect(g, tx + 4, 198, 12, 2, "#c8c8d0");
+  // 위로 올라가는 계단 (옆에서 본 모습)
+  const sx0 = SUBWAY.exit - 36;
+  for (let st = 0; st < 9; st++) {
+    const y = 214 - (st + 1) * 10;
+    rect(g, sx0 + st * 9, y, 80 - st * 9, 10, st % 2 ? "#7a766e" : "#86827a");
+    rect(g, sx0 + st * 9, y, 80 - st * 9, 1, "#b8b4ac");
+    rect(g, sx0 + st * 9, y + 1, 1, 9, "#5a5650");
+  }
+  g.strokeStyle = "#9a9aa2";
+  g.lineWidth = 2;
+  g.beginPath();
+  g.moveTo(sx0 - 2, 196);
+  g.lineTo(sx0 + 78, 110);
+  g.stroke();
+  box(g, SUBWAY.exit - 40, 40, 44, 14, "#1a3a1a");
+  smallText(g, "EXIT", SUBWAY.exit - 18, 47, "#6aff6a", 11);
   return c;
 }

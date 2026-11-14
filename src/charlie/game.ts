@@ -24,7 +24,7 @@ import {
   wait,
   wrap,
 } from "./core";
-import { ALLEY, FRIDGE_SPOTS, ROOM, buildAlley, buildFridge, buildRoom, buildStreet, type StreetInfo } from "./bg";
+import { ALLEY, FRIDGE_SPOTS, ROOM, SUBWAY, buildAlley, buildFridge, buildRoom, buildStreet, buildSubway, type StreetInfo } from "./bg";
 import {
   BUILD_25,
   BUILD_3,
@@ -109,6 +109,8 @@ interface Scene {
   front?: (camX: number) => void;
   start: () => Promise<void>;
   noPlayer?: boolean;
+  useLight?: boolean;
+  overlay?: (camX: number) => void;
 }
 
 // ── 상태 ─────────────────────────────────────────────────
@@ -124,7 +126,7 @@ export const S = {
   camX: 0,
   gen: 0,
   talk: null as null | { actor: Actor | null; text: string; typed: number; caption: boolean },
-  over: null as null | { title: string; msg: string; checkpoint: number },
+  over: null as null | { title: string; msg: string; checkpoint: number; scene: string },
   help: 0,
   titleSel: 0,
   fridgeSel: 0,
@@ -258,7 +260,7 @@ function gameOver(title: string, msg: string, checkpoint: number): void {
   S.control = false;
   S.mode = "gameover";
   sfx.dead();
-  S.over = { title, msg, checkpoint };
+  S.over = { title, msg, checkpoint, scene: S.scene?.id ?? "chapter1" };
 }
 
 // ── 공통 소품 ────────────────────────────────────────────
@@ -988,6 +990,7 @@ SCENES.alley = () => {
   let lit = false;
   const sc: Scene = {
     id: "alley",
+    useLight: true,
     width: ALLEY.width,
     bg: buildAlley(),
     ambient: 0.9,
@@ -1029,12 +1032,10 @@ SCENES.alley = () => {
           sfx.croak();
           await caption("어딘가에서... 개구리 울음소리가 들렸다.");
           S.flags.ch1 = 1;
-          writeSave("end1", 0);
+          unlock(2);
           await fadeTo(1, 1.5);
-          await chapterCard("제1장 끝", "다음 이야기에서 계속됩니다");
-          S.mode = "title";
-          S.scene = null;
-          await fadeTo(0, 0.8);
+          await chapterCard("제1장 끝", "");
+          await goScene("subwayGate", 0, false);
         },
       },
     ],
@@ -1064,6 +1065,533 @@ SCENES.alley = () => {
   return sc;
 };
 
+
+// ═════════════════════════════════════════════════════════
+// 제2장: 개구리 굴
+// ═════════════════════════════════════════════════════════
+const UNLOCK_KEY = "charlie_cat_unlocked";
+function unlocked(): number {
+  try {
+    return Number(localStorage.getItem(UNLOCK_KEY)) || 1;
+  } catch {
+    return 1;
+  }
+}
+function unlock(n: number): void {
+  try {
+    if (n > unlocked()) localStorage.setItem(UNLOCK_KEY, String(n));
+  } catch {
+    /* 무시 */
+  }
+}
+
+const FROG_KING: Look = { ...FROGMAN, skin: "#5a9a3a", skinShade: "#3a7024", hunch: 3, shirt: (lx, ly, w) => (ly < 2 ? "#e8c83a" : lx === w - 1 ? "#5a1e3a" : "#7a2a4a"), sleeve: () => "#7a2a4a", sleeveBack: () => "#5a1e3a" };
+
+/** 지하철 입구 (거리) */
+SCENES.subwayGate = () => {
+  const info = buildStreet(720, true, 31, false);
+  const gateX = 520;
+  const sc: Scene = {
+    id: "subwayGate",
+    width: 720,
+    bg: info.canvas,
+    ambient: 0.55,
+    tint: "rgba(120,30,10,0.12)",
+    lights: () => [
+      ...lampLights(info, true),
+      { x: gateX - 28, y: 150, r: 40, a: 0.8, warm: "rgba(120,255,140,0.10)" },
+      { x: gateX + 28, y: 150, r: 40, a: 0.8, warm: "rgba(120,255,140,0.10)" },
+    ],
+    minX: 40,
+    maxX: 690,
+    actors: [],
+    hotspots: [
+      {
+        x: 300,
+        iconY: 196,
+        label: "살펴보다",
+        enabled: () => !S.flags.tracks,
+        use: async () => {
+          S.flags.tracks = 1;
+          await caption("젖은 물갈퀴 자국이 길게 이어져 있다.");
+          await say(charlie, "개구리 녀석... 지하철역으로 들어갔군.");
+        },
+      },
+      {
+        x: gateX,
+        iconY: 168,
+        label: "내려가기",
+        enabled: () => true,
+        use: async () => {
+          if (!S.flags.tracks) await say(charlie, "어디로 간 거지...? 바닥에 뭔가 있는 것 같은데.");
+          else {
+            charlie.pose = "back";
+            for (let i = 0; i < 4; i++) {
+              sfx.step();
+              await tween(charlie, gateX, GROUND + (i + 1) * 3, 0.22, 0);
+            }
+            await goScene("subway");
+          }
+        },
+      },
+    ],
+    zones: [],
+    back: (camX) => {
+      drawFires(info.fires, camX);
+      // 지하철 입구: 초록 난간 + 구형 등 + 간판 + 계단
+      const x = gateX - camX;
+      g.fillStyle = "#0a0a0e";
+      g.fillRect(x - 22, 200, 44, 22);
+      for (let s2 = 0; s2 < 5; s2++) {
+        g.fillStyle = s2 % 2 ? "#4a4a50" : "#5a5a62";
+        g.fillRect(x - 20, 202 + s2 * 4, 40, 3);
+      }
+      g.fillStyle = "#1e4a2a";
+      g.fillRect(x - 26, 176, 3, 30);
+      g.fillRect(x + 23, 176, 3, 30);
+      g.fillRect(x - 26, 176, 52, 3);
+      for (let k = -22; k < 24; k += 4) g.fillRect(x + k, 179, 1, 22);
+      for (const side of [-28, 28]) {
+        g.fillStyle = "#1e4a2a";
+        g.fillRect(x + side - 1, 150, 3, 28);
+        g.fillStyle = "#6aff8a";
+        g.beginPath();
+        g.arc(x + side, 148, 5, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = "#e8fff0";
+        g.fillRect(x + side - 2, 145, 2, 2);
+      }
+      g.fillStyle = "#14141a";
+      g.fillRect(x - 30, 164, 60, 11);
+      text("SUBWAY", x, 170, "#e8e8e8", "center", "");
+    },
+    start: async () => {
+      writeSave("subwayGate", 0);
+      charlie.x = 60;
+      charlie.facing = 1;
+      await fadeTo(0, 1);
+      await chapterCard("제2장", "개구리 굴");
+      await say(charlie, "샘은 분명 이쪽으로 갔어. 그리고 그 개구리 녀석도...");
+      await say(charlie, "츄르를 되찾아야 해. 샘을 부를 수 있는 건 그것뿐이야.");
+      S.help = 6;
+      S.control = true;
+    },
+  };
+  return sc;
+};
+
+/** 지하철역 */
+SCENES.subway = (checkpoint) => {
+  const F = S.flags;
+  F.light = F.light ?? 1;
+  type Frog = Actor & { a: number; b: number; pause: number; alert: number };
+  const mkFrog = (x: number, a: number, b: number): Frog =>
+    Object.assign(mkActor("person", x, 1, { look: FROGMAN, lookId: "frog", role: "frog" as const }), { a, b, pause: 0, alert: 0 });
+  const frogs: Frog[] = [mkFrog(560, 470, 700), mkFrog(980, 860, 1180), mkFrog(1300, 1220, 1460)];
+  const king = mkActor("person", SUBWAY.den, 1, { look: FROG_KING, lookId: "frogking", pose: "sit", role: "frog", state: "sleep" });
+  let chase = false;
+  let chaseDelay = 0;
+  let caught = false;
+  let gateOpen = false;
+  const spotted = (f: Frog): boolean => {
+    if (S.hidden || caught) return false;
+    const d = charlie.x - f.x;
+    const dist = Math.abs(d);
+    const front = Math.sign(d) === f.facing;
+    if (F.light && front && dist < 140) return true;
+    // 발소리는 등 뒤에서도 들린다. 살금살금이면 등 뒤로 지나갈 수 있다
+    if (dist < 30 && charlie.moving && !sneaking()) return true;
+    return front && dist < 14;
+  };
+  const busted = async (who: Actor) => {
+    if (caught) return;
+    caught = true;
+    S.control = false;
+    sfx.croak();
+    who.bubble = "개굴!!";
+    await tween(who, charlie.x - 8 * Math.sign(charlie.x - who.x), GROUND, 0.35, 26);
+    shake(0.6);
+    gameOver("GAME OVER", "개구리 인간들에게 소지품을 몽땅 털렸다...", checkpointNow2());
+  };
+  const checkpointNow2 = () => (F.gotTreats ? 1360 : F.cp2 ? 1180 : 0);
+  const pillarHide = (x: number): Hotspot => ({
+    x,
+    iconY: 150,
+    label: "숨기",
+    range: 18,
+    enabled: () => !S.hidden && !chase,
+    use: async () => {
+      charlie.x = x;
+      S.hidden = true;
+      charlie.visible = false;
+      sfx.step();
+    },
+  });
+
+  const sc: Scene = {
+    id: "subway",
+    width: SUBWAY.width,
+    bg: buildSubway(),
+    ambient: 0.82,
+    useLight: true,
+    tint: "rgba(20,40,30,0.12)",
+    lights: () => {
+      const L: Light[] = SUBWAY.lights.map((x, i): Light => {
+        const broken = i % 3 === 1;
+        const flick = broken ? (Math.sin(clock.t * 23 + i) > 0.6 ? 0.6 : 0) : 0.55;
+        return { x, y: 32, r: broken ? 70 : 80, a: flick, warm: flick ? "rgba(200,255,220,0.05)" : undefined };
+      });
+      if (F.light && !S.hidden) L.push({ x: charlie.x + charlie.facing * 16, y: charlie.y - 34, r: 0, a: 0.95, cone: { dir: charlie.facing, len: 160, spread: 0.3 } });
+      L.push({ x: charlie.x, y: charlie.y - 24, r: F.light ? 36 : 24, a: 0.5 });
+      return L;
+    },
+    minX: 30,
+    maxX: SUBWAY.exit - 10,
+    get actors() {
+      return [...frogs, king];
+    },
+    hotspots: [
+      ...SUBWAY.pillars.map(pillarHide),
+      { ...pillarHide(SUBWAY.train[0] + 131), label: "열차에 숨기" },
+      {
+        x: SUBWAY.tv,
+        iconY: 80,
+        label: "TV 보기",
+        enabled: () => !chase,
+        use: async () => {
+          await caption("치직... 「운석 낙하 이후 뉴욕 전역에서 원인 불명의 변이가 보고되고 있습니다.」");
+          await caption("「일부 시민은 아무 증상이 없는 '면역자'로 추정되며, 당국은 이들을 찾고 있...」 치지직.");
+          await say(charlie, "...나 아무렇지도 않은데. 설마 내가?");
+        },
+      },
+      {
+        x: SUBWAY.ad,
+        iconY: 88,
+        label: "살펴보다",
+        enabled: () => !chase,
+        use: async () => {
+          await caption("「야근은 열정이다! 블랙컴퍼니(주) 인재 상시 채용」");
+          await say(charlie, "...우리 회사 광고잖아. 세상이 망해도 이건 그대로네.");
+        },
+      },
+      {
+        x: 1380,
+        iconY: 92,
+        label: "살펴보다",
+        enabled: () => !chase,
+        use: async () => {
+          await caption("「실종 고양이를 찾습니다」 전단지가 수십 장 붙어 있다.");
+          await say(charlie, "나만 고양이를 찾는 게 아니구나...");
+        },
+      },
+      {
+        x: SUBWAY.treats,
+        iconY: 186,
+        label: "츄르 되찾기",
+        range: 20,
+        enabled: () => !F.gotTreats && !chase,
+        use: async () => {
+          await walkTo(charlie, SUBWAY.treats, 30);
+          charlie.facing = -1;
+          F.gotTreats = 1;
+          F.treats = 1;
+          sfx.item();
+          await caption("훔친 물건 더미 속에서 샘의 츄르를 찾았다!");
+          await wait(0.4);
+          king.state = "awake";
+          king.pose = null;
+          king.facing = 1;
+          sfx.croak();
+          shake(0.6);
+          king.bubble = "개구우우울!!";
+          await say(charlie, "...깼다.");
+          king.bubble = null;
+          writeSave("subway", 1360);
+          await caption("도망쳐! (Shift 달리기) 출구는 오른쪽 개찰구 너머다.");
+          chase = true;
+        },
+      },
+      {
+        x: SUBWAY.turnstile - 10,
+        iconY: 172,
+        label: "넘기",
+        range: 22,
+        enabled: () => !gateOpen,
+        use: async () => {
+          if (!F.gotTreats) {
+            await say(charlie, "츄르를 되찾기 전엔 못 나가.");
+            return;
+          }
+          gateOpen = true;
+          charlie.pose = "armsUp";
+          sfx.step();
+          await tween(charlie, SUBWAY.turnstile + 18, GROUND, 0.35, 14);
+          charlie.pose = null;
+        },
+      },
+    ],
+    zones: [
+      {
+        x: 300,
+        dir: 1,
+        run: async () => {
+          await say(charlie, "어둡군... 저 안쪽에서 뭔가 움직여.");
+          await caption("개구리 인간들은 빛을 보면 달려든다. F키(휴대폰은 '불' 버튼)로 손전등을 끄고 지나가자.");
+          await caption("불을 끄면 녀석들의 눈만 보인다. 기둥 뒤에 [Space]로 숨어서 녀석이 앞을 지나가게 하자.");
+          await caption("녀석이 지나가면 등 뒤로 살금살금(↓) 빠져나가자. 정면으로 마주치면 들킨다.");
+        },
+      },
+      {
+        x: 1180,
+        dir: 1,
+        when: () => !F.cp2,
+        run: async () => {
+          F.cp2 = 1;
+          writeSave("subway", 1180);
+          await say(charlie, "저기... 물건이 산더미처럼 쌓여 있어. 녀석들의 소굴이야.");
+          await caption("커다란 개구리가 물건 더미 위에서 자고 있다. 불을 끄고 살금살금 다가가자.");
+        },
+      },
+      {
+        x: SUBWAY.turnstile - 14,
+        dir: 1,
+        repeat: true,
+        when: () => !gateOpen,
+        run: async () => {
+          if (!F.gotTreats) {
+            await say(charlie, "츄르를 되찾기 전엔 못 나가.");
+            await walkTo(charlie, SUBWAY.turnstile - 30, 60);
+            return;
+          }
+          gateOpen = true;
+          charlie.pose = "armsUp";
+          sfx.step();
+          await tween(charlie, SUBWAY.turnstile + 18, GROUND, 0.3, 14);
+          charlie.pose = null;
+        },
+      },
+      {
+        x: SUBWAY.exit - 30,
+        dir: 1,
+        when: () => !!F.gotTreats,
+        run: async () => {
+          chase = false;
+          await goScene("rooftop");
+        },
+      },
+    ],
+    update: (dt) => {
+      if (took("KeyF") && S.control && !S.hidden) {
+        F.light = F.light ? 0 : 1;
+        sfx.blip();
+      }
+      if (!S.control) return;
+      // 보초 개구리: 왔다 갔다 하며 앞을 본다 (추격이 시작되면 왕에게 맡기고 멈춘다)
+      for (const f of chase ? [] : frogs) {
+        if (f.alert > 0) {
+          f.alert -= dt;
+          if (f.alert <= 0) void busted(f);
+          continue;
+        }
+        if (spotted(f)) {
+          f.alert = 0.35;
+          f.bubble = "!";
+          sfx.croak();
+          continue;
+        }
+        if (f.pause > 0) {
+          f.pause -= dt;
+          f.moving = false;
+          continue;
+        }
+        const target = f.facing > 0 ? f.b : f.a;
+        const step = Math.sign(target - f.x) * 22 * dt;
+        f.x += step;
+        f.walkDist += Math.abs(step);
+        f.moving = true;
+        if (Math.abs(target - f.x) < 1) {
+          f.facing = f.facing > 0 ? -1 : 1;
+          f.pause = 1.2 + Math.random();
+        }
+      }
+      // 개구리 왕: 자는 중엔 빛에 깬다, 깨어나면 쫓아온다
+      if (king.state === "sleep") {
+        const d = Math.abs(charlie.x - king.x);
+        if (F.light && d < 120 && !S.hidden) {
+          king.state = "awake";
+          king.pose = null;
+          void busted(king);
+        }
+      } else if (chase) {
+        if (chaseDelay > 0) {
+          chaseDelay -= dt;
+          return;
+        }
+        const d = charlie.x - king.x;
+        king.hop = (king.hop ?? 0) + dt;
+        const step = Math.sign(d) * 80 * dt;
+        king.x += step;
+        king.walkDist += Math.abs(step);
+        king.moving = true;
+        king.facing = d > 0 ? 1 : -1;
+        king.y = GROUND - Math.abs(Math.sin((king.hop ?? 0) * 7)) * 10;
+        if (Math.abs(d) < 14) void busted(king);
+      }
+    },
+    overlay: (camX) => {
+      // 어둠 속에서 빛나는 개구리 눈
+      for (const f of [...frogs, king]) {
+        const sx = Math.round(f.x - camX);
+        if (sx < -20 || sx > W + 20) continue;
+        const ey = Math.round(f.y) - 48 - (f === king && king.state === "sleep" ? -10 : 0);
+        const blink = Math.floor(clock.t * 2 + f.x) % 7 === 0;
+        if (blink || (f === king && king.state === "sleep")) continue;
+        g.fillStyle = ((f as { alert?: number }).alert ?? 0) > 0 ? "#ff4a3a" : "#e8f04a";
+        g.fillRect(sx - 1 + f.facing * 1, ey, 2, 1);
+        g.fillRect(sx + 4 + f.facing * 1, ey, 2, 1);
+      }
+      if (king.state === "sleep") {
+        const sx = king.x - camX;
+        for (let i = 0; i < 3; i++) {
+          const k = (clock.t * 0.4 + i / 3) % 1;
+          text("z", sx + 10 + k * 12, GROUND - 46 - k * 24, `rgba(180,255,180,${(1 - k).toFixed(2)})`, "center", "");
+        }
+      }
+      if (!F.gotTreats) {
+        const sx = SUBWAY.treats - camX;
+        if (Math.floor(clock.t * 3) % 3 === 0) {
+          g.fillStyle = "#ff8ab8";
+          g.fillRect(Math.round(sx), 204, 2, 2);
+        }
+      }
+      text(F.light ? "손전등 켜짐 [F]" : "손전등 꺼짐 [F]", 8, H - 26, F.light ? "#ffd36a" : "#8a8aa0", "left");
+    },
+    start: async () => {
+      charlie.y = GROUND;
+      if (checkpoint > 0) {
+        charlie.x = checkpoint;
+        for (const z of sc.zones) if (z.dir > 0 && z.x < checkpoint && !z.repeat) z.fired = true;
+        if (checkpoint >= 1360) {
+          // 츄르를 들고 도망치는 장면부터
+          F.gotTreats = 1;
+          F.treats = 1;
+          king.state = "awake";
+          king.pose = null;
+          king.x = charlie.x - 120;
+          king.facing = 1;
+          chase = true;
+          chaseDelay = 1.2;
+        }
+        await fadeTo(0, 0.6);
+        S.control = true;
+        return;
+      }
+      writeSave("subway", 0);
+      charlie.x = 60;
+      charlie.facing = 1;
+      await fadeTo(0, 1);
+      await say(charlie, "물 비린내... 그리고 개구리 울음소리.");
+      S.control = true;
+    },
+  };
+  return sc;
+};
+
+/** 제2장 끝: 지상으로 */
+SCENES.rooftop = () => {
+  const info = buildStreet(600, true, 47, false);
+  let ufo = -1;
+  const sc: Scene = {
+    id: "rooftop",
+    width: 600,
+    bg: info.canvas,
+    ambient: 0.6,
+    tint: "rgba(120,30,10,0.12)",
+    lights: () => {
+      const L: Light[] = [...lampLights(info, true)];
+      if (ufo >= 0) L.push({ x: 300 + Math.sin(ufo * 0.8) * 120, y: 10, r: 170, a: 0.6, warm: "rgba(120,255,160,0.18)" });
+      return L;
+    },
+    minX: 40,
+    maxX: 560,
+    actors: [],
+    hotspots: [],
+    zones: [],
+    update: (dt) => {
+      if (ufo >= 0) ufo += dt;
+    },
+    back: (camX) => drawFires(info.fires, camX),
+    front: (camX) => {
+      if (ufo < 0) return;
+      const ux = 300 + Math.sin(ufo * 0.8) * 120 - camX;
+      g.fillStyle = "rgba(140,255,170,0.16)";
+      g.beginPath();
+      g.moveTo(ux - 10, 30);
+      g.lineTo(ux + 10, 30);
+      g.lineTo(ux + 70, 210);
+      g.lineTo(ux - 70, 210);
+      g.fill();
+      g.fillStyle = "#3a3a46";
+      g.beginPath();
+      g.ellipse(ux, 24, 36, 8, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "#8a9ab0";
+      g.beginPath();
+      g.ellipse(ux, 18, 14, 7, 0, Math.PI, 0);
+      g.fill();
+      for (let i = 0; i < 6; i++) {
+        g.fillStyle = Math.floor(clock.t * 6 + i) % 2 ? "#aaffcc" : "#2a6a4a";
+        g.fillRect(Math.round(ux - 28 + i * 11), 25, 3, 2);
+      }
+    },
+    start: async () => {
+      unlock(2);
+      writeSave("rooftop", 0);
+      charlie.x = 120;
+      charlie.facing = 1;
+      sam.visible = false;
+      await fadeTo(0, 1);
+      await say(charlie, "하아... 하아... 따돌렸나.");
+      await say(charlie, "(츄르 봉지를 흔든다) 샘~ 츄르 있다~");
+      sfx.meow();
+      await wait(0.6);
+      sam.visible = true;
+      sam.x = 380;
+      sam.y = 150;
+      sam.facing = -1;
+      sam.pose = "sit";
+      await say(charlie, "샘!! 거기 있었구나!");
+      await walkTo(charlie, 330, 60);
+      ufo = 0;
+      shake(0.5);
+      sfx.boom();
+      await wait(1.2);
+      sam.pose = "startle";
+      await caption("하늘에서 이상한 초록빛이 내려왔다.");
+      await say(charlie, "...이번엔 또 뭐야.");
+      sam.pose = null;
+      sam.facing = 1;
+      await tween(sam, 470, 120, 0.6, 30);
+      await tween(sam, 640, 100, 0.6, 30);
+      sam.visible = false;
+      await say(charlie, "샘! 그쪽으로 가면 안 돼!");
+      F_end2();
+      await fadeTo(1, 1.6);
+      await chapterCard("제2장 끝", "다음 이야기에서 계속됩니다");
+      S.mode = "title";
+      S.scene = null;
+      await fadeTo(0, 0.8);
+    },
+  };
+  return sc;
+};
+
+function F_end2(): void {
+  S.flags.ch2 = 1;
+  unlock(3);
+  writeSave("end2", 0);
+}
+
 // ═════════════════════════════════════════════════════════
 // 매 프레임
 // ═════════════════════════════════════════════════════════
@@ -1075,7 +1603,7 @@ export function update(dt: number): void {
     if (took(...ADVANCE)) advanceTalk();
   }
   if (S.mode === "gameover") {
-    if (took("Space", "Enter", "click")) void goScene("chapter1", S.over!.checkpoint);
+    if (took("Space", "Enter", "click")) void goScene(S.over!.scene, S.over!.checkpoint);
     else if (took("Escape")) {
       S.mode = "title";
       S.scene = null;
@@ -1193,8 +1721,14 @@ function drawActor(a: Actor, camX: number): void {
   if (sx < -40 || sx > W + 40) return;
   if (a.kind === "sam") {
     let pose: CatPose;
-    if (a.pose) pose = a.pose as CatPose;
-    else pose = a.moving ? (`walk${Math.floor(a.walkDist / 6) % 4}` as CatPose) : "sit";
+    const idle = (): CatPose => {
+      const t = (clock.t + a.x * 0.01) % 4;
+      if (t > 3.82) return "blink";
+      return Math.floor(clock.t * 1.5) % 4 === 0 ? "sit1" : "sit";
+    };
+    if (a.pose === "sit") pose = idle();
+    else if (a.pose) pose = a.pose as CatPose;
+    else pose = a.moving ? (`walk${Math.floor(a.walkDist / 3) % 8}` as CatPose) : idle();
     const spr = cat(pose, a.facing, !!a.silhouette);
     g.drawImage(spr, sx - 15, Math.round(a.y) - 22);
     return;
@@ -1203,11 +1737,15 @@ function drawActor(a: Actor, camX: number): void {
   const look = isCharlie ? (a.look ?? CHARLIE) : a.look!;
   const id = isCharlie ? (a.lookId ?? "charlie") : a.lookId!;
   let pose: Pose;
-  if (a.pose) pose = a.pose as Pose;
+  const sneakNow = isCharlie && sneaking() && S.control;
+  const breath: Pose = Math.floor(clock.t / 0.8 + a.x * 0.003) % 2 ? "stand1" : "stand";
+  if (a.pose === "stand") pose = breath;
+  else if (a.pose) pose = a.pose as Pose;
   else if (a.moving) {
-    const f = Math.floor(a.walkDist / 7) % 4;
-    pose = isCharlie && sneaking() && S.control ? (f % 2 ? "crouch1" : "crouch0") : (`walk${f}` as Pose);
-  } else pose = isCharlie && sneaking() && S.control ? "crouch0" : isCharlie && S.scene?.id === "alley" && S.flags.supplies ? "flashlight" : "stand";
+    pose = sneakNow ? (`crouch${Math.floor(a.walkDist / 5) % 4}` as Pose) : (`walk${Math.floor(a.walkDist / 4) % 8}` as Pose);
+  } else if (sneakNow) pose = "crouch0";
+  else if (isCharlie && S.scene?.useLight && S.flags.supplies && (S.scene.id !== "subway" || S.flags.light)) pose = "flashlight";
+  else pose = breath;
   const build = isCharlie ? S.build : BUILD_3;
   const spr = human(look, id, pose, build, a.facing);
   const ox = a.facing === 1 ? 14 : HUMAN_W - 1 - 14;
@@ -1308,6 +1846,7 @@ export function drawPlay(): void {
   }
   sc.front?.(camX);
   drawLighting(sc, camX);
+  sc.overlay?.(camX);
   g.restore();
 
   // 말풍선
@@ -1332,7 +1871,7 @@ export function drawPlay(): void {
       text(`← → 고르기   [Space] ${it.label}`, W / 2, H - 10, "#ffd36a", "center");
     }
   } else if (S.control) {
-    for (const h of sc.hotspots) if (h.enabled() && !(S.hidden && h.label !== "숨기")) magnifier(h.x - camX, h.iconY, h === near);
+    for (const h of sc.hotspots) if (h.enabled() && !(S.hidden && !h.label.includes("숨기"))) magnifier(h.x - camX, h.iconY, h === near);
     if (S.hidden) text("[Space] 나오기", charlie.x - camX, 176, "#d8d0c0", "center");
     else if (near) text(`[Space] ${near.label}`, near.x - camX, near.iconY - 14, "#d8d0c0", "center");
   }
@@ -1395,7 +1934,9 @@ let titleBg: StreetInfo | null = null;
 export function titleItems(): string[] {
   const save = loadSave();
   const items = ["새 게임"];
-  if (save && save.scene !== "end1") items.push("이어하기");
+  if (save && !save.scene.startsWith("end")) items.push("이어하기");
+  const un = unlocked();
+  if (un >= 2) items.push("제2장부터");
   items.push(`체형: ${S.build === BUILD_3 ? "3등신" : "2.5등신"}`);
   return items;
 }
@@ -1418,6 +1959,9 @@ export function updateTitle(): void {
   if (label === "새 게임") {
     S.flags = {};
     void goScene("street1", 0, false);
+  } else if (label === "제2장부터") {
+    S.flags = { supplies: 1, ch1: 1 };
+    void goScene("subwayGate", 0, false);
   } else if (label === "이어하기") {
     const s = loadSave()!;
     S.flags = { ...s.flags };

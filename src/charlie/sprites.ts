@@ -27,12 +27,9 @@ export interface Look {
 
 export type Pose =
   | "stand"
-  | "walk0"
-  | "walk1"
-  | "walk2"
-  | "walk3"
-  | "crouch0"
-  | "crouch1"
+  | "stand1"
+  | `walk${0 | 1 | 2 | 3 | 4 | 5 | 6 | 7}`
+  | `crouch${0 | 1 | 2 | 3}`
   | "back"
   | "sit"
   | "drink"
@@ -52,16 +49,28 @@ export const HUMAN_H = 54;
 const CX = 14;
 const FEET = 52;
 
-const GAIT: Record<string, [number, number, number, number, number, number]> = {
-  // 앞다리, 뒷다리, 앞다리 들림, 뒷다리 들림, 앞팔, 뒷팔
-  stand: [1, -1, 0, 0, 0, 0],
-  walk0: [3, -3, 0, 0, -2, 2],
-  walk1: [1, -1, 0, 1, -1, 1],
-  walk2: [-3, 3, 0, 0, 2, -2],
-  walk3: [-1, 1, 1, 0, 1, -1],
-  crouch0: [3, -2, 0, 0, -1, 1],
-  crouch1: [-2, 3, 0, 0, 1, -1],
-};
+/**
+ * 동작별 [앞다리, 뒷다리, 앞다리 들림, 뒷다리 들림, 앞팔, 뒷팔, 몸 들림]
+ * 걷기는 8프레임 사인 곡선: 다리가 모일 때 몸이 1px 올라가고, 앞으로 나가는 다리가 살짝 들린다.
+ */
+function gait(pose: string): [number, number, number, number, number, number, number] {
+  if (pose.startsWith("walk")) {
+    const ph = (Number(pose.slice(4)) / 8) * Math.PI * 2;
+    const s = Math.sin(ph);
+    const c = Math.cos(ph);
+    const legF = Math.round(s * 3.5);
+    const armF = Math.round(-s * 2.2);
+    return [legF, -legF, c > 0.6 ? 1 : 0, c < -0.6 ? 1 : 0, armF, -armF, Math.abs(s) < 0.4 ? 1 : 0];
+  }
+  if (pose.startsWith("crouch")) {
+    const ph = (Number(pose.slice(6)) / 4) * Math.PI * 2;
+    const s = Math.sin(ph);
+    const legF = Math.round(s * 2.5);
+    return [legF, -legF, 0, 0, -Math.round(s), Math.round(s), 0];
+  }
+  if (pose === "stand1") return [1, -1, 0, 0, 0, 0, 1];
+  return [1, -1, 0, 0, 0, 0, 0];
+}
 
 function paintHead(p: Px, L: Look, hx: number, ft: number, opts: { closed?: boolean; back?: boolean; shock?: boolean }): void {
   if (L.hairStyle === "skull") {
@@ -193,15 +202,15 @@ function paintHead(p: Px, L: Look, hx: number, ft: number, opts: { closed?: bool
 
 function paintHuman(p: Px, L: Look, pose: Pose, B: Build): void {
   const sit = pose === "sit" || pose === "drink" || pose === "sleep";
-  const crouch = pose === "crouch0" || pose === "crouch1";
-  const [legF, legB, liftF, liftB, armF0, armB0] = GAIT[pose] ?? GAIT.stand;
+  const crouch = pose.startsWith("crouch");
+  const [legF, legB, liftF, liftB, armF0, armB0, rise] = gait(pose);
   const lw = L.limb ?? 4;
   const hunch = (L.hunch ?? 0) + (crouch ? 2 : 0) + (pose === "sleep" ? 1 : 0);
 
   let beltY: number;
   if (sit) beltY = FEET - 2 - Math.round(B.legLen * 0.55) - 4;
   else if (crouch) beltY = FEET - 2 - Math.round(B.legLen * 0.7);
-  else beltY = FEET - 2 - B.legLen;
+  else beltY = FEET - 2 - B.legLen - rise;
   const torsoTop = beltY - B.torsoLen;
   const ft = torsoTop - 1 - 9 + (pose === "sleep" ? 2 : 0);
   const hx = CX + hunch;
@@ -405,7 +414,7 @@ export function human(look: Look, lookId: string, pose: Pose, build: Build, faci
 }
 
 // ── 고양이 샘 (밝은 회색 페르시안) ─────────────────────────
-export type CatPose = "walk0" | "walk1" | "walk2" | "walk3" | "sit" | "startle" | "loaf" | "butt";
+export type CatPose = `walk${0 | 1 | 2 | 3 | 4 | 5 | 6 | 7}` | "sit" | "sit1" | "blink" | "startle" | "loaf" | "butt";
 export const CAT_W = 32;
 export const CAT_H = 24;
 
@@ -431,7 +440,7 @@ function fluff(p: Px, cx: number, cy: number, rx: number, ry: number, base = F, 
   }
 }
 
-function catHead(p: Px, hx: number, hy: number, wide = false): void {
+function catHead(p: Px, hx: number, hy: number, wide = false, closed = false): void {
   // 귀
   p(hx - 4, hy - 5, 3, 2, F);
   p(hx - 4, hy - 6, 2, 1, F);
@@ -444,7 +453,10 @@ function catHead(p: Px, hx: number, hy: number, wide = false): void {
   fluff(p, hx + 1, hy + 3, 4, 1.6, FL, FLL, F);
   p(hx - 5, hy + 1, 1, 2, FS);
   // 큰 구리빛 눈 (페르시안)
-  if (wide) {
+  if (closed) {
+    p(hx, hy, 3, 1, FD);
+    p(hx + 2, hy - 1, 1, 1, FD);
+  } else if (wide) {
     p(hx, hy - 2, 3, 4, EYE);
     p(hx + 1, hy - 2, 1, 4, PUP);
     p(hx, hy - 2, 1, 1, "#ffffff");
@@ -460,16 +472,19 @@ function catHead(p: Px, hx: number, hy: number, wide = false): void {
 }
 
 function paintCat(p: Px, pose: CatPose): void {
-  if (pose === "sit") {
+  if (pose === "sit" || pose === "sit1" || pose === "blink") {
+    // 꼬리 끝이 살랑살랑
+    const tip = pose === "sit1" ? -2 : 0;
     fluff(p, 9, 20, 7, 2.2);
-    fluff(p, 4, 19, 3, 2, FS, F, FD);
+    fluff(p, 4, 19 + tip / 2, 3, 2, FS, F, FD);
+    fluff(p, 2, 18 + tip, 2, 1.5, F, FL, FS);
     fluff(p, 14, 15, 6, 6.5);
     ellipse(p, 11, 16, 2, 4.5, FS);
     fluff(p, 17, 14, 3, 4.5, FL, FLL, F);
     p(16, 19, 2, 3, F);
     p(19, 19, 2, 3, FL);
     p(16, 21, 2, 1, FL);
-    catHead(p, 17, 6);
+    catHead(p, 17, 6, false, pose === "blink");
     return;
   }
   if (pose === "loaf") {
@@ -503,30 +518,38 @@ function paintCat(p: Px, pose: CatPose): void {
     return;
   }
   // 걷기 (+ 박치기)
-  const f = pose === "butt" ? 0 : Number(pose.slice(4));
-  const swing = f === 0 ? 1 : f === 2 ? -1 : 0;
-  const sway = f % 2 === 0 ? 0 : 1;
+  // 8프레임 걸음: 대각선 다리 짝이 번갈아 나가고, 몸통과 꼬리가 출렁인다
+  const ph = pose === "butt" ? 0 : (Number(pose.slice(4)) / 8) * Math.PI * 2;
+  const sn = Math.sin(ph);
+  const cs = Math.cos(ph);
+  const swing = Math.round(sn * 1.6);
+  const liftA = cs > 0.5 ? 1 : 0;
+  const liftB = cs < -0.5 ? 1 : 0;
+  const bob = Math.abs(sn) < 0.4 ? -1 : 0;
+  const tail = Math.round(Math.sin(ph + 1) * 1.2);
+  const q: Px = (x, y, w, h, c) => p(x, y + bob, w, h, c);
+  const leg = (x: number, lift: number, col: string, light?: string) => {
+    p(x, 15 + bob, 2, 6 - lift - bob, col);
+    if (light) p(x, 15 + bob, 1, 6 - lift - bob, light);
+    p(x - 1, 20 - lift, 3, 1, light ? FLL : col);
+  };
   // 꼬리 (복슬복슬)
-  fluff(p, 6, 10 + sway, 3.5, 3);
-  fluff(p, 4, 7 + sway, 3, 3);
-  fluff(p, 3, 4 + sway, 2.5, 2.5, FL, FLL, F);
+  fluff(q, 6, 10 - tail, 3.5, 3);
+  fluff(q, 4 + tail, 7 - tail, 3, 3);
+  fluff(q, 3 + tail, 4 - tail, 2.5, 2.5, FL, FLL, F);
   // 뒷다리 (멀리)
-  p(9 - swing, 15, 2, 6, FD);
-  p(19 + swing, 15, 2, 6, FS);
+  leg(9 - swing, liftB, FD);
+  leg(19 + swing, liftA, FS);
   // 몸통
-  fluff(p, 14, 12, 8, 5);
-  fluff(p, 15, 15, 5, 1.5, FL, FLL, F);
+  fluff(q, 14, 12, 8, 5);
+  fluff(q, 15, 15, 5, 1.5, FL, FLL, F);
   // 앞다리 (가까이)
-  p(12 + swing, 15, 2, 6, F);
-  p(22 - swing, 15, 2, 6, F);
-  p(12 + swing, 15, 1, 6, FL);
-  p(22 - swing, 15, 1, 6, FL);
-  p(11 + swing, 20, 3, 1, FLL);
-  p(21 - swing, 20, 3, 1, FLL);
+  leg(12 + swing, liftA, F, FL);
+  leg(22 - swing, liftB, F, FL);
   // 가슴 털
-  fluff(p, 20, 12, 2.5, 3, FL, FLL, F);
-  if (pose === "butt") catHead(p, 24, 10);
-  else catHead(p, 23, 8);
+  fluff(q, 20, 12, 2.5, 3, FL, FLL, F);
+  if (pose === "butt") catHead(q, 24, 10);
+  else catHead(q, 23, 8 + (sn > 0.7 ? 1 : 0));
 }
 
 export function cat(pose: CatPose, facing: 1 | -1, silhouette = false): HTMLCanvasElement {
