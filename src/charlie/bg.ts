@@ -1253,3 +1253,390 @@ export function buildSubway(): HTMLCanvasElement {
   smallText(g, "EXIT", SUBWAY.exit - 18, 47, "#6aff6a", 11);
   return c;
 }
+
+// ── 제3장: 지붕 위 ─────────────────────────────────────────
+export const ROOFS = {
+  width: 2000,
+  /** 건물 사이 틈 [시작, 끝] */
+  gaps: [
+    [420, 470],
+    [900, 958],
+    [1380, 1436],
+    [1760, 1818],
+  ] as Array<[number, number]>,
+  /** 숨을 수 있는 엄폐물 (물탱크 · 굴뚝 · 계단실) */
+  cover: [
+    { x: 250, kind: "tank" },
+    { x: 640, kind: "chimney" },
+    { x: 830, kind: "stair" },
+    { x: 1110, kind: "tank" },
+    { x: 1300, kind: "chimney" },
+    { x: 1560, kind: "stair" },
+    { x: 1700, kind: "chimney" },
+  ] as Array<{ x: number; kind: "tank" | "chimney" | "stair" }>,
+  skylight: 1920,
+};
+
+export function buildRoofs(): HTMLCanvasElement {
+  const Wd = ROOFS.width;
+  const c = makeDense(Wd, H, BG_SCALE);
+  const g = c.getContext("2d")!;
+  const r = rng(3131);
+  // 불타는 도시의 밤하늘
+  vgrad(g, 0, 0, Wd, 214, [[0, "#0c0612"], [0.45, "#2a0e1a"], [0.8, "#6a2214"], [1, "#b8461a"]]);
+  for (let i = 0; i < Wd / 8; i++) rect(g, Math.floor(r() * Wd), Math.floor(r() * 70), 0.5, 0.5, r() < 0.3 ? "#fff0c8" : "#a8a0c8");
+  // 달 (구름에 반쯤 가림)
+  const mx = 300;
+  g.fillStyle = "rgba(255,240,200,0.12)";
+  g.beginPath();
+  g.arc(mx, 40, 26, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#f4e8c8";
+  g.beginPath();
+  g.arc(mx, 40, 14, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#d8c8a0";
+  for (const [dx, dy, rr] of [[-4, -3, 3], [5, 4, 2], [2, -6, 1.5]]) {
+    g.beginPath();
+    g.arc(mx + dx, 40 + dy, rr, 0, Math.PI * 2);
+    g.fill();
+  }
+  // 멀리 보이는 스카이라인 (두 겹)
+  for (const [layer, col, lit, base] of [[0, "#1e0c14", 0.05, 190], [1, "#140810", 0.1, 200]] as Array<[number, string, number, number]>) {
+    for (let x = -10; x < Wd; ) {
+      const w = 18 + Math.floor(r() * (layer ? 40 : 30));
+      const h = (layer ? 50 : 90) + Math.floor(r() * (layer ? 60 : 80));
+      rect(g, x, base - h, w, h + 20, col);
+      if (r() < 0.12) {
+        // 첨탑 빌딩
+        rect(g, x + w / 2 - 4, base - h - 18, 8, 18, col);
+        rect(g, x + w / 2 - 1, base - h - 34, 2, 16, col);
+        rect(g, x + w / 2 - 0.25, base - h - 34, 0.5, 1, "#ff3a2a");
+      }
+      for (let wy = base - h + 5; wy < base; wy += 6) for (let wx = x + 2; wx < x + w - 2; wx += 4) if (r() < lit) rect(g, wx, wy, 1.5, 2, r() < 0.5 ? "#ff9a3a" : "#ffd27a");
+      x += w + Math.floor(r() * 3);
+    }
+  }
+  // 연기 기둥
+  for (let i = 0; i < Wd / 160; i++) {
+    const sx = r() * Wd;
+    for (let k = 0; k < 9; k++) {
+      g.fillStyle = `rgba(30,14,18,${0.35 - k * 0.03})`;
+      g.beginPath();
+      g.ellipse(sx + k * 10 + Math.sin(k) * 6, 170 - k * 18, 14 + k * 4, 9 + k * 2, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  // 지붕들
+  const roofs: Array<[number, number]> = [];
+  let x0 = 0;
+  for (const [a, b] of ROOFS.gaps) {
+    roofs.push([x0, a]);
+    x0 = b;
+  }
+  roofs.push([x0, Wd]);
+  roofs.forEach(([a, b], i) => {
+    const col = ["#4a2e2a", "#3a3240", "#4a3a2e", "#3a2c34", "#423630"][i % 5];
+    // 건물 벽 (지붕 아래로)
+    bricks(g, a, 222, b - a, H - 222, mix(col, -0.1), mix(col, -0.4), [mix(col, -0.2), mix(col, 0.05)], r);
+    for (let wx = a + 14; wx < b - 24; wx += 34) windowAt(g, wx, 238, 14, 22, r() < 0.15 ? "fire" : r() < 0.3 ? "broken" : "dark", r, "#8a7a6a");
+    // 지붕 바닥 (타르)
+    rect(g, a, 214, b - a, 8, "#2a2628");
+    rect(g, a, 214, b - a, 1, "#5a5250");
+    for (let k = 0; k < (b - a) / 6; k++) rect(g, a + r() * (b - a - 4), 216 + r() * 5, 2 + r() * 4, 0.5, "#1e1a1c");
+    // 난간 (코니스)
+    rect(g, a, 221, b - a, 3, "#8a7e72");
+    rect(g, a, 221, b - a, 0.5, "#b8ab9a");
+    rect(g, a, 223.5, b - a, 0.5, "#4a423a");
+    // 모서리 기둥
+    for (const ex of [a, b - 3]) {
+      if (ex <= 0 || ex >= Wd - 3) continue;
+      rect(g, ex, 206, 3, 16, "#8a7e72");
+      rect(g, ex, 206, 3, 1, "#b8ab9a");
+    }
+    // 안테나 · 빨랫줄
+    if (b - a > 200) {
+      const ax = a + 40 + r() * 60;
+      rect(g, ax, 160, 1, 54, "#2a2a30");
+      for (let k = 0; k < 4; k++) rect(g, ax - 6 + k, 166 + k * 6, 12 - k * 2, 0.5, "#2a2a30");
+      const lx = a + (b - a) * 0.55;
+      rect(g, lx, 186, 1, 28, "#3a3238");
+      rect(g, lx + 60, 186, 1, 28, "#3a3238");
+      g.strokeStyle = "#5a5058";
+      g.lineWidth = 0.4;
+      g.beginPath();
+      g.moveTo(lx, 187);
+      g.quadraticCurveTo(lx + 30, 193, lx + 60, 187);
+      g.stroke();
+      for (let k = 0; k < 4; k++) {
+        const cx = lx + 8 + k * 13;
+        const cy = 189 + Math.sin((k + 1) / 5 * Math.PI) * 3;
+        rect(g, cx, cy, 7, 9, ["#8a3a3a", "#d8d0c0", "#3a5a8a", "#c8a83a"][k]);
+        rect(g, cx, cy, 7, 0.5, "rgba(255,255,255,0.3)");
+      }
+    }
+  });
+  // 틈: 아래로 깊은 어둠
+  for (const [a, b] of ROOFS.gaps) {
+    vgrad(g, a, 150, b - a, H, [[0, "rgba(0,0,0,0)"], [0.5, "#0a0608"], [1, "#000"]]);
+    rect(g, a, 214, b - a, H - 214, "#060406");
+    for (let k = 0; k < 4; k++) rect(g, a + 4 + r() * (b - a - 8), 236 + k * 8, 3, 1, "rgba(255,140,60,0.25)");
+  }
+  // 엄폐물
+  for (const cv of ROOFS.cover) {
+    const x = cv.x;
+    if (cv.kind === "tank") {
+      // 나무 물탱크
+      for (const lx of [-16, -6, 6, 16]) rect(g, x + lx, 186, 2, 28, "#2a2224");
+      rect(g, x - 18, 190, 36, 1, "#2a2224");
+      rect(g, x - 18, 186, 36, 2, "#3a3034");
+      for (let k = 0; k < 9; k++) {
+        const c2 = k % 2 ? "#6a4630" : "#7a5236";
+        rect(g, x - 18 + k * 4, 146, 4, 40, c2);
+        rect(g, x - 18 + k * 4, 146, 0.5, 40, mix(c2, 0.15));
+      }
+      for (const by of [152, 166, 180]) rect(g, x - 19, by, 38, 1.5, "#2a2224");
+      g.fillStyle = "#4a3428";
+      g.beginPath();
+      g.moveTo(x - 20, 146);
+      g.lineTo(x, 132);
+      g.lineTo(x + 20, 146);
+      g.fill();
+      rect(g, x - 20, 145, 40, 1.5, "#2a1e18");
+      rect(g, x + 10, 160, 8, 26, "rgba(0,0,0,0.25)");
+    } else if (cv.kind === "chimney") {
+      bricks(g, x - 12, 164, 24, 50, "#7a3a2a", "#3a2018", ["#8a4430", "#6a3022"], r);
+      rect(g, x - 14, 160, 28, 5, "#5a5048");
+      rect(g, x - 14, 160, 28, 1, "#8a7e72");
+      rect(g, x - 8, 154, 6, 6, "#3a3034");
+      rect(g, x + 2, 156, 5, 4, "#3a3034");
+      rect(g, x + 4, 166, 8, 48, "rgba(0,0,0,0.22)");
+    } else {
+      // 옥상 계단실
+      rect(g, x - 24, 156, 48, 58, "#5a5048");
+      rect(g, x - 24, 156, 48, 1, "#8a7e72");
+      rect(g, x - 26, 152, 52, 5, "#3a3236");
+      rect(g, x - 8, 176, 16, 38, "#3a2a24");
+      rect(g, x - 7, 177, 14, 36, "#4a3a30");
+      rect(g, x + 4, 194, 2, 2, "#c8a83a");
+      rect(g, x + 12, 160, 12, 54, "rgba(0,0,0,0.2)");
+      for (let k = 0; k < 6; k++) rect(g, x - 22 + r() * 40, 160 + r() * 50, 3, 0.5, "#4a423c");
+    }
+  }
+  // 마지막 건물: 깨진 채광창 (교회 지붕)
+  const sx = ROOFS.skylight;
+  g.fillStyle = "#2a2a34";
+  g.beginPath();
+  g.moveTo(sx - 26, 214);
+  g.lineTo(sx - 18, 196);
+  g.lineTo(sx + 18, 196);
+  g.lineTo(sx + 26, 214);
+  g.fill();
+  for (let k = 0; k < 4; k++) {
+    const px = sx - 16 + k * 9;
+    rect(g, px, 198, 7, 14, k === 1 ? "#060608" : "#3a5a7a");
+    if (k !== 1) rect(g, px + 1, 199, 1, 6, "rgba(200,230,255,0.4)");
+  }
+  rect(g, sx - 6, 199, 1, 3, "#9aaaba");
+  rect(g, sx - 3, 199, 1, 5, "#9aaaba");
+  // 십자가 (교회 지붕 끝)
+  rect(g, 1975, 150, 4, 64, "#5a5048");
+  rect(g, 1967, 164, 20, 4, "#5a5048");
+  return c;
+}
+
+// ── 제3장: 생존자들의 교회 ──────────────────────────────────
+export const CHURCH = {
+  width: 960,
+  door: 70,
+  confessional: 230,
+  pews: [340, 450, 560],
+  tomas: 600,
+  ruth: 690,
+  radio: 750,
+  lily: 820,
+  altar: 880,
+  hole: 860,
+  windows: [130, 300, 470, 640, 810],
+};
+
+export function buildChurch(): HTMLCanvasElement {
+  const Wd = CHURCH.width;
+  const c = makeDense(Wd, H, BG_SCALE);
+  const g = c.getContext("2d")!;
+  const r = rng(777);
+  // 돌벽
+  rect(g, 0, 0, Wd, 214, "#2e2a30");
+  for (let by = 0; by < 214; by += 8) {
+    const off = (by / 8) % 2 ? 10 : 0;
+    for (let bx = -off; bx < Wd; bx += 20) {
+      const col = mix("#3a3640", (r() - 0.5) * 0.12);
+      rect(g, bx + 0.5, by + 0.5, 19, 7, col);
+      rect(g, bx + 0.5, by + 0.5, 19, 0.5, mix(col, 0.12));
+      rect(g, bx + 0.5, by + 7, 19, 0.5, mix(col, -0.2));
+    }
+  }
+  // 기둥과 아치
+  for (let x = 40; x < Wd; x += 170) {
+    rect(g, x, 30, 14, 184, "#4a4450");
+    rect(g, x, 30, 2, 184, "#5e5864");
+    rect(g, x + 12, 30, 2, 184, "#2a262e");
+    rect(g, x - 3, 30, 20, 5, "#5e5864");
+    rect(g, x - 3, 206, 20, 8, "#5e5864");
+  }
+  rect(g, 0, 0, Wd, 26, "#1e1a22");
+  for (let x = 0; x < Wd; x += 30) rect(g, x, 18, 3, 8, "#2a2630");
+  // 스테인드글라스
+  CHURCH.windows.forEach((wx, i) => {
+    const x = wx - 22;
+    const y = 50;
+    const w = 44;
+    const h = 90;
+    g.fillStyle = "#14121a";
+    g.beginPath();
+    g.moveTo(x - 3, y + h + 3);
+    g.lineTo(x - 3, y + 20);
+    g.quadraticCurveTo(x + w / 2, y - 22, x + w + 3, y + 20);
+    g.lineTo(x + w + 3, y + h + 3);
+    g.fill();
+    g.save();
+    g.beginPath();
+    g.moveTo(x, y + h);
+    g.lineTo(x, y + 20);
+    g.quadraticCurveTo(x + w / 2, y - 16, x + w, y + 20);
+    g.lineTo(x + w, y + h);
+    g.clip();
+    const pal = ["#2a4a9a", "#9a2a3a", "#c8a03a", "#2a7a5a", "#6a3a8a"];
+    for (let py = y - 20; py < y + h; py += 6) {
+      for (let px = x; px < x + w; px += 6) {
+        const broken = i === 1 && py > y + 40 && px > x + 14;
+        const col = broken ? "#0a0a10" : pal[Math.floor(r() * pal.length)];
+        rect(g, px, py, 6, 6, col);
+        if (!broken) rect(g, px + 1, py + 1, 2, 1, mix(col, 0.35));
+      }
+    }
+    // 납 선
+    for (let py = y - 20; py < y + h; py += 6) rect(g, x, py, w, 0.5, "#14121a");
+    for (let px = x; px < x + w; px += 6) rect(g, px, y - 20, 0.5, h + 20, "#14121a");
+    // 가운데 고양이 무늬 (원형 장식)
+    g.fillStyle = "#e8d8a0";
+    g.beginPath();
+    g.arc(x + w / 2, y + 22, 9, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#14121a";
+    g.beginPath();
+    g.arc(x + w / 2, y + 22, 9, 0, Math.PI * 2);
+    g.lineWidth = 1;
+    g.strokeStyle = "#14121a";
+    g.stroke();
+    g.restore();
+    rect(g, x - 4, y + h + 2, w + 8, 3, "#5e5864");
+  });
+  // 천장 구멍 (찰리가 떨어지는 곳) + 달빛
+  const hx = CHURCH.hole;
+  rect(g, hx - 18, 0, 36, 26, "#0a0a14");
+  for (let k = 0; k < 6; k++) rect(g, hx - 18 + k * 6, 24 + (k % 2) * 3, 4, 3, "#1e1a22");
+  g.fillStyle = "rgba(180,200,255,0.08)";
+  g.beginPath();
+  g.moveTo(hx - 18, 26);
+  g.lineTo(hx + 18, 26);
+  g.lineTo(hx + 40, 214);
+  g.lineTo(hx - 30, 214);
+  g.fill();
+  // 바닥
+  rect(g, 0, 214, Wd, H - 214, "#3a3034");
+  for (let x = 0; x < Wd; x += 12) {
+    rect(g, x, 214, 11.5, H - 214, (x / 12) % 2 ? "#3e3438" : "#362e32");
+    rect(g, x, 214, 11.5, 0.5, "#4e4448");
+  }
+  // 붉은 융단
+  rect(g, 0, 224, Wd, 10, "#6a1e22");
+  rect(g, 0, 224, Wd, 1, "#c8a03a");
+  rect(g, 0, 233, Wd, 1, "#c8a03a");
+  // 문 (왼쪽)
+  const dx = CHURCH.door;
+  g.fillStyle = "#1e1418";
+  g.beginPath();
+  g.moveTo(dx - 26, 214);
+  g.lineTo(dx - 26, 140);
+  g.quadraticCurveTo(dx, 110, dx + 26, 140);
+  g.lineTo(dx + 26, 214);
+  g.fill();
+  for (let k = 0; k < 2; k++) {
+    const x = dx - 23 + k * 24;
+    rect(g, x, 142, 22, 72, "#5a3424");
+    for (let p = 0; p < 5; p++) rect(g, x + p * 4.5, 142, 0.5, 72, "#3a2018");
+    for (const by of [156, 196]) rect(g, x, by, 22, 2, "#2a2a30");
+  }
+  rect(g, dx - 2, 176, 1.5, 8, "#c8a03a");
+  rect(g, dx + 1, 176, 1.5, 8, "#c8a03a");
+  // 바리케이드 (문 앞 의자 더미)
+  rect(g, dx + 30, 200, 26, 14, "#4a2e22");
+  rect(g, dx + 32, 192, 20, 8, "#5a3a2a");
+  // 고해실
+  const cx = CHURCH.confessional;
+  rect(g, cx - 30, 120, 60, 94, "#3a2218");
+  rect(g, cx - 30, 120, 60, 2, "#6a4a32");
+  g.fillStyle = "#4a2c1e";
+  g.beginPath();
+  g.moveTo(cx - 34, 122);
+  g.lineTo(cx, 104);
+  g.lineTo(cx + 34, 122);
+  g.fill();
+  for (const ox of [-26, 4]) {
+    rect(g, cx + ox, 130, 22, 84, "#5a3828");
+    rect(g, cx + ox + 2, 134, 18, 30, "#2a1810");
+    for (let k = 0; k < 6; k++) rect(g, cx + ox + 3 + k * 3, 134, 1, 30, "#6a4432");
+    rect(g, cx + ox + 2, 170, 18, 40, "#4a2e20");
+  }
+  rect(g, cx - 2, 120, 4, 94, "#2a1810");
+  // 신도석 (장의자)
+  for (let x = 300; x < 640; x += 55) {
+    rect(g, x, 186, 40, 4, "#5a3828");
+    rect(g, x, 186, 40, 1, "#7a5038");
+    rect(g, x, 172, 4, 42, "#4a2e20");
+    rect(g, x + 36, 190, 4, 24, "#3a2218");
+    rect(g, x, 172, 40, 3, "#5a3828");
+    rect(g, x + 2, 175, 2, 11, "#3a2218");
+  }
+  // 생존자 캠프: 간이침대 · 물자 · 촛불 테이블
+  for (const bx of [650, 720]) {
+    rect(g, bx, 200, 46, 6, "#4a5a3a");
+    rect(g, bx, 200, 46, 1, "#6a7a5a");
+    rect(g, bx + 2, 206, 2, 8, "#2a2a2a");
+    rect(g, bx + 42, 206, 2, 8, "#2a2a2a");
+    rect(g, bx + 2, 196, 12, 5, "#d8d0c0");
+  }
+  for (let k = 0; k < 6; k++) {
+    const bx = 590 + k * 9;
+    const bh = 8 + (k % 3) * 4;
+    rect(g, bx, 214 - bh, 8, bh, k % 2 ? "#8a6a3a" : "#a07a42");
+    rect(g, bx, 214 - bh, 8, 1, "#c8a060");
+  }
+  smallText(g, "물", 594, 205, "#2a1e10", 7);
+  // 라디오 테이블
+  const rx = CHURCH.radio;
+  rect(g, rx - 14, 196, 28, 3, "#5a3828");
+  rect(g, rx - 12, 199, 2, 15, "#3a2218");
+  rect(g, rx + 10, 199, 2, 15, "#3a2218");
+  rect(g, rx - 9, 186, 18, 10, "#3a3a40");
+  rect(g, rx - 9, 186, 18, 1, "#6a6a72");
+  rect(g, rx - 7, 188, 6, 6, "#1a1a1e");
+  for (let k = 0; k < 3; k++) rect(g, rx - 6, 189 + k * 2, 4, 0.5, "#5a5a62");
+  rect(g, rx + 2, 189, 5, 2, "#c8a03a");
+  rect(g, rx + 6, 176, 0.5, 10, "#8a8a92");
+  // 제단 + 촛대
+  const ax = CHURCH.altar;
+  rect(g, ax - 34, 182, 68, 32, "#d8d0c0");
+  rect(g, ax - 34, 182, 68, 2, "#f0e8d8");
+  rect(g, ax - 30, 188, 60, 22, "#c8b8a0");
+  rect(g, ax - 6, 188, 12, 22, "#8a2a2a");
+  rect(g, ax - 1, 190, 2, 16, "#c8a03a");
+  rect(g, ax - 5, 195, 10, 2, "#c8a03a");
+  for (const cx2 of [ax - 26, ax + 22]) {
+    rect(g, cx2, 168, 4, 14, "#c8a03a");
+    rect(g, cx2 - 2, 180, 8, 2, "#a8802a");
+    rect(g, cx2 + 1, 162, 2, 6, "#f4ecd8");
+  }
+  return c;
+}

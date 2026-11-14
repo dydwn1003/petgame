@@ -217,6 +217,16 @@ export const sfx = {
   },
   item: () => [660, 880, 1100].forEach((f, i) => tone(f, f, 0.12, 0.04, "triangle", i * 0.07)),
   dead: () => [330, 262, 196, 131].forEach((f, i) => tone(f, f * 0.97, 0.4, 0.07, "triangle", i * 0.3)),
+  siren: () => {
+    for (let i = 0; i < 3; i++) {
+      tone(620, 920, 0.45, 0.035, "sawtooth", i * 0.9);
+      tone(920, 620, 0.45, 0.035, "sawtooth", i * 0.9 + 0.45);
+    }
+  },
+  beam: () => {
+    tone(220, 880, 1.2, 0.05, "sine");
+    tone(330, 1320, 1.2, 0.03, "triangle", 0.1);
+  },
   heart: () => {
     tone(60, 40, 0.15, 0.3);
     tone(55, 38, 0.15, 0.22, "sine", 0.2);

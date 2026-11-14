@@ -25,11 +25,16 @@ import {
   wait,
   wrap,
 } from "./core";
-import { ALLEY, BG_SCALE, FRIDGE_SPOTS, ROOM, SUBWAY, buildAlley, buildFridge, buildRoom, buildStreet, buildSubway, type StreetInfo } from "./bg";
+import { ALLEY, BG_SCALE, CHURCH, FRIDGE_SPOTS, ROOFS, ROOM, SUBWAY, buildAlley, buildChurch, buildFridge, buildRoofs, buildRoom, buildStreet, buildSubway, type StreetInfo } from "./bg";
 import {
   BUILD_25,
   BUILD_3,
+  BUILD_KID,
   CHARLIE,
+  HAZMAT,
+  LILY,
+  RUTH,
+  TOMAS,
   ADDICT,
   FROG_KING,
   FROGMAN,
@@ -62,7 +67,9 @@ export interface Actor {
   visible: boolean;
   silhouette?: boolean;
   bubble: string | null;
-  role?: "zombie" | "skeleton" | "frog";
+  role?: "zombie" | "skeleton" | "frog" | "agent";
+  /** 체형 (기본 3등신, 아이는 작게) */
+  build?: Build;
   state?: string;
   home?: number;
   sign?: string;
@@ -1046,8 +1053,8 @@ SCENES.alley = () => {
         const blink = Math.floor(clock.t * 1.5) % 5 !== 0;
         if (blink) {
           g.fillStyle = "#e8b04a";
-          g.fillRect(sx - 3.6, GROUND - 15.6, 1.6, 0.75);
-          g.fillRect(sx - 1, GROUND - 15.6, 1.4, 0.75);
+          g.fillRect(sx - 4, GROUND - 16.9, 2, 0.8);
+          g.fillRect(sx - 0.7, GROUND - 16.9, 1.7, 0.8);
         }
       }
     },
@@ -1583,10 +1590,8 @@ SCENES.rooftop = () => {
       await say(charlie, "샘! 그쪽으로 가면 안 돼!");
       F_end2();
       await fadeTo(1, 1.6);
-      await chapterCard("제2장 끝", "다음 이야기에서 계속됩니다");
-      S.mode = "title";
-      S.scene = null;
-      await fadeTo(0, 0.8);
+      await chapterCard("제2장 끝", "");
+      await goScene("roofs", 0, false);
     },
   };
   return sc;
@@ -1597,6 +1602,680 @@ function F_end2(): void {
   unlock(3);
   writeSave("end2", 0);
 }
+
+// ═════════════════════════════════════════════════════════
+// 제3장: 지붕 위의 추격 → 생존자들의 교회
+// ═════════════════════════════════════════════════════════
+
+/** 초록빛 비행접시와 빛기둥 (beamX 가 null 이면 빛을 끈다) */
+function drawUfo(ux: number, beamX: number | null, camX: number): void {
+  const sx = ux - camX;
+  if (beamX !== null) {
+    const bx = beamX - camX;
+    const gr = g.createLinearGradient(0, 30, 0, 214);
+    gr.addColorStop(0, "rgba(170,255,200,0.34)");
+    gr.addColorStop(1, "rgba(120,255,170,0.14)");
+    g.fillStyle = gr;
+    g.beginPath();
+    g.moveTo(sx - 8, 30);
+    g.lineTo(sx + 8, 30);
+    g.lineTo(bx + 18, 214);
+    g.lineTo(bx - 18, 214);
+    g.closePath();
+    g.fill();
+    g.fillStyle = "rgba(180,255,210,0.35)";
+    g.beginPath();
+    g.ellipse(bx, 214, 20, 3, 0, 0, Math.PI * 2);
+    g.fill();
+    for (let i = 0; i < 8; i++) {
+      const k = (clock.t * 0.6 + i / 8) % 1;
+      g.fillStyle = `rgba(210,255,225,${((1 - k) * 0.85).toFixed(2)})`;
+      g.fillRect(half(bx - 12 + ((i * 37) % 24) + (sx - bx) * k * 0.8), half(212 - k * 170), 1, 1);
+    }
+  }
+  const bob = Math.sin(clock.t * 2) * 1.5;
+  g.fillStyle = "rgba(140,255,170,0.18)";
+  g.beginPath();
+  g.ellipse(sx, 26 + bob, 44, 12, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#2e2e3a";
+  g.beginPath();
+  g.ellipse(sx, 24 + bob, 36, 8, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#5a5a6a";
+  g.beginPath();
+  g.ellipse(sx, 22 + bob, 34, 5, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#9ab8c8";
+  g.beginPath();
+  g.ellipse(sx, 18 + bob, 14, 7, 0, Math.PI, 0);
+  g.fill();
+  g.fillStyle = "rgba(255,255,255,0.6)";
+  g.fillRect(half(sx - 8), half(13 + bob), 4, 1);
+  for (let i = 0; i < 7; i++) {
+    g.fillStyle = Math.floor(clock.t * 6 + i) % 2 ? "#aaffcc" : "#2a6a4a";
+    g.fillRect(half(sx - 30 + i * 10), half(25 + bob), 3, 1.5);
+  }
+}
+
+SCENES.roofs = (checkpoint) => {
+  const segs: Array<[number, number]> = [];
+  {
+    let a = 0;
+    for (const [x0, x1] of ROOFS.gaps) {
+      segs.push([a, x0]);
+      a = x1;
+    }
+    segs.push([a, ROOFS.width]);
+  }
+  const segOf = (x: number) => Math.max(0, segs.findIndex(([a, b]) => x >= a - 2 && x <= b + 2));
+  const SAM_SPOTS = [380, 860, 1340, 1720, ROOFS.skylight];
+  const cpOf = (i: number) => (i === 0 ? 60 : segs[i][0] + 24);
+  let beamOn = false;
+  let bx = 200;
+  let dir = 1;
+  let blind = 0;
+  let hunting = false;
+  /** 다른 지붕으로 날아가는 중 (빛을 끈다) */
+  let flying = false;
+  let ufoX = 120;
+  let lock = 0;
+  let grace = 0;
+  let jumping = false;
+  let caught = false;
+  let hinted = false;
+  let samStage = 0;
+  let samBusy = false;
+  let saved = 0;
+
+  /** 빛기둥: 평소엔 지붕을 오가며 훑고, 찰리를 보면 쫓아온다. 숨으면 놓치고 지나간다 */
+  const moveBeam = (dt: number) => {
+    const i = Math.min(segOf(charlie.x), segs.length - 2);
+    const lo = segs[i][0] + 20;
+    const hi = segs[i][1] - 20;
+    blind = Math.max(0, blind - dt);
+    const visible = !S.hidden && !jumping && grace <= 0;
+    // 쫓던 중에 숨으면 놓친다: 잠시 엉뚱한 곳을 훑는다
+    if (hunting && S.hidden) blind = 3.2;
+    const seen = visible && blind <= 0 && Math.abs(charlie.x - bx) < 140;
+    hunting = seen;
+    let target: number;
+    let speed: number;
+    if (flying || bx < lo - 1 || bx > hi + 1) {
+      // 찰리가 다음 지붕으로 건너가면 비행접시가 앞질러 가서 반대편부터 훑는다
+      flying = true;
+      hunting = false;
+      target = hi;
+      speed = 230;
+      if (Math.abs(bx - hi) < 1) {
+        flying = false;
+        dir = -1;
+        sfx.beam();
+      }
+    } else if (seen) {
+      target = charlie.x;
+      speed = 72;
+      if (Math.abs(target - bx) > 2) dir = target > bx ? 1 : -1;
+    } else {
+      target = dir > 0 ? hi : lo;
+      speed = 58;
+      if (Math.abs(bx - target) < 1) dir = -dir;
+    }
+    probe.hunt = seen ? 1 : 0;
+    probe.blind = blind;
+    probe.flying = flying ? 1 : 0;
+    bx += Math.sign(target - bx) * Math.min(Math.abs(target - bx), speed * dt);
+  };
+  const abduct = async () => {
+    if (caught) return;
+    caught = true;
+    S.control = false;
+    S.hidden = false;
+    charlie.visible = true;
+    charlie.pose = "armsUp";
+    sfx.beam();
+    flash("#aaffcc", 0.5);
+    await tween(charlie, charlie.x, 110, 1.3, 0);
+    gameOver("GAME OVER", "초록빛에 빨려 올라갔다... 눈을 떠 보니 다시 지붕 위였다.", cpOf(segOf(charlie.x)));
+  };
+  const samRun = async () => {
+    samBusy = true;
+    const s0 = samStage;
+    const [ga, gb] = ROOFS.gaps[s0];
+    sam.pose = "startle";
+    sfx.meow();
+    await wait(0.35);
+    sam.facing = 1;
+    await walkTo(sam, ga - 6, 110);
+    sam.pose = "jump";
+    await tween(sam, gb + 8, GROUND, 0.45, 22);
+    sam.pose = null;
+    await walkTo(sam, SAM_SPOTS[s0 + 1], 95);
+    sam.facing = -1;
+    sam.pose = "sit";
+    samStage = s0 + 1;
+    samBusy = false;
+  };
+  const landed = () => {
+    const i = segOf(charlie.x);
+    if (i > saved) {
+      saved = i;
+      writeSave("roofs", cpOf(i));
+    }
+  };
+  const tryJump = (to: number) => {
+    if (running()) {
+      jumping = true;
+      void cutscene(async () => {
+        charlie.pose = "walk3";
+        sfx.step();
+        await tween(charlie, to, GROUND, 0.55, 26);
+        charlie.pose = null;
+        sfx.step();
+        shake(0.15);
+        jumping = false;
+        grace = 1.2;
+        landed();
+      });
+    } else if (!hinted) {
+      hinted = true;
+      void cutscene(() => say(charlie, "틈이 너무 넓어... 달려서(Shift) 뛰어넘어야겠어."));
+    }
+  };
+
+  const sc: Scene = {
+    id: "roofs",
+    width: ROOFS.width,
+    bg: buildRoofs(),
+    ambient: 0.3,
+    tint: "rgba(120,30,10,0.10)",
+    lights: () => {
+      const L: Light[] = [{ x: charlie.x, y: charlie.y - 24, r: 40, a: 0.35 }];
+      if (beamOn && !flying) L.push({ x: bx, y: 190, r: 70, a: 0.8, warm: "rgba(120,255,170,0.16)" });
+      return L;
+    },
+    minX: 30,
+    maxX: ROOFS.width - 30,
+    actors: [],
+    hotspots: ROOFS.cover.map(
+      (cv): Hotspot => ({
+        x: cv.x,
+        iconY: 130,
+        label: cv.kind === "tank" ? "물탱크 밑에 숨기" : cv.kind === "chimney" ? "굴뚝 뒤에 숨기" : "계단실 그늘에 숨기",
+        range: 20,
+        enabled: () => !S.hidden && !jumping && beamOn,
+        use: async () => {
+          charlie.x = cv.x;
+          S.hidden = true;
+          charlie.visible = false;
+          sfx.step();
+        },
+      }),
+    ),
+    zones: [
+      {
+        x: ROOFS.skylight - 40,
+        dir: 1,
+        run: async () => {
+          await until(() => samStage >= 4);
+          beamOn = false;
+          await say(charlie, "하아... 하아... 샘!");
+          sam.pose = "jump";
+          await tween(sam, ROOFS.skylight - 4, 204, 0.35, 12);
+          sam.visible = false;
+          sfx.glass();
+          await say(charlie, "채광창 안으로 들어갔어... 여긴, 교회?");
+          await walkTo(charlie, ROOFS.skylight - 8, 40);
+          await say(charlie, "...에라, 모르겠다!");
+          charlie.pose = "armsUp";
+          await tween(charlie, ROOFS.skylight - 4, 300, 0.5, 10);
+          await goScene("church");
+        },
+      },
+    ],
+    update: (dt) => {
+      if (!beamOn) bx -= 150 * dt;
+      else if (S.control && !caught) moveBeam(dt);
+      ufoX += (bx - 30 - ufoX) * Math.min(1, dt * 1.5);
+      probe.bx = bx;
+      probe.beam = beamOn ? 1 : 0;
+      if (!S.control || caught) return;
+      grace = Math.max(0, grace - dt);
+      // 건물 사이 틈
+      if (!jumping && !S.hidden) {
+        const ax = axis();
+        for (const [a, b] of ROOFS.gaps) {
+          if (ax > 0 && charlie.x > a - 5 && charlie.x < a + 12) {
+            charlie.x = a - 5;
+            tryJump(b + 12);
+          } else if (ax < 0 && charlie.x < b + 5 && charlie.x > b - 12) {
+            charlie.x = b + 5;
+            tryJump(a - 12);
+          }
+        }
+      }
+      // 샘은 찰리가 다가오면 다음 지붕으로 달아난다
+      if (!samBusy && samStage < 4 && charlie.x > SAM_SPOTS[samStage] - 90) void samRun();
+      // 빛기둥
+      if (beamOn && !flying && segOf(charlie.x) < segs.length - 1 && !S.hidden && !jumping && grace <= 0 && Math.abs(charlie.x - bx) < 17) {
+        lock += dt;
+        if (lock > 0.14) void abduct();
+      } else lock = Math.max(0, lock - dt * 2);
+    },
+    overlay: (camX) => {
+      if (beamOn || Math.abs(ufoX - S.camX) < W + 60) drawUfo(ufoX, beamOn && !flying ? bx : null, camX);
+      if (lock > 0) {
+        g.fillStyle = `rgba(170,255,200,${Math.min(0.5, lock * 3).toFixed(2)})`;
+        g.fillRect(0, 0, W, H);
+      }
+    },
+    start: async () => {
+      unlock(3);
+      charlie.y = GROUND;
+      sam.visible = true;
+      sam.y = GROUND;
+      sam.pose = "sit";
+      sam.facing = -1;
+      if (checkpoint > 0) {
+        charlie.x = checkpoint;
+        charlie.facing = 1;
+        const i = segOf(checkpoint);
+        saved = i;
+        samStage = i;
+        sam.x = SAM_SPOTS[i];
+        beamOn = true;
+        dir = 1;
+        bx = segs[i][1] - 60;
+        ufoX = bx;
+        grace = 1.5;
+        S.camX = Math.max(0, charlie.x - W / 2);
+        await fadeTo(0, 0.6);
+        S.control = true;
+        return;
+      }
+      writeSave("roofs", 0);
+      charlie.x = 60;
+      charlie.facing = 1;
+      sam.x = SAM_SPOTS[0];
+      await fadeTo(0, 1);
+      await chapterCard("제3장", "지붕 위의 추격");
+      await say(charlie, "샘! 거기 가만히 있어!");
+      sfx.meow();
+      ufoX = 200;
+      bx = 320;
+      dir = 1;
+      beamOn = true;
+      sfx.beam();
+      shake(0.3);
+      await wait(1.2);
+      await caption("초록빛이 지붕을 훑고 지나간다. 마치 샘을 찾는 것처럼.");
+      await caption("빛에 닿으면 끌려 올라간다! 물탱크·굴뚝·계단실 앞에서 [Space]로 숨어 빛이 지나가길 기다리자.");
+      await caption("건물 사이 틈은 달리면서(Shift) 뛰어넘을 수 있다.");
+      S.help = 8;
+      S.control = true;
+    },
+  };
+  return sc;
+};
+
+SCENES.church = (checkpoint) => {
+  const F = S.flags;
+  const tomas = mkActor("person", CHURCH.tomas, 1, { look: TOMAS, lookId: "tomas", pose: "stand" });
+  const ruth = mkActor("person", CHURCH.ruth, 1, { look: RUTH, lookId: "ruth", pose: "stand" });
+  const lily = mkActor("person", CHURCH.lily, -1, { look: LILY, lookId: "lily", pose: "stand", build: BUILD_KID });
+  type Agent = Actor & { a: number; b: number; pause: number; alert: number };
+  const agents: Agent[] = [];
+  let raid = false;
+  let caught = false;
+  let ending = false;
+
+  const spotted = (f: Agent): boolean => {
+    if (S.hidden || caught) return false;
+    const d = charlie.x - f.x;
+    const dist = Math.abs(d);
+    const front = Math.sign(d) === f.facing;
+    if (front && dist < 100) return true;
+    if (dist < 28 && charlie.moving && !sneaking()) return true;
+    return dist < 12;
+  };
+  const busted = async (who: Actor) => {
+    if (caught) return;
+    caught = true;
+    S.control = false;
+    who.bubble = "면역자 발견!";
+    sfx.siren();
+    await walkTo(who, charlie.x - 14 * Math.sign(charlie.x - who.x), 90);
+    shake(0.4);
+    gameOver("GAME OVER", "특별대응단에게 붙잡혀 격리 센터로 끌려갔다...", 1);
+  };
+  const talkDone = () => !!(F.c3ruth && F.c3lily && F.c3radio);
+  const beginRaid = async () => {
+    raid = true;
+    sfx.boom();
+    shake(0.6);
+    for (const [a, b] of [[110, 400], [330, 620]]) {
+      agents.push(Object.assign(mkActor("person", CHURCH.door + agents.length * 50, 1, { look: HAZMAT, lookId: "hazmat", role: "agent" as const }), { a, b, pause: 0, alert: 0 }));
+    }
+    await caption("쾅! 문이 부서지듯 열리고, 방호복 차림의 요원들이 들이닥쳤다.");
+    await caption("손전등에 비치지 않게 의자 밑에 숨어 가며, 고해실까지 가자. 가까이에선 ↓(살금살금)로 걷자.");
+  };
+  const startRaid = async () => {
+    sfx.siren();
+    shake(0.3);
+    await caption("밖에서 사이렌이 울린다. 확성기 소리가 교회 벽을 울렸다.");
+    await caption("「특별대응단이다. 면역자 검사를 실시한다. 즉시 문을 열어라.」");
+    await say(ruth, "찰리, 넌 명단에 없어. 들키면 그대로 끌려가. 저 고해실에 숨어!");
+    await say(tomas, "릴리, 제단 뒤로! 소리 내지 마.");
+    void walkTo(lily, CHURCH.altar + 14, 70).then(() => {
+      lily.visible = false;
+    });
+    sam.pose = "jump";
+    await tween(sam, charlie.x + 2, GROUND - 18, 0.4, 16);
+    sam.visible = false;
+    await caption("샘이 찰리의 품으로 뛰어들었다.");
+    await Promise.all([walkTo(ruth, 130, 80), walkTo(tomas, 170, 80)]);
+    ruth.pose = "stand";
+    tomas.pose = "stand";
+    ruth.facing = -1;
+    tomas.facing = -1;
+    F.raid = 1;
+    writeSave("church", 1);
+    await beginRaid();
+  };
+  const after = async () => {
+    if (talkDone() && !raid && !F.raid) await startRaid();
+  };
+  const talk = (a: Actor, label: string, fn: () => Promise<void>): Hotspot => ({
+    get x() {
+      return a.x;
+    },
+    iconY: 136,
+    label,
+    range: 30,
+    enabled: () => !raid && !ending && a.visible,
+    use: async () => {
+      charlie.facing = a.x > charlie.x ? 1 : -1;
+      a.facing = a.x > charlie.x ? -1 : 1;
+      await fn();
+      await after();
+    },
+  });
+
+  const finale = async () => {
+    ending = true;
+    raid = false;
+    S.hidden = true;
+    charlie.visible = false;
+    charlie.x = CHURCH.confessional;
+    await caption("고해실 칸막이 틈으로 밖이 보인다. 숨소리조차 크게 들린다.");
+    const [a1, a2] = agents;
+    a1.bubble = a2.bubble = null;
+    await Promise.all([walkTo(a1, 150, 40), walkTo(a2, CHURCH.confessional + 26, 34)]);
+    a2.facing = -1;
+    await wait(0.7);
+    await caption("품 안에서 샘이 꿈틀거린다. 안 돼, 샘... 조금만...");
+    await say(a2, "...이 안에 누구 있나?");
+    await say(ruth, "거긴 비었어요! 찾는 게 면역자라면... 나예요.");
+    a2.facing = -1;
+    await walkTo(a2, 160, 60);
+    a2.facing = -1;
+    await say(a1, "체온 정상. 혈중 반응 양성. 면역자 확인.");
+    await say(tomas, "콜록, 콜록... 저, 저는 열이 나요. 감염됐나 봐요.");
+    await say(a1, "감염자는 관심 없다. 노인, 이송한다.");
+    await say(tomas, "루스!");
+    await say(ruth, "토마스, 애들 부탁해.");
+    ruth.facing = 1;
+    await say(ruth, "...저기 덩치 큰 애도.");
+    await Promise.all([walkTo(a1, CHURCH.door - 10, 40), walkTo(ruth, CHURCH.door, 40), walkTo(a2, CHURCH.door + 10, 40)]);
+    a1.visible = a2.visible = ruth.visible = false;
+    sfx.boom();
+    shake(0.3);
+    await wait(1.2);
+    S.hidden = false;
+    charlie.visible = true;
+    charlie.facing = -1;
+    sfx.step();
+    lily.visible = true;
+    lily.x = CHURCH.altar - 10;
+    await walkTo(lily, 330, 70);
+    await say(lily, "루스 할머니...");
+    sam.visible = true;
+    sam.x = charlie.x + 10;
+    sam.y = GROUND;
+    sam.pose = null;
+    await walkTo(sam, lily.x - 14, 60);
+    sam.facing = 1;
+    sam.pose = "butt";
+    sfx.purr();
+    await caption("샘이 릴리의 다리에 머리를 비볐다.");
+    await walkTo(tomas, 280, 50);
+    await say(tomas, "격리 센터는 허드슨 강변의 옛 컨벤션 센터야. 거기 끌려간 사람은... 아무도 돌아오지 않았어.");
+    charlie.facing = 1;
+    await say(charlie, "루스 할머니는 저를 숨겨 주셨어요. 저 대신 나가신 거예요.");
+    await say(charlie, "...제가 데려올게요.");
+    sam.pose = "sit";
+    sam.facing = -1;
+    sfx.meow();
+    await say(charlie, "그래, 샘. 이번엔 같이 가자.");
+    F.ch3 = 1;
+    unlock(4);
+    writeSave("end3", 0);
+    await fadeTo(1, 1.6);
+    await chapterCard("제3장 끝", "다음 이야기에서 계속됩니다");
+    S.mode = "title";
+    S.scene = null;
+    await fadeTo(0, 0.8);
+  };
+
+  const hideSpot = (x: number): Hotspot => ({
+    x,
+    iconY: 158,
+    label: "의자 밑에 숨기",
+    range: 18,
+    enabled: () => raid && !S.hidden,
+    use: async () => {
+      charlie.x = x;
+      S.hidden = true;
+      charlie.visible = false;
+      sfx.step();
+    },
+  });
+
+  const sc: Scene = {
+    id: "church",
+    width: CHURCH.width,
+    bg: buildChurch(),
+    ambient: 0.55,
+    tint: "rgba(30,20,50,0.10)",
+    lights: () => {
+      const L: Light[] = [
+        { x: CHURCH.altar - 24, y: 160, r: 46, a: 0.8, warm: "rgba(255,190,110,0.14)" },
+        { x: CHURCH.altar + 24, y: 160, r: 46, a: 0.8, warm: "rgba(255,190,110,0.14)" },
+        { x: CHURCH.hole, y: 120, r: 90, a: 0.55, warm: "rgba(170,190,255,0.06)" },
+        { x: CHURCH.radio, y: 188, r: 30, a: 0.5, warm: "rgba(255,200,120,0.08)" },
+        { x: 620, y: 196, r: 40, a: 0.6, warm: "rgba(255,180,100,0.10)" },
+        ...CHURCH.windows.map((x): Light => ({ x, y: 96, r: 52, a: 0.35, warm: "rgba(120,140,255,0.05)" })),
+        { x: charlie.x, y: charlie.y - 24, r: 30, a: 0.3 },
+      ];
+      for (const f of agents) {
+        if (!f.visible) continue;
+        L.push({ x: f.x, y: f.y - 26, r: 34, a: 0.55 });
+        if (raid) L.push({ x: f.x + f.facing * 10, y: f.y - 32, r: 0, a: 0.95, cone: { dir: f.facing, len: 100, spread: 0.28 } });
+      }
+      return L;
+    },
+    minX: 40,
+    maxX: CHURCH.width - 40,
+    get actors() {
+      return [tomas, ruth, lily, ...agents];
+    },
+    hotspots: [
+      talk(ruth, "루스와 이야기", async () => {
+        if (F.c3ruth) {
+          await say(ruth, "응급실에서 30년을 일했어. 세상이 망해도 할 일은 똑같아. 다친 사람을 돌보는 것.");
+          return;
+        }
+        F.c3ruth = 1;
+        await say(ruth, "운석이 떨어진 날부터 공기 중에 이상한 가루가 떠다녀. 그걸 마신 사람들이 변했지.");
+        await say(ruth, "그런데 아무렇게나 변하는 게 아니야. 원래 그 사람이 붙들고 있던 걸 따라가.");
+        await say(ruth, "약에 매달리던 사람은 좀비처럼, 남을 가르치려 들던 사람은 뼈만 남은 설교꾼으로, 남의 걸 탐내던 사람은 개구리로.");
+        await say(charlie, "그럼... 저는 왜 멀쩡한 거죠?");
+        await say(ruth, "글쎄. 아무것도 붙들지 않았거나... 딱 하나만 소중히 붙들고 있었거나.");
+        await caption("루스가 샘 쪽을 보며 빙그레 웃었다.");
+      }),
+      talk(tomas, "토마스와 이야기", async () => {
+        if (F.c3tomas) {
+          await say(tomas, "문은 내가 지켜. 해골 시위대가 지나갈 때마다 바리케이드를 다시 쌓아야 하거든.");
+          return;
+        }
+        F.c3tomas = 1;
+        await say(tomas, "...잠깐. 당신, 우리 가게에서 츄르랑 손전등 가져간 사람이지?");
+        charlie.pose = "armsUp";
+        await say(charlie, "아... 그, 그게... 돈은 나중에 꼭...");
+        charlie.pose = null;
+        await say(tomas, "됐어. 세상이 망했는데 돈이 무슨 소용이야. 저 녀석이 맛있게 먹었으면 됐지.");
+      }),
+      talk(lily, "릴리와 샘", async () => {
+        if (F.c3lily) {
+          sfx.purr();
+          await say(lily, "샘은 꼬리를 살랑살랑 흔들 때가 제일 귀여워요.");
+          return;
+        }
+        F.c3lily = 1;
+        await say(lily, "샘이 내 무릎에서 잤어요. 엄청 따뜻해요.");
+        sfx.purr();
+        await say(lily, "있잖아요, 하늘에 초록빛 봤어요? 그 빛이 오면 고양이들이 막 그쪽으로 걸어가요.");
+        await say(lily, "우리 동네 고양이들 다 그렇게 없어졌어요. 우리 나비도요.");
+        await say(charlie, "...샘이 자꾸 도망친 게 그래서였구나.");
+        await say(charlie, "걱정 마. 샘은 내가 꼭 붙잡고 있을게.");
+      }),
+      {
+        x: CHURCH.radio,
+        iconY: 160,
+        label: "라디오 듣기",
+        range: 20,
+        enabled: () => !raid && !ending,
+        use: async () => {
+          F.c3radio = 1;
+          await caption("치직... 「특별대응단은 면역자 보호를 위해 격리 센터로의 이송을 진행하고 있습니다.」");
+          await caption("「면역자를 발견한 시민은 즉시 신고해 주십시오. 신고자에게는 깨끗한 물과 식량이...」 치지직.");
+          await say(charlie, "보호해 준다는데요? 차라리 거기 가는 게...");
+          await say(tomas, "데려간 사람 중에 돌아온 사람은 아무도 없어. 아무도.");
+          await after();
+        },
+      },
+      {
+        x: CHURCH.windows[1],
+        iconY: 150,
+        label: "깨진 창문 보기",
+        range: 24,
+        enabled: () => !raid && !ending,
+        use: async () => {
+          await caption("깨진 스테인드글라스 너머로 초록빛이 천천히 맴돌고 있다.");
+          await say(charlie, "아직도 저기 있어... 샘을 찾고 있는 건가.");
+        },
+      },
+      ...CHURCH.pews.map(hideSpot),
+      {
+        x: CHURCH.confessional,
+        iconY: 98,
+        label: "고해실에 숨기",
+        range: 22,
+        enabled: () => raid && !ending,
+        use: finale,
+      },
+    ],
+    zones: [],
+    update: (dt) => {
+      if (!S.control || !raid) return;
+      for (const f of agents) {
+        if (f.alert > 0) {
+          f.alert -= dt;
+          if (f.alert <= 0) void busted(f);
+          continue;
+        }
+        if (spotted(f)) {
+          f.alert = 0.4;
+          f.bubble = "!";
+          sfx.blip();
+          continue;
+        }
+        if (f.pause > 0) {
+          f.pause -= dt;
+          f.moving = false;
+          continue;
+        }
+        const target = f.facing > 0 ? f.b : f.a;
+        const step = Math.sign(target - f.x) * 24 * dt;
+        f.x += step;
+        f.walkDist += Math.abs(step);
+        f.moving = true;
+        if (Math.abs(target - f.x) < 1) {
+          f.facing = f.facing > 0 ? -1 : 1;
+          f.pause = 1.4 + Math.random();
+        }
+      }
+    },
+    start: async () => {
+      charlie.y = GROUND;
+      sam.visible = true;
+      sam.x = CHURCH.lily + 16;
+      sam.y = GROUND;
+      sam.facing = -1;
+      sam.pose = "sit";
+      if (checkpoint > 0) {
+        Object.assign(F, { c3ruth: 1, c3lily: 1, c3radio: 1, raid: 1 });
+        charlie.x = 780;
+        charlie.facing = -1;
+        sam.visible = false;
+        lily.visible = false;
+        ruth.x = 130;
+        tomas.x = 170;
+        ruth.facing = tomas.facing = -1;
+        S.camX = Math.max(0, Math.min(CHURCH.width - W, charlie.x - W / 2));
+        await fadeTo(0, 0.6);
+        await beginRaid();
+        S.control = true;
+        return;
+      }
+      writeSave("church", 0);
+      charlie.x = CHURCH.hole;
+      charlie.y = -40;
+      charlie.facing = -1;
+      charlie.pose = "armsUp";
+      S.camX = CHURCH.width - W;
+      await fadeTo(0, 0.6);
+      await tween(charlie, CHURCH.hole, GROUND, 0.5, 0);
+      sfx.boom();
+      shake(0.5);
+      charlie.pose = null;
+      await say(charlie, "으윽... 허리...");
+      await walkTo(tomas, charlie.x - 40, 110);
+      tomas.pose = "stand";
+      await say(tomas, "움직이지 마! 물렸어? 어디 물린 데 있어?");
+      charlie.pose = "armsUp";
+      await say(charlie, "아, 아니에요! 고양이를 쫓아왔을 뿐이에요!");
+      charlie.pose = null;
+      await walkTo(ruth, charlie.x - 64, 50);
+      ruth.pose = "stand";
+      await say(ruth, "토마스, 진정해. 눈을 봐. 멀쩡하잖아.");
+      await say(ruth, "열은? 환청은? 갑자기 고기가 싫어지거나, 손가락 사이가 끈적해지진 않고?");
+      await say(charlie, "...없는데요. 3일 밤샌 피로 말고는.");
+      await say(ruth, "그럼 너도 우리처럼 '면역자'구나. 난 루스. 이쪽은 토마스, 저 애는 릴리.");
+      await say(lily, "아저씨! 이 고양이 아저씨 거예요?");
+      charlie.facing = -1;
+      await say(charlie, "샘!! ...다행이다. 다친 데는 없구나.");
+      sfx.purr();
+      await Promise.all([walkTo(tomas, CHURCH.tomas, 50), walkTo(ruth, CHURCH.ruth, 40)]);
+      tomas.pose = ruth.pose = "stand";
+      tomas.facing = 1;
+      ruth.facing = 1;
+      await caption("교회를 둘러보며 생존자들과 이야기하자. (돋보기에서 [Space])");
+      S.control = true;
+    },
+  };
+  return sc;
+};
 
 // ═════════════════════════════════════════════════════════
 // 매 프레임
@@ -1767,7 +2446,7 @@ function drawActor(a: Actor, camX: number): void {
   else if (sneakNow) pose = "crouch0";
   else if (isCharlie && S.scene?.useLight && S.flags.supplies && (S.scene.id !== "subway" || S.flags.light)) pose = "flashlight";
   else pose = breath;
-  const build = isCharlie ? S.build : BUILD_3;
+  const build = isCharlie ? S.build : (a.build ?? BUILD_3);
   const spr = human(look, id, pose, build, a.facing);
   const ox = a.facing === 1 ? HUMAN_ORIGIN.x : 32 - HUMAN_ORIGIN.x;
   g.fillStyle = "rgba(0,0,0,0.3)";
@@ -1939,7 +2618,17 @@ export function drawPlay(): void {
     g.globalAlpha = Math.min(1, S.help);
     g.fillStyle = "rgba(6,5,10,0.6)";
     g.fillRect(0, H - 18, W, 18);
-    text(sc.id === "chapter1" ? "←→ 이동  Shift 달리기  ↓ 살금살금  Space 조사/숨기" : "←→ 이동  Space 살펴보기 (클릭도 가능)", W / 2, H - 9, "#ece6f4", "center");
+    text(
+      sc.id === "chapter1" || sc.id === "church"
+        ? "←→ 이동  Shift 달리기  ↓ 살금살금  Space 조사/숨기"
+        : sc.id === "roofs"
+          ? "←→ 이동  Shift 달리기(틈 뛰어넘기)  Space 숨기"
+          : "←→ 이동  Space 살펴보기 (클릭도 가능)",
+      W / 2,
+      H - 9,
+      "#ece6f4",
+      "center",
+    );
     g.globalAlpha = 1;
   }
 
@@ -1967,6 +2656,7 @@ export function titleItems(): string[] {
   if (save && !save.scene.startsWith("end")) items.push("이어하기");
   const un = unlocked();
   if (un >= 2) items.push("제2장부터");
+  if (un >= 3) items.push("제3장부터");
   items.push(`체형: ${S.build === BUILD_3 ? "3등신" : "2.5등신"}`);
   return items;
 }
@@ -1992,6 +2682,9 @@ export function updateTitle(): void {
   } else if (label === "제2장부터") {
     S.flags = { supplies: 1, ch1: 1 };
     void goScene("subwayGate", 0, false);
+  } else if (label === "제3장부터") {
+    S.flags = { supplies: 1, ch1: 1, ch2: 1, treats: 1 };
+    void goScene("roofs", 0, false);
   } else if (label === "이어하기") {
     const s = loadSave()!;
     S.flags = { ...s.flags };
@@ -2030,7 +2723,9 @@ export function drawTitle(): void {
 
 
 /** 테스트용: 찰리 위치 조회/이동 */
+export const probe: Record<string, number> = {};
 export const debug = {
+  probe,
   get charlie() {
     return charlie;
   },
@@ -2053,10 +2748,11 @@ export function prewarm(): void {
   for (let i = 0; i < 8; i++) catPoses.push(`sitT${i}`);
   for (const p of catPoses) for (const f of [1, -1] as const) cat(p, f);
   // 다른 등장인물은 게임 중 남는 시간에 조금씩 굽는다
-  const others: Array<[Look, string]> = [[ADDICT, "addict"], [ZOMBIES[0], "z0"], [ZOMBIES[1], "z1"], [ZOMBIES[2], "z2"], [SKELETON, "sk"], [FROGMAN, "frog"], [FROG_KING, "frogking"]];
+  const others: Array<[Look, string]> = [[ADDICT, "addict"], [ZOMBIES[0], "z0"], [ZOMBIES[1], "z1"], [ZOMBIES[2], "z2"], [SKELETON, "sk"], [FROGMAN, "frog"], [FROG_KING, "frogking"], [RUTH, "ruth"], [TOMAS, "tomas"], [HAZMAT, "hazmat"]];
   for (const [look, id] of others) {
     for (const p of [...poses.slice(0, 20), "sit"]) for (const f of [1, -1] as const) bakeQueue.push(() => human(look, id, p, BUILD_3, f));
   }
+  for (const p of [...poses.slice(0, 20), "sit"]) for (const f of [1, -1] as const) bakeQueue.push(() => human(LILY, "lily", p, BUILD_KID, f));
 }
 
 const bakeQueue: Array<() => void> = [];

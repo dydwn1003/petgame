@@ -1,4 +1,4 @@
-// 캐릭터 도트 (초고밀도): 찰리 · 샘 · 좀비 · 해골 · 개구리 인간
+// 캐릭터 도트 (초고밀도): 찰리 · 샘 · 좀비 · 해골 · 개구리 인간 · 생존자 · 방호복 요원
 //
 // 화면 좌표 1칸 = 스프라이트 4도트. 캐릭터는 화면에서 32×54 크기로 그려지지만
 // 실제로는 128×216 도트로 칠해져서, 작은 도트를 촘촘하게 찍은 부드러운 그림이 된다.
@@ -31,6 +31,7 @@ export interface Build {
 }
 export const BUILD_3: Build = { legLen: 60, torsoLen: 46 };
 export const BUILD_25: Build = { legLen: 42, torsoLen: 38 };
+export const BUILD_KID: Build = { legLen: 34, torsoLen: 30 };
 
 export interface Look {
   skin: string;
@@ -39,7 +40,7 @@ export interface Look {
   hair: string;
   hairShade: string;
   hairLight: string;
-  hairStyle: "pomp" | "messy" | "skull" | "frog" | "hood";
+  hairStyle: "pomp" | "messy" | "skull" | "frog" | "hood" | "bun" | "pony" | "beanie" | "mask";
   /** 몸통 무늬 (lx, ly = 몸통 안 좌표, 도트 단위) */
   shirt: (lx: number, ly: number, w: number, h: number) => string;
   sleeve: string;
@@ -60,6 +61,8 @@ export interface Look {
   limb?: number;
   armsForward?: boolean;
   crown?: boolean;
+  /** 콧수염 색 */
+  mustache?: string;
 }
 
 // ── 그리기 도구 ──────────────────────────────────────────
@@ -243,6 +246,41 @@ function paintHair(p: Px, L: Look, hx: number, ft: number): void {
       p(x + 1, ft - 1, 1, 3 + (i % 3) * 2, S);
     }
     p(hx - 8, ft - 9, 12, 1, D);
+  } else if (L.hairStyle === "bun") {
+    // 단정히 묶은 회색 머리 + 뒤통수 똥머리
+    ellipse(p, hx - 3, ft - 1, 19, 11, H);
+    p(hx - 20, ft - 1, 7, 18, H);
+    p(hx - 20, ft + 4, 2, 13, S);
+    ellipse(p, hx - 18, ft - 8, 7.5, 7, S);
+    ellipse(p, hx - 18.5, ft - 8.5, 6, 5.6, H);
+    curve(p, hx - 23, ft - 9, hx - 18, ft - 14, hx - 13, ft - 9, Li);
+    for (let k = 0; k < 7; k++) curve(p, hx - 14 + k * 4, ft - 1, hx - 8 + k * 3, ft - 10, hx + 2 + k * 2.4, ft - 9 + k * 0.3, k % 2 ? Li : S);
+    curve(p, hx - 4, ft - 9, hx + 6, ft - 11, hx + 15, ft - 5, X);
+  } else if (L.hairStyle === "pony") {
+    // 앞머리 + 뒤로 흔들리는 포니테일
+    ellipse(p, hx - 2, ft - 2, 20, 12, H);
+    p(hx - 21, ft - 1, 7, 20, H);
+    curve(p, hx - 18, ft - 6, hx - 30, ft + 2, hx - 26, ft + 22, H, 5);
+    curve(p, hx - 19, ft - 4, hx - 29, ft + 4, hx - 25, ft + 20, S, 2);
+    p(hx - 21, ft - 7, 5, 5, "#e8506a");
+    p(hx - 21, ft - 7, 5, 1, "#ff8aa0");
+    for (let x = hx - 10; x <= hx + 18; x++) {
+      const drop = 3 + Math.round(Math.abs(Math.sin((x - hx) * 0.5)) * 3);
+      p(x, ft - 2, 1, drop, x % 4 === 0 ? S : H);
+    }
+    curve(p, hx - 6, ft - 10, hx + 4, ft - 13, hx + 14, ft - 8, Li);
+    p(hx - 2, ft - 11, 5, 1, X);
+  } else if (L.hairStyle === "beanie") {
+    // 짧은 옆머리 + 털모자
+    p(hx - 19, ft + 2, 7, 14, H);
+    p(hx - 19, ft + 6, 2, 10, S);
+    ellipse(p, hx - 1, ft - 4, 22, 13, S);
+    ellipse(p, hx - 1, ft - 5, 21, 12, "#a83a32");
+    ellipse(p, hx - 6, ft - 9, 11, 5, "#c8544a");
+    for (let x = hx - 20; x < hx + 20; x += 3) p(x, ft - 14 + Math.abs(x - hx) * 0.22, 1, 12 - Math.abs(x - hx) * 0.22, "#8a2a24");
+    p(hx - 22, ft + 1, 43, 6, "#8a2a24");
+    p(hx - 22, ft + 1, 43, 1, "#c8544a");
+    for (let x = hx - 21; x < hx + 20; x += 2) p(x, ft + 3, 1, 3, "#6a1e1a");
   } else if (L.hairStyle === "hood") {
     ellipse(p, hx - 2, ft + 6, 25, 25, H);
     ellipse(p, hx + 4, ft + 12, 17, 20, mix(H, -0.5));
@@ -281,6 +319,28 @@ function paintHead(p: Px, L: Look, hx: number, ft: number, mode: { closed?: bool
     // 금
     curve(p, hx - 10, ft - 2, hx - 4, ft + 4, hx - 8, ft + 10, s);
     p(hx + 14, ft + 22, 4, 6, s);
+    return;
+  }
+  if (L.hairStyle === "mask") {
+    // 방호복 두건 + 투명 얼굴창 + 방독면 정화통
+    const suit = L.hair;
+    ellipse(p, hx - 1, ft + 18, 23, 26, L.hairShade);
+    ellipse(p, hx, ft + 17, 21.5, 24.5, suit);
+    ellipse(p, hx - 8, ft + 6, 10, 9, L.hairLight);
+    for (let k = 0; k < 4; k++) curve(p, hx - 18, ft + 4 + k * 9, hx - 12, ft + 8 + k * 9, hx - 6, ft + 4 + k * 9, L.hairShade);
+    // 얼굴창
+    ellipse(p, hx + 8, ft + 17, 13, 11, "#1a2228");
+    ellipse(p, hx + 8, ft + 17, 11.5, 9.5, "#2c3e48");
+    ellipse(p, hx + 6, ft + 15, 7, 5, "#3e5662");
+    p(hx + 3, ft + 15, 3, 2, "#1a1a1a");
+    p(hx + 11, ft + 15, 3, 2, "#1a1a1a");
+    p(hx + 13, ft + 9, 2, 6, "rgba(255,255,255,0.75)");
+    p(hx + 15, ft + 11, 1, 3, "rgba(255,255,255,0.5)");
+    // 정화통
+    ellipse(p, hx + 12, ft + 33, 7, 6, "#24262c");
+    ellipse(p, hx + 12, ft + 33, 5, 4.4, "#3a3e46");
+    for (let i = -3; i <= 3; i += 2) p(hx + 12 + i, ft + 31, 1, 4, "#1a1c20");
+    ellipse(p, hx - 2, ft + 34, 5, 4, "#2e3036");
     return;
   }
   if (L.hairStyle === "frog") {
@@ -404,6 +464,10 @@ function paintHead(p: Px, L: Look, hx: number, ft: number, mode: { closed?: bool
     p(hx + 6, ft + 30, 6, 1, "#f4f0e8");
     ellipse(p, hx + 9, ft + 35, 2.5, 1.5, "#c84a4a");
   } else {
+    if (L.mustache) {
+      ellipse(p, hx + 9, ft + 29, 5.5, 1.7, L.mustache);
+      p(hx + 5, ft + 28, 6, 1, mix(L.mustache, 0.3));
+    }
     curve(p, hx + 3, ft + 31, hx + 8, ft + 33, hx + 13, ft + 30, L.mouth, 1);
     p(hx + 3, ft + 31, 1, 1, mix(L.mouth, -0.3));
     curve(p, hx + 5, ft + 34, hx + 8, ft + 35, hx + 11, ft + 34, mix(L.skin, 0.15));
@@ -778,6 +842,110 @@ export const FROG_KING: Look = {
   cuff: "#e8c83a",
   hunch: 4,
   crown: true,
+};
+
+/** 생존자: 루스 (전직 응급실 간호사, 녹색 카디건 + 수술복) */
+export const RUTH: Look = {
+  skin: "#eac4a4",
+  skinShade: "#c89a7c",
+  skinLight: "#f8dcc4",
+  hair: "#c8c6c2",
+  hairShade: "#9a9894",
+  hairLight: "#ecebe8",
+  hairStyle: "bun",
+  shirt: (lx, ly, w) => {
+    const edge = lx < 7 || lx > w - 8;
+    if (edge) return (ly % 4 === 0) ? "#3e6a4a" : (lx + ly) % 3 === 0 ? "#4a7a56" : "#558862";
+    if (ly < 4 && Math.abs(lx - w / 2) < 6) return "#e2bca0";
+    return (lx * 2 + ly) % 9 === 0 ? "#5a9aa0" : "#6aaab0";
+  },
+  sleeve: "#558862",
+  sleeveShade: "#3e6a4a",
+  cuff: "#3e6a4a",
+  pants: "#6aaab0",
+  pantsShade: "#4a8a90",
+  shoes: "#e8e4dc",
+  eye: "#5a4a3a",
+  mouth: "#a8685a",
+  brow: "#8a8884",
+  hunch: 1,
+};
+
+/** 생존자: 토마스 (부서진 편의점 주인, 털모자 + 앞치마) */
+export const TOMAS: Look = {
+  skin: "#b8825a",
+  skinShade: "#8e6040",
+  skinLight: "#d0a07a",
+  hair: "#2a2220",
+  hairShade: "#1a1412",
+  hairLight: "#4a3e38",
+  hairStyle: "beanie",
+  shirt: (lx, ly, w) => {
+    const apron = lx > 6 && lx < w - 7 && ly > 6;
+    if (apron) return ly === 7 ? "#c8c4b8" : (lx + ly) % 7 === 0 ? "#d8d4c8" : "#ece8dc";
+    if (ly < 7 && Math.abs(lx - w / 2) < 3) return "#ece8dc";
+    return (lx + ly * 2) % 8 < 1 ? "#2c4870" : "#3a5a88";
+  },
+  sleeve: "#3a5a88",
+  sleeveShade: "#2c4870",
+  pants: "#3a3634",
+  pantsShade: "#282624",
+  shoes: "#3a2a1e",
+  eye: "#2a1e16",
+  mouth: "#7a4a3a",
+  brow: "#1a1412",
+  mustache: "#241c18",
+};
+
+/** 생존자: 릴리 (꼬마, 분홍 후드티 + 포니테일) */
+export const LILY: Look = {
+  skin: "#f6d2b4",
+  skinShade: "#dca88a",
+  skinLight: "#ffe6d0",
+  hair: "#7a4a2a",
+  hairShade: "#5a321a",
+  hairLight: "#a8744a",
+  hairStyle: "pony",
+  shirt: (lx, ly, w, h) => {
+    if (ly > h - 12 && Math.abs(lx - w / 2) < 9 && ly < h - 3) return ly === h - 12 ? "#d8708a" : "#e88aa2";
+    if (Math.abs(lx - w / 2 - 1) < 1 && ly < 12) return "#fff0f4";
+    return (lx + ly) % 7 === 0 ? "#f0a0b6" : "#f4b0c2";
+  },
+  sleeve: "#f4b0c2",
+  sleeveShade: "#d8889e",
+  cuff: "#e88aa2",
+  pants: "#5a6a9a",
+  pantsShade: "#44507a",
+  shoes: "#e8e4ec",
+  eye: "#4a3a2a",
+  mouth: "#c86a6a",
+  brow: "#6a3e22",
+};
+
+/** 면역자를 찾는 방호복 요원 */
+export const HAZMAT: Look = {
+  skin: "#2e3036",
+  skinShade: "#1e2024",
+  skinLight: "#44464e",
+  hair: "#e8d040",
+  hairShade: "#b8a02a",
+  hairLight: "#f8e880",
+  hairStyle: "mask",
+  shirt: (lx, ly, w) => {
+    if (ly > 4 && ly < 8 && lx > 4 && lx < w - 5) return "#2e3036";
+    if (Math.abs(lx - w / 2) < 1) return "#b8a02a";
+    if (lx > w - 14 && lx < w - 6 && ly > 12 && ly < 20) return ly === 13 ? "#c83a2a" : (lx + ly) % 3 ? "#f4f0e0" : "#c83a2a";
+    return (lx + ly * 3) % 13 === 0 ? "#d8c034" : "#e8d040";
+  },
+  sleeve: "#e8d040",
+  sleeveShade: "#b8a02a",
+  cuff: "#2e3036",
+  pants: "#e0c83a",
+  pantsShade: "#b09828",
+  shoes: "#1e2024",
+  belt: "#2e3036",
+  eye: "#000",
+  mouth: "#000",
 };
 
 /** 사람 스프라이트 (화면 32×54 자리에 128×216 도트) */
