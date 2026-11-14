@@ -3,6 +3,7 @@ import "./style.css";
 import { FONT, H, W, canvas, clock, fx, g, keys, mouse, pressed, render, tickScripts, unlockAudio, updateFx } from "./core";
 import { setSpriteDensity } from "./sprites";
 import { S, bakeIdle, debug, drawPlay, drawTitle, goScene, prewarm, update, updateTitle } from "./game";
+import "./stages";
 
 const stage = document.getElementById("stage")!;
 

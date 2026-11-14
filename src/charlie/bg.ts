@@ -2035,3 +2035,248 @@ export function buildHelipad(): HTMLCanvasElement {
   rect(g, 680, 56, 3, 3, "#ff3a2a");
   return c;
 }
+
+// ── 실내 미로 공용 배경 ──────────────────────────────────────
+export type Theme = "hall" | "flat" | "lobby" | "tunnel" | "pump" | "staff" | "crypt" | "vault" | "security" | "archive" | "cells";
+export interface DoorDef {
+  x: number;
+  kind: "door" | "stairs" | "elevator" | "grate" | "arch" | "window" | "steel";
+  label?: string;
+}
+
+function woodDoor(g: G, x: number, label: string | undefined, col = "#5a3828"): void {
+  rect(g, x - 15, 146, 30, 68, mix(col, -0.4));
+  rect(g, x - 13, 148, 26, 66, col);
+  for (const [py, ph] of [[152, 24], [182, 28]]) {
+    rect(g, x - 10, py, 9, ph, mix(col, -0.12));
+    rect(g, x + 1, py, 9, ph, mix(col, -0.12));
+    rect(g, x - 10, py, 9, 0.5, mix(col, 0.15));
+    rect(g, x + 1, py, 9, 0.5, mix(col, 0.15));
+  }
+  rect(g, x + 8, 182, 2, 3, "#d8b84a");
+  if (label) {
+    rect(g, x - 6, 138, 12, 6, "#c8b070");
+    smallText(g, label, x, 141, "#2a1a10", 6);
+  }
+}
+
+export function buildInterior(theme: Theme, width: number, seed: number, doors: DoorDef[]): HTMLCanvasElement {
+  const c = makeDense(width, H, BG_SCALE);
+  const g = c.getContext("2d")!;
+  const r = rng(seed);
+  const P: Record<Theme, { wall: string; wall2: string; floor: string; trim: string }> = {
+    hall: { wall: "#8a7458", wall2: "#7a6448", floor: "#5a2e2a", trim: "#4a3020" },
+    flat: { wall: "#9a8a72", wall2: "#8a7a62", floor: "#6a4a32", trim: "#5a3a26" },
+    lobby: { wall: "#7a6a5a", wall2: "#6a5a4a", floor: "#c8c0b0", trim: "#3a2a20" },
+    tunnel: { wall: "#4a4a46", wall2: "#3e3e3a", floor: "#2a2a28", trim: "#1e1e1c" },
+    pump: { wall: "#4a524e", wall2: "#3e4642", floor: "#2e3432", trim: "#1e2422" },
+    staff: { wall: "#7a8a8a", wall2: "#6a7a7a", floor: "#4a4e52", trim: "#2a2e32" },
+    crypt: { wall: "#4a4038", wall2: "#3e352e", floor: "#2e2824", trim: "#1e1a16" },
+    vault: { wall: "#3e3630", wall2: "#342c26", floor: "#2a2420", trim: "#1a1612" },
+    security: { wall: "#3a4450", wall2: "#323a44", floor: "#2a3036", trim: "#1a1e24" },
+    archive: { wall: "#5a5448", wall2: "#4e483e", floor: "#3a3630", trim: "#2a241e" },
+    cells: { wall: "#b8bcc0", wall2: "#a8acb0", floor: "#7a8086", trim: "#5a6066" },
+  };
+  const pal = P[theme];
+  // 천장
+  rect(g, 0, 0, width, 22, mix(pal.wall, -0.55));
+  rect(g, 0, 21, width, 1, mix(pal.wall, -0.7));
+  // 벽
+  vgrad(g, 0, 22, width, 214, [[0, mix(pal.wall, -0.15)], [1, pal.wall]]);
+  if (theme === "hall" || theme === "flat") {
+    // 빛바랜 줄무늬 벽지 + 징두리
+    for (let x = 0; x < width; x += 8) rect(g, x, 22, 3, 128, "rgba(0,0,0,0.06)");
+    for (let x = 4; x < width; x += 16) for (let y = 30; y < 148; y += 14) rect(g, x, y, 1.5, 1.5, "rgba(255,240,200,0.12)");
+    rect(g, 0, 150, width, 64, pal.wall2);
+    for (let x = 0; x < width; x += 24) {
+      rect(g, x + 3, 156, 18, 52, mix(pal.wall2, -0.06));
+      rect(g, x + 3, 156, 18, 0.5, mix(pal.wall2, 0.12));
+    }
+    rect(g, 0, 148, width, 3, pal.trim);
+    rect(g, 0, 148, width, 0.5, mix(pal.trim, 0.3));
+  } else if (theme === "tunnel" || theme === "pump") {
+    for (let y = 22; y < 214; y += 6) for (let x = (y / 6) % 2 ? 6 : 0; x < width; x += 12) {
+      const col = mix(pal.wall, (r() - 0.5) * 0.1);
+      rect(g, x + 0.5, y + 0.5, 11, 5, col);
+      rect(g, x + 0.5, y + 0.5, 11, 0.5, mix(col, 0.1));
+    }
+    // 파이프
+    for (const [py, pc] of [[40, "#6a5a3a"], [52, "#3a5a6a"], [60, "#5a3a2a"]] as Array<[number, string]>) {
+      rect(g, 0, py, width, 5, pc);
+      rect(g, 0, py, width, 1, mix(pc, 0.3));
+      rect(g, 0, py + 4, width, 1, mix(pc, -0.3));
+      for (let x = 20 + r() * 40; x < width; x += 70 + r() * 50) rect(g, x, py - 1, 3, 7, mix(pc, -0.2));
+    }
+    for (let i = 0; i < width / 40; i++) rect(g, r() * width, 70 + r() * 120, 1, 6 + r() * 30, "rgba(90,110,60,0.35)");
+    for (let x = 60; x < width; x += 140) {
+      rect(g, x, 26, 14, 4, "#2a2a28");
+      rect(g, x + 2, 30, 10, 2, "#e8e0a0");
+    }
+  } else if (theme === "crypt" || theme === "vault") {
+    for (let y = 22; y < 214; y += 10) for (let x = (y / 10) % 2 ? 12 : 0; x < width; x += 24) {
+      const col = mix(pal.wall, (r() - 0.5) * 0.14);
+      rect(g, x + 0.5, y + 0.5, 23, 9, col);
+      rect(g, x + 0.5, y + 0.5, 23, 0.5, mix(col, 0.12));
+      rect(g, x + 0.5, y + 9, 23, 0.5, mix(col, -0.2));
+    }
+    // 아치형 벽감
+    for (let x = 40; x < width - 40; x += 120) {
+      g.fillStyle = mix(pal.wall, -0.45);
+      g.beginPath();
+      g.moveTo(x - 18, 150);
+      g.lineTo(x - 18, 90);
+      g.quadraticCurveTo(x, 66, x + 18, 90);
+      g.lineTo(x + 18, 150);
+      g.fill();
+      if (theme === "crypt") {
+        for (let k = 0; k < 3; k++) {
+          rect(g, x - 12, 104 + k * 15, 24, 2, "#5a4a38");
+          for (let j = 0; j < 4; j++) if (r() < 0.7) rect(g, x - 10 + j * 6, 98 + k * 15, 4, 6, ["#8a7a5a", "#5a3a2a", "#3a4a5a", "#e8dcc0"][j]);
+        }
+      } else {
+        rect(g, x - 2, 112, 4, 30, "#c8b88a");
+        g.fillStyle = "#f4d88a";
+        g.beginPath();
+        g.ellipse(x, 108, 2, 4, 0, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+  } else if (theme === "staff" || theme === "security" || theme === "archive" || theme === "lobby" || theme === "cells") {
+    for (let x = 0; x < width; x += 32) rect(g, x, 22, 0.5, 192, "rgba(0,0,0,0.08)");
+    rect(g, 0, 150, width, 6, mix(pal.wall, -0.2));
+    for (let x = 50; x < width; x += 130) {
+      rect(g, x, 23, 30, 3, "#e8ecf0");
+      rect(g, x, 26, 30, 0.5, "#9aa0a6");
+    }
+    if (theme === "lobby") {
+      // 대리석 바닥 무늬 + 우편함
+      rect(g, 0, 160, width, 54, pal.wall2);
+      for (let x = 0; x < width; x += 20) rect(g, x, 160, 0.5, 54, "rgba(0,0,0,0.1)");
+    }
+  }
+  // 바닥
+  rect(g, 0, 214, width, H - 214, pal.floor);
+  if (theme === "hall") {
+    rect(g, 0, 218, width, 30, "#7a2a2a");
+    for (let x = 0; x < width; x += 12) rect(g, x + 2, 224, 8, 0.75, "#c8a03a");
+    rect(g, 0, 218, width, 0.75, "#c8a03a");
+    rect(g, 0, 247, width, 0.75, "#c8a03a");
+  } else if (theme === "lobby") {
+    for (let x = 0; x < width; x += 16) for (let y = 214; y < H; y += 16) rect(g, x, y, 15.5, 15.5, ((x + y) / 16) % 2 ? "#d8d0c0" : "#2a2a2a");
+  } else if (theme === "tunnel") {
+    rect(g, 0, 214, width, 6, "#3a3a36");
+    for (let x = 0; x < width; x += 8) rect(g, x, 214, 0.5, 6, "#2a2a26");
+  } else {
+    for (let x = 0; x < width; x += 18) rect(g, x, 214, 0.5, H - 214, mix(pal.floor, -0.2));
+  }
+  rect(g, 0, 214, width, 1, mix(pal.floor, 0.25));
+  rect(g, 0, 210, width, 4, pal.trim);
+  // 소품
+  const props = (x: number) => {
+    const k = r();
+    if (theme === "hall") {
+      if (k < 0.35) {
+        rect(g, x - 6, 90, 12, 16, "#c8b890");
+        rect(g, x - 5, 91, 10, 14, ["#6a8aa8", "#a86a5a", "#7a9a6a"][Math.floor(r() * 3)]);
+      } else if (k < 0.6) {
+        rect(g, x - 1, 60, 2, 10, "#2a2a2a");
+        rect(g, x - 6, 70, 12, 6, "#e8d8a8");
+      }
+    } else if (theme === "flat") {
+      if (k < 0.3) {
+        rect(g, x - 22, 186, 44, 20, "#5a6a8a");
+        rect(g, x - 24, 178, 48, 10, "#4a5a7a");
+        rect(g, x - 22, 206, 4, 8, "#3a2a20");
+        rect(g, x + 18, 206, 4, 8, "#3a2a20");
+      } else if (k < 0.55) {
+        rect(g, x - 14, 130, 28, 84, "#6a4a32");
+        for (let y = 140; y < 210; y += 18) {
+          rect(g, x - 12, y, 24, 2, "#4a3020");
+          for (let j = 0; j < 4; j++) if (r() < 0.8) rect(g, x - 11 + j * 6, y - 10, 4, 10, ["#a83a3a", "#3a6aa8", "#e8c84a", "#5a8a4a"][j]);
+        }
+      } else if (k < 0.75) {
+        rect(g, x - 16, 70, 32, 40, "#d8d0c0");
+        rect(g, x - 14, 72, 28, 36, "#1a2440");
+        rect(g, x - 1, 72, 2, 36, "#d8d0c0");
+      }
+    } else if (theme === "crypt" || theme === "vault") {
+      if (k < 0.4) {
+        rect(g, x - 1, 190, 2, 24, "#3a2a1e");
+        rect(g, x - 1, 182, 2, 8, "#f4ecd8");
+      }
+    } else if (theme === "archive") {
+      rect(g, x - 20, 120, 40, 94, "#4a4a50");
+      for (let y = 124; y < 210; y += 16) {
+        rect(g, x - 18, y, 36, 14, "#5a5a62");
+        rect(g, x - 2, y + 6, 4, 2, "#c8c8d0");
+      }
+    } else if (theme === "security") {
+      rect(g, x - 30, 176, 60, 38, "#2a2e34");
+      for (let j = 0; j < 3; j++) {
+        rect(g, x - 28 + j * 20, 150, 18, 14, "#1a1e24");
+        rect(g, x - 27 + j * 20, 151, 16, 12, "#2a4a3a");
+      }
+    } else if (theme === "cells") {
+      rect(g, x - 26, 60, 52, 90, "#5a6066");
+      for (let j = 0; j < 7; j++) rect(g, x - 24 + j * 8, 62, 2, 86, "#8a9096");
+      g.fillStyle = "rgba(30,40,50,0.6)";
+      g.beginPath();
+      g.ellipse(x, 116, 5, 6, 0, 0, Math.PI * 2);
+      g.fill();
+      rect(g, x - 7, 122, 14, 22, "rgba(30,40,50,0.6)");
+    } else if (theme === "staff") {
+      if (k < 0.5) for (let j = 0; j < 4; j++) {
+        rect(g, x - 24 + j * 12, 140, 11, 74, "#5a6a7a");
+        rect(g, x - 22 + j * 12, 150, 7, 1, "#3a4a5a");
+        rect(g, x - 22 + j * 12, 154, 7, 1, "#3a4a5a");
+      }
+    }
+  };
+  const taken = doors.map((d) => d.x);
+  for (let x = 60; x < width - 40; x += 70 + r() * 40) if (taken.every((dx) => Math.abs(dx - x) > 40)) props(x);
+  // 문
+  for (const d of doors) {
+    if (d.kind === "door") woodDoor(g, d.x, d.label, theme === "staff" || theme === "security" || theme === "archive" ? "#6a7a8a" : "#5a3828");
+    else if (d.kind === "stairs") {
+      woodDoor(g, d.x, undefined, "#4a4a52");
+      rect(g, d.x - 12, 128, 24, 8, "#2a8a3a");
+      smallText(g, d.label ?? "계단", d.x, 132, "#ffffff", 6);
+    } else if (d.kind === "elevator") {
+      rect(g, d.x - 18, 140, 36, 74, "#5a5e66");
+      rect(g, d.x - 16, 144, 15, 70, "#a8b0b8");
+      rect(g, d.x + 1, 144, 15, 70, "#a8b0b8");
+      rect(g, d.x - 8, 130, 16, 8, "#1a1a1a");
+      rect(g, d.x + 22, 170, 4, 8, "#3a3a3a");
+    } else if (d.kind === "grate") {
+      rect(g, d.x - 18, 150, 36, 64, "#1a1a1a");
+      for (let j = 0; j < 7; j++) rect(g, d.x - 16 + j * 5.2, 150, 1.5, 64, "#6a5a4a");
+      for (let y = 160; y < 214; y += 14) rect(g, d.x - 18, y, 36, 1.5, "#6a5a4a");
+    } else if (d.kind === "arch") {
+      g.fillStyle = "#0e0a08";
+      g.beginPath();
+      g.moveTo(d.x - 18, 214);
+      g.lineTo(d.x - 18, 160);
+      g.quadraticCurveTo(d.x, 136, d.x + 18, 160);
+      g.lineTo(d.x + 18, 214);
+      g.fill();
+    } else if (d.kind === "window") {
+      rect(g, d.x - 18, 100, 36, 50, "#d8d0c0");
+      rect(g, d.x - 16, 102, 32, 46, "#3a1a14");
+      vgrad(g, d.x - 16, 102, 32, 148, [[0, "#1a0a10"], [1, "#a8401a"]]);
+      for (let k = 0; k < 6; k++) rect(g, d.x - 16 + k * 6, 132, 1, 16, "#0a0a10");
+      rect(g, d.x - 1, 102, 2, 46, "#d8d0c0");
+    } else if (d.kind === "steel") {
+      rect(g, d.x - 18, 140, 36, 74, "#4a5058");
+      rect(g, d.x - 16, 142, 32, 72, "#6a7480");
+      rect(g, d.x - 16, 142, 32, 1, "#8a949e");
+      for (let j = 0; j < 6; j++) rect(g, d.x - 14 + j * 5.6, 146, 1, 1, "#3a4048");
+      rect(g, d.x + 20, 170, 6, 10, "#1a1e24");
+      rect(g, d.x + 21, 172, 4, 2, "#c83a3a");
+      if (d.label) {
+        rect(g, d.x - 14, 128, 28, 9, "#c8a83a");
+        smallText(g, d.label, d.x, 132.5, "#1a1a1a", 6);
+      }
+    }
+  }
+  return c;
+}

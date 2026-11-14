@@ -1,6 +1,7 @@
 // 게임 본체: 장면 · 배우 · 조사 지점 · 스토리 연출
 import {
   ADVANCE,
+  FONT,
   GROUND,
   H,
   W,
@@ -74,7 +75,7 @@ import {
   type Look,
   type Pose,
 } from "./sprites";
-import { makeCanvas } from "./pixel";
+import { makeCanvas, mix } from "./pixel";
 import { farewellShots, introShots, memoryShots, type Shot } from "./movies";
 
 // ── 타입 ─────────────────────────────────────────────────
@@ -153,6 +154,8 @@ interface Scene {
   noPlayer?: boolean;
   useLight?: boolean;
   overlay?: (camX: number) => void;
+  /** 화면 왼쪽 위에 보여 줄 장소 이름 (미로 방) */
+  label?: string;
 }
 
 // ── 상태 ─────────────────────────────────────────────────
@@ -174,6 +177,9 @@ export const S = {
   fridgeSel: 0,
   choice: null as null | { options: string[]; sel: number; picked: number },
   movie: null as null | { shots: Shot[]; i: number; t: number },
+  pad: null as null | { title: string; code: string; input: string; result: boolean | null; sel: number; shake: number },
+  simon: null as null | { title: string; seq: number[]; labels: string[]; phase: "show" | "input"; t: number; idx: number; result: boolean | null; lit: number; litT: number },
+  album: 0,
   /** 연출용 카메라: 초점 x, 확대 */
   cam: { focus: null as number | null, zoom: 1, zoomTarget: 1 },
   bars: 0,
@@ -801,7 +807,7 @@ SCENES.room = () => {
     emote(charlie, "!");
     await say(charlie, "샘! 안 돼!");
     await wait(0.4);
-    await goScene("chapter1", 0);
+    await goScene("apt4", 0);
   };
 
   const sc: Scene = {
@@ -831,6 +837,7 @@ SCENES.room = () => {
       search("desk", ROOM.desk, ["책상 밑... 없다.", "모니터에 회사 메일 알림이 37개 떠 있다. 보지 말자."]),
       search("bed", ROOM.bed, ["침대 위엔 하얀 털만 잔뜩 묻어 있다.", "여기엔 없는 것 같다."]),
       search("wardrobe", ROOM.wardrobe, ["옷장 안에는 똑같은 체크 셔츠만 일곱 벌.", "샘은 없다."]),
+      photoSpot("p12", ROOM.bed + 44, 176, "침대 옆 협탁"),
       {
         x: ROOM.door,
         iconY: 100,
@@ -1404,7 +1411,7 @@ SCENES.chapter1 = (checkpoint) => {
       await fadeTo(0, 1.2);
       await wait(0.6);
       charlie.pose = null;
-      charlie.anim = { prefix: "walk", frames: 16, fps: 20 };
+      charlie.anim = { prefix: "front", frames: 8, fps: 9 };
       for (let s = 0; s < 6; s++) {
         sfx.step();
         await tween(charlie, info.door + s * 4, GROUND - 30 + s * 6, 0.2, 0);
@@ -1448,6 +1455,7 @@ SCENES.alley = () => {
     maxX: 580,
     actors: [shadow],
     hotspots: [
+      photoSpot("p1", 90, 170, "젖은 상자"),
       {
         x: ALLEY.cat,
         iconY: 170,
@@ -1566,13 +1574,13 @@ SCENES.subwayGate = () => {
         use: async () => {
           if (!S.flags.tracks) await say(charlie, "어디로 간 거지...? 바닥에 뭔가 있는 것 같은데.");
           else {
-            charlie.anim = { prefix: "climb", frames: 8, fps: 8 };
+            charlie.anim = { prefix: "front", frames: 8, fps: 9 };
             for (let i = 0; i < 4; i++) {
               sfx.step();
               await tween(charlie, gateX, GROUND + (i + 1) * 3, 0.26, 0);
             }
             charlie.anim = null;
-            await goScene("subway");
+            await goScene("tun1");
           }
         },
       },
@@ -2236,7 +2244,7 @@ SCENES.roofs = (checkpoint) => {
     minX: 30,
     maxX: ROOFS.width - 30,
     actors: [],
-    hotspots: ROOFS.cover.map(
+    hotspots: [photoSpot("p9", 1480, 176, "버려진 카메라"), ...ROOFS.cover.map(
       (cv): Hotspot => ({
         x: cv.x,
         iconY: 130,
@@ -2250,7 +2258,7 @@ SCENES.roofs = (checkpoint) => {
           sfx.step();
         },
       }),
-    ),
+    )],
     zones: [
       {
         x: ROOFS.skylight - 40,
@@ -2388,7 +2396,7 @@ SCENES.church = (checkpoint) => {
     shake(0.4);
     gameOver("GAME OVER", "특별대응단에게 붙잡혀 격리 센터로 끌려갔다...", 1);
   };
-  const talkDone = () => !!(F.c3ruth && F.c3lily && F.c3radio);
+  const talkDone = () => !!(F.c3ruth && F.c3lily && F.c3radio && F.medGiven);
   const beginRaid = async () => {
     raid = true;
     sfx.boom();
@@ -2531,6 +2539,18 @@ SCENES.church = (checkpoint) => {
   const sc: Scene = {
     id: "church",
     width: CHURCH.width,
+    back: (camX) => {
+      const x = 905 - camX;
+      g.fillStyle = "#2a1a12";
+      g.fillRect(x - 12, 168, 24, 46);
+      g.fillStyle = "#4a3020";
+      g.fillRect(x - 10, 170, 20, 44);
+      g.fillStyle = "#1a100a";
+      for (let k = 0; k < 4; k++) g.fillRect(x - 10 + k * 5, 170, 0.6, 44);
+      g.fillStyle = "#c8a83a";
+      g.fillRect(x + 6, 190, 2, 3);
+      text("지하", x, 162, "#c8b890", "center");
+    },
     bg: buildChurch(),
     ambient: 0.55,
     tint: "rgba(30,20,50,0.10)",
@@ -2558,6 +2578,21 @@ SCENES.church = (checkpoint) => {
     },
     hotspots: [
       talk(ruth, "루스와 이야기", async () => {
+        if (F.c3ruth && has("med")) {
+          take("med");
+          F.medGiven = 1;
+          await say(charlie, "할머니, 성물실에서 약 찾아왔어요!");
+          emote(ruth, "♥");
+          await say(ruth, "고맙다, 찰리. 종 퍼즐까지 풀다니, 제법인걸.");
+          await caption("루스가 릴리에게 흡입기를 건넨다. 릴리의 쌕쌕거리던 숨이 조금씩 가라앉는다.");
+          emote(lily, "♥");
+          await say(lily, "고마워요, 찰리 아저씨...");
+          return;
+        }
+        if (F.c3ruth && !F.medGiven) {
+          await say(ruth, "릴리 약은 지하 '성물실'에 있어. 제단 오른쪽 계단으로 내려가렴.");
+          return;
+        }
         if (F.c3ruth) {
           await say(ruth, "응급실에서 30년을 일했어. 세상이 망해도 할 일은 똑같아. 다친 사람을 돌보는 것.");
           return;
@@ -2569,7 +2604,24 @@ SCENES.church = (checkpoint) => {
         await say(charlie, "그럼... 저는 왜 멀쩡한 거죠?");
         await say(ruth, "글쎄. 아무것도 붙들지 않았거나... 딱 하나만 소중히 붙들고 있었거나.");
         await caption("루스가 샘 쪽을 보며 빙그레 웃었다.");
+        await caption("그때, 릴리가 쌕쌕거리며 기침을 했다.");
+        await say(ruth, "...릴리 천식약이 다 떨어졌어. 지하 성물실에 예비 약을 숨겨 뒀는데, 다리가 아파서 못 내려가겠구나.");
+        await say(ruth, "찰리, 부탁 좀 하자. 제단 오른쪽 계단으로 내려가면 돼.");
+        await say(charlie, "맡겨 주세요.");
       }),
+      {
+        x: 905,
+        iconY: 150,
+        label: "지하로 내려가기",
+        range: 22,
+        enabled: () => !raid && !ending && !!F.c3ruth,
+        use: async () => {
+          await walkTo(charlie, 905, 50);
+          await descend(4);
+          await goScene("crypt1", 60);
+        },
+      },
+      photoSpot("p6", 760, 176, "릴리의 그림"),
       talk(tomas, "토마스와 이야기", async () => {
         if (F.c3tomas) {
           await say(tomas, "문은 내가 지켜. 해골 시위대가 지나갈 때마다 바리케이드를 다시 쌓아야 하거든.");
@@ -2670,8 +2722,16 @@ SCENES.church = (checkpoint) => {
       sam.y = GROUND;
       sam.facing = -1;
       sam.pose = "sit";
+      if (checkpoint === 2) {
+        charlie.x = 900;
+        charlie.facing = -1;
+        S.camX = CHURCH.width - W;
+        await fadeTo(0, 0.6);
+        S.control = true;
+        return;
+      }
       if (checkpoint > 0) {
-        Object.assign(F, { c3ruth: 1, c3lily: 1, c3radio: 1, raid: 1 });
+        Object.assign(F, { c3ruth: 1, c3lily: 1, c3radio: 1, medGiven: 1, raid: 1 });
         charlie.x = 780;
         charlie.facing = -1;
         sam.visible = false;
@@ -2920,7 +2980,7 @@ SCENES.pier = (checkpoint) => {
     get actors() {
       return kit.guards;
     },
-    hotspots: PIER.hide.map((x) => hideAt(x, "컨테이너 뒤에 숨기", 150)),
+    hotspots: [...PIER.hide.map((x) => hideAt(x, "컨테이너 뒤에 숨기", 150)), photoSpot("p11", 640, 176, "젖은 상자")],
     zones: [
       {
         x: 740,
@@ -3080,14 +3140,51 @@ SCENES.center = (checkpoint) => {
         enabled: () => !asCat() && !!F.keycard,
         use: async () => {
           sfx.blip();
-          await caption("삑. 철컥.");
+          if (!F.labCode) {
+            await caption("삑. 「카드 확인. 비밀번호 4자리를 입력하세요.」");
+            const ok = await openKeypad("실험실 비밀번호", "7395");
+            if (!ok) {
+              await say(charlie, "비밀번호를 모르겠어. 보안실이나 기록 보관실에서 단서를 찾아보자.");
+              return;
+            }
+            F.labCode = 1;
+          }
+          await caption("철컥.");
           await goScene("lab");
         },
       },
+      ...([
+        [960, "보안실", "sec4"],
+        [1100, "기록 보관실", "arch4"],
+        [300, "격리 구역", "cells4"],
+      ] as Array<[number, string, string]>).map(
+        ([x, name, id]): Hotspot => ({
+          x,
+          iconY: 112,
+          label: `${name} 들어가기`,
+          range: 18,
+          enabled: () => !asCat(),
+          use: async () => {
+            sfx.step();
+            await goScene(id, 70);
+          },
+        }),
+      ),
     ],
     zones: [],
     update: (dt) => kit.update(dt),
     back: (camX) => {
+      // 옆방 문 (보안실 · 기록 보관실 · 격리 구역)
+      for (const [x, name] of [[960, "보안실"], [1100, "기록실"], [300, "격리 구역"]] as Array<[number, string]>) {
+        const sx = x - camX;
+        g.fillStyle = "#3a4048";
+        g.fillRect(sx - 15, 150, 30, 64);
+        g.fillStyle = "#6a7480";
+        g.fillRect(sx - 13, 152, 26, 62);
+        g.fillStyle = "#c8a83a";
+        g.fillRect(sx - 15, 140, 30, 8);
+        text(name, sx, 144, "#1a1a1a", "center", "");
+      }
       if (!open) return;
       g.fillStyle = "#0a0c12";
       g.fillRect(half(21 - camX), 122, 98, 60);
@@ -3096,7 +3193,7 @@ SCENES.center = (checkpoint) => {
       if (checkpoint > 0) {
         Object.assign(F, { keycard: 1, cardMan: 1 });
         open = true;
-        charlie.x = 100;
+        charlie.x = checkpoint > 1 ? checkpoint : 100;
         charlie.y = GROUND;
         charlie.facing = 1;
         await fadeTo(0, 0.6);
@@ -3371,10 +3468,19 @@ SCENES.helipad = (checkpoint) => {
     focusCam(sam.x, 1.45);
     await caption("「돌아오렴, 작은 별의 아이야. 너는 원래 우리의 아이란다.」");
     await say(charlie, "샘이... 저 별에서 왔다고?");
+    await caption("초록빛이 깜빡인다. 무언가를 묻는 것처럼, 일정한 순서로.");
+    await say(charlie, "...말을 거는 거야? 그럼 손전등으로 대답해 보자.");
+    for (;;) {
+      const ok = await playSimon("빛의 언어: 같은 순서로 비추기", [2, 0, 3, 1, 2, 3, 0]);
+      if (ok) break;
+      await caption("빛이 갸웃거리듯 흔들린다. 다시 한 번...");
+    }
+    await caption("초록빛이 부드럽게 퍼지며, 찰리의 머릿속에 장면 하나가 흘러들어 왔다.");
     await playMovie(memoryShots());
     await say(charlie, "...그날 비 오는 골목. 상자 속에서 떨던 게 너였구나.");
     await caption("샘이 빛 속에서 찰리를 돌아본다.");
     const pick = await choose(["샘, 가지 마! 내 곁에 있어 줘.", "...가고 싶으면, 가도 돼."]);
+    markEnding(pick === 0 ? "A" : "B");
     if (pick === 0) {
       F.endA = 1;
       await say(charlie, "샘, 가지 마! 너 없으면 난... 맥주만 마시다 잠드는 사람이야.");
@@ -3463,6 +3569,7 @@ SCENES.epiA = () => {
       await say(ruth, "좀비였던 사람들은 재활 센터에 다니고, 해골 시위대는 다시 살이 붙더니... 고기 한 점 두고 싸우더군.");
       emote(lily, "♪");
       await say(lily, "나비도 돌아왔어요! 초록빛이 고양이들을 다 돌려보내 줬대요!");
+      if (S.flags.freed) await say(ruth, "격리 센터에서 풀려난 사람들이 자네한테 고맙다고 전해 달라더군. 레버 당긴 사람이 누군지 다 알아.");
       await caption("휴대폰 알림: 「블랙컴퍼니(주) 파산. 그림스 부장 행방불명.」");
       emote(charlie, "♪");
       await say(charlie, "...출근은 안 해도 되겠네.");
@@ -3559,6 +3666,291 @@ SCENES.intro = () => {
 };
 
 // ═════════════════════════════════════════════════════════
+// 퍼즐 도구: 가방 · 비밀번호 · 순서 기억 · 추억 사진
+// ═════════════════════════════════════════════════════════
+/** 아이템 이름표 (stages.ts 에서 채운다) */
+export const ITEMS: Record<string, string> = {};
+function has(id: string): boolean {
+  return !!S.flags[`i_${id}`];
+}
+async function give(id: string): Promise<void> {
+  S.flags[`i_${id}`] = 1;
+  sfx.item();
+  await caption(`「${ITEMS[id] ?? id}」을(를) 가방에 넣었다.`);
+}
+function take(id: string): void {
+  delete S.flags[`i_${id}`];
+}
+
+function drawBag(sc: Scene): void {
+  if (!S.control || sc.noPlayer) return;
+  const items = Object.keys(S.flags).filter((k) => k.startsWith("i_") && S.flags[k]);
+  let y = 6;
+  if (sc.label) {
+    g.fillStyle = "rgba(6,5,10,0.6)";
+    g.fillRect(6, y, 100, 15);
+    text(sc.label, 12, y + 7.5, "#ece6f4", "left");
+    y += 18;
+  }
+  if (items.length) {
+    const line = `가방: ${items.map((k) => ITEMS[k.slice(2)] ?? k.slice(2)).join(" · ")}`;
+    g.font = FONT;
+    const w = g.measureText(line).width + 14;
+    g.fillStyle = "rgba(6,5,10,0.6)";
+    g.fillRect(6, y, w, 15);
+    text(line, 12, y + 7.5, "#ffd36a", "left");
+  }
+}
+
+/** 숫자 자물쇠: 맞으면 true, 그만두면 false */
+function openKeypad(title: string, code: string): Promise<boolean> {
+  S.pad = { title, code, input: "", result: null, sel: 0, shake: 0 };
+  return until(() => S.pad?.result !== null).then(() => {
+    const ok = !!S.pad!.result;
+    S.pad = null;
+    return ok;
+  });
+}
+const PAD_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "←", "0", "OK"];
+function padPress(key: string): void {
+  const pd = S.pad!;
+  if (key === "←") pd.input = pd.input.slice(0, -1);
+  else if (key === "OK") {
+    if (pd.input === pd.code) {
+      sfx.item();
+      pd.result = true;
+    } else {
+      sfx.croak();
+      pd.shake = 0.4;
+      pd.input = "";
+    }
+  } else if (pd.input.length < pd.code.length) {
+    pd.input += key;
+    sfx.blip();
+    if (pd.input.length === pd.code.length) padPress("OK");
+  }
+}
+function updatePad(dt: number): void {
+  const pd = S.pad!;
+  pd.shake = Math.max(0, pd.shake - dt);
+  for (let d = 0; d <= 9; d++) if (took(`Digit${d}`, `Numpad${d}`)) padPress(String(d));
+  if (took("Backspace")) padPress("←");
+  if (took("Escape")) pd.result = false;
+  if (took("ArrowLeft", "KeyA")) pd.sel = (pd.sel + 11) % 12;
+  if (took("ArrowRight", "KeyD")) pd.sel = (pd.sel + 1) % 12;
+  if (took("ArrowUp", "KeyW")) pd.sel = (pd.sel + 9) % 12;
+  if (took("ArrowDown", "KeyS")) pd.sel = (pd.sel + 3) % 12;
+  if (took("Space", "Enter")) padPress(PAD_KEYS[pd.sel]);
+  if (mouse.clicked) {
+    PAD_KEYS.forEach((k, i) => {
+      const bx = W / 2 - 45 + (i % 3) * 30;
+      const by = 108 + Math.floor(i / 3) * 26;
+      if (Math.abs(mouse.x - bx) < 13 && Math.abs(mouse.y - by) < 11) {
+        pd.sel = i;
+        padPress(k);
+      }
+    });
+    if (mouse.y > 222) pd.result = false;
+  }
+}
+function drawPad(): void {
+  const pd = S.pad;
+  if (!pd) return;
+  const ox = pd.shake > 0 ? Math.sin(pd.shake * 60) * 3 : 0;
+  g.fillStyle = "rgba(0,0,0,0.6)";
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = "#1e2026";
+  g.fillRect(W / 2 - 70 + ox, 40, 140, 196);
+  g.fillStyle = "#3a3e46";
+  g.fillRect(W / 2 - 70 + ox, 40, 140, 2);
+  text(pd.title, W / 2 + ox, 52, "#ece6f4", "center");
+  g.fillStyle = "#0e1a12";
+  g.fillRect(W / 2 - 50 + ox, 64, 100, 22);
+  const shown = pd.input.padEnd(pd.code.length, "_").split("").join(" ");
+  text(shown, W / 2 + ox, 75, "#6ae88a", "center", "");
+  PAD_KEYS.forEach((k, i) => {
+    const bx = W / 2 - 45 + (i % 3) * 30 + ox;
+    const by = 108 + Math.floor(i / 3) * 26;
+    g.fillStyle = i === pd.sel ? "#ffd36a" : "#4a4e58";
+    g.fillRect(bx - 12, by - 10, 24, 20);
+    g.fillStyle = i === pd.sel ? "#e8b84a" : "#5a5e68";
+    g.fillRect(bx - 12, by - 10, 24, 2);
+    text(k, bx, by, i === pd.sel ? "#1a1a1a" : "#ece6f4", "center", "");
+  });
+  text("숫자키·방향키+Space · Esc 그만두기", W / 2, 228, "rgba(220,214,232,0.6)", "center", "");
+}
+
+/** 순서 기억 퍼즐: 보여 준 순서대로 누르면 true, 틀리면 false */
+function playSimon(title: string, seq: number[], labels = ["◀", "▲", "▶", "▼"]): Promise<boolean> {
+  S.simon = { title, seq, labels, phase: "show", t: -0.6, idx: 0, result: null, lit: -1, litT: 0 };
+  return until(() => S.simon?.result !== null).then(() => {
+    const ok = !!S.simon!.result;
+    S.simon = null;
+    return ok;
+  });
+}
+const SIMON_COL = ["#e85a5a", "#5ae88a", "#5a9ae8", "#e8d05a"];
+const SIMON_TONE = [330, 392, 494, 587];
+function simonBeep(i: number): void {
+  // 짧은 종소리 (효과음 재사용)
+  void SIMON_TONE[i];
+  sfx.blip();
+}
+function updateSimon(dt: number): void {
+  const sm = S.simon!;
+  sm.litT = Math.max(0, sm.litT - dt);
+  if (sm.litT <= 0) sm.lit = -1;
+  if (sm.phase === "show") {
+    sm.t += dt;
+    const step = Math.floor(sm.t / 0.7);
+    const inStep = sm.t - step * 0.7;
+    if (sm.t >= 0 && step < sm.seq.length && inStep < 0.45) {
+      if (sm.lit !== sm.seq[step]) simonBeep(sm.seq[step]);
+      sm.lit = sm.seq[step];
+      sm.litT = 0.05;
+    }
+    if (step >= sm.seq.length) {
+      sm.phase = "input";
+      sm.idx = 0;
+    }
+    return;
+  }
+  let press = -1;
+  const keysMap: Array<[string[], number]> = [
+    [["ArrowLeft", "KeyA", "Digit1"], 0],
+    [["ArrowUp", "KeyW", "Digit2"], 1],
+    [["ArrowRight", "KeyD", "Digit3"], 2],
+    [["ArrowDown", "KeyS", "Digit4"], 3],
+  ];
+  for (const [ks, i] of keysMap) if (took(...ks)) press = i;
+  if (mouse.clicked) {
+    for (let i = 0; i < 4; i++) {
+      const bx = W / 2 - 75 + i * 50;
+      if (Math.abs(mouse.x - bx) < 20 && Math.abs(mouse.y - 140) < 20) press = i;
+    }
+  }
+  if (took("Escape")) sm.result = false;
+  if (press < 0) return;
+  sm.lit = press;
+  sm.litT = 0.25;
+  simonBeep(press);
+  if (press !== sm.seq[sm.idx]) {
+    sfx.croak();
+    sm.result = false;
+    return;
+  }
+  sm.idx++;
+  if (sm.idx >= sm.seq.length) {
+    sfx.item();
+    sm.result = true;
+  }
+}
+function drawSimon(): void {
+  const sm = S.simon;
+  if (!sm) return;
+  g.fillStyle = "rgba(0,0,0,0.62)";
+  g.fillRect(0, 0, W, H);
+  text(sm.title, W / 2, 88, "#ece6f4", "center");
+  text(sm.phase === "show" ? "잘 보고 기억하자..." : `순서대로 누르기 (${sm.idx}/${sm.seq.length})`, W / 2, 104, sm.phase === "show" ? "#b8b0c8" : "#ffd36a", "center");
+  for (let i = 0; i < 4; i++) {
+    const bx = W / 2 - 75 + i * 50;
+    const on = sm.lit === i;
+    g.fillStyle = on ? SIMON_COL[i] : mix(SIMON_COL[i], -0.6);
+    g.beginPath();
+    g.arc(bx, 140, on ? 19 : 16, 0, Math.PI * 2);
+    g.fill();
+    if (on) {
+      g.fillStyle = "rgba(255,255,255,0.35)";
+      g.beginPath();
+      g.arc(bx - 5, 134, 6, 0, Math.PI * 2);
+      g.fill();
+    }
+    text(sm.labels[i], bx, 172, "#d8d0e0", "center");
+  }
+  text("방향키 또는 1~4 · Esc 그만두기", W / 2, 196, "rgba(220,214,232,0.55)", "center", "");
+}
+
+// ── 추억 사진 (수집 요소) ─────────────────────────────────────
+export const PHOTOS: Array<{ id: string; title: string; text: string }> = [
+  { id: "p1", title: "처음 만난 날", text: "비 오는 골목, 상자 속에서 떨던 회색 털뭉치. 우산을 씌워 줬더니 내 손가락을 핥았다." },
+  { id: "p2", title: "첫 목걸이", text: "분홍 목걸이에 금방울. 샘은 사흘 동안 방울 소리에 스스로 놀랐다." },
+  { id: "p3", title: "야근하던 밤", text: "새벽 3시, 키보드 위에 드러누운 샘. 덕분에 보고서에 'ㅋㅋㅋㅋㅋㅋㅋ'가 들어갔다." },
+  { id: "p4", title: "첫 생일", text: "생선 모양 케이크. 샘은 케이크 대신 상자를 더 좋아했다." },
+  { id: "p5", title: "도둑맞은 양말", text: "침대 밑에서 발견된 내 양말 열두 짝. 범인은 시치미를 뗐다." },
+  { id: "p6", title: "창가의 낮잠", text: "햇빛 한 줌을 따라 하루 종일 자리를 옮기는 샘. 해시계보다 정확하다." },
+  { id: "p7", title: "가르시아 부인과", text: "옆집 가르시아 부인은 샘을 '작은 구름'이라고 불렀다. 간식도 몰래 줬다." },
+  { id: "p8", title: "아픈 날", text: "독감으로 앓아누운 날, 샘이 하루 종일 내 가슴 위에서 골골송을 불러 줬다." },
+  { id: "p9", title: "별 보는 고양이", text: "옥상에서 밤하늘을 올려다보던 샘. 그때도 어느 별을 찾고 있었던 걸까." },
+  { id: "p10", title: "이삿날", text: "텅 빈 새집에서 가장 먼저 자기 자리를 찾은 건 샘이었다. 창틀 위." },
+  { id: "p11", title: "츄르 한 봉지", text: "츄르 봉지 뜯는 소리만 나면 어디서든 달려온다. 순간이동이 분명하다." },
+  { id: "p12", title: "우리 집", text: "맥주 한 캔, 고양이 한 마리, 낡은 소파. 그거면 충분했다." },
+];
+const PHOTO_KEY = "charlie_cat_photos";
+export function photosFound(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(PHOTO_KEY) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+async function findPhoto(id: string): Promise<void> {
+  const ph = PHOTOS.find((q) => q.id === id)!;
+  const got = photosFound();
+  if (!got.includes(id)) {
+    got.push(id);
+    try {
+      localStorage.setItem(PHOTO_KEY, JSON.stringify(got));
+    } catch {
+      /* 무시 */
+    }
+  }
+  S.flags[`ph_${id}`] = 1;
+  sfx.item();
+  await caption(`추억 사진을 찾았다! 「${ph.title}」 (${got.length}/${PHOTOS.length})`);
+  await caption(ph.text);
+}
+/** 사진이 숨어 있는 곳 */
+function photoSpot(id: string, x: number, iconY = 160, label = "살펴보다"): Hotspot {
+  return { x, iconY, label, enabled: () => !S.flags[`ph_${id}`], use: () => findPhoto(id) };
+}
+const END_KEY = "charlie_cat_endings";
+export function endingsSeen(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(END_KEY) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+function markEnding(e: string): void {
+  const got = endingsSeen();
+  if (!got.includes(e)) got.push(e);
+  try {
+    localStorage.setItem(END_KEY, JSON.stringify(got));
+  } catch {
+    /* 무시 */
+  }
+}
+
+/** 정면을 보고 계단을 내려간다 */
+async function descend(steps: number, dx = 0): Promise<void> {
+  charlie.anim = { prefix: "front", frames: 8, fps: 9 };
+  for (let i = 0; i < steps; i++) {
+    sfx.step();
+    await tween(charlie, charlie.x + dx, charlie.y + 5, 0.26, 0);
+  }
+  charlie.anim = null;
+}
+/** 등을 보이며 계단을 오른다 */
+async function ascend(steps: number): Promise<void> {
+  charlie.anim = { prefix: "climb", frames: 8, fps: 8 };
+  for (let i = 0; i < steps; i++) {
+    sfx.step();
+    await tween(charlie, charlie.x, charlie.y - 5, 0.26, 0);
+  }
+  charlie.anim = null;
+}
+
+// ═════════════════════════════════════════════════════════
 // 매 프레임
 // ═════════════════════════════════════════════════════════
 export function update(dt: number): void {
@@ -3589,6 +3981,8 @@ export function update(dt: number): void {
     S.talk.typed = Math.min(S.talk.text.length, S.talk.typed + dt * 32);
     if (took(...ADVANCE)) advanceTalk();
   } else if (S.choice) updateChoice();
+  else if (S.pad) updatePad(dt);
+  else if (S.simon) updateSimon(dt);
   if (S.mode === "gameover") {
     if (took("Space", "Enter", "click")) void goScene(S.over!.scene, S.over!.checkpoint);
     else if (took("Escape")) {
@@ -3926,6 +4320,9 @@ export function drawPlay(): void {
   }
 
   drawChoice();
+  drawPad();
+  drawSimon();
+  drawBag(sc);
 
   // HUD
   if (sc.id === "chapter1" || sc.id === "alley") {
@@ -4089,12 +4486,20 @@ export function titleItems(): string[] {
   if (un >= 3) items.push("제3장부터");
   if (un >= 4) items.push("제4장부터");
   if (un >= 5) items.push("최종장부터");
+  items.push(`추억 앨범 ${photosFound().length}/${PHOTOS.length}`);
   items.push(`체형: ${S.build === BUILD_3 ? "3등신" : "2.5등신"}`);
   return items;
 }
 
 const titleTop = (n: number) => 128 - Math.max(0, n - 5) * 9;
 export function updateTitle(): void {
+  if (S.album > 0) {
+    const n = PHOTOS.length;
+    if (took("ArrowUp", "KeyW", "ArrowLeft")) S.album = ((S.album - 2 + n) % n) + 1;
+    if (took("ArrowDown", "KeyS", "ArrowRight")) S.album = (S.album % n) + 1;
+    if (took("Escape", "Enter", "Space") || mouse.clicked) S.album = 0;
+    return;
+  }
   const items = titleItems();
   if (took("ArrowUp", "KeyW")) S.titleSel = (S.titleSel + items.length - 1) % items.length;
   if (took("ArrowDown", "KeyS")) S.titleSel = (S.titleSel + 1) % items.length;
@@ -4125,6 +4530,8 @@ export function updateTitle(): void {
   } else if (label === "최종장부터") {
     S.flags = { supplies: 1, ch1: 1, ch2: 1, ch3: 1, ch4: 1, treats: 1 };
     void goScene("helipad", 0, false);
+  } else if (label.startsWith("추억 앨범")) {
+    S.album = 1;
   } else if (label === "이어하기") {
     const s = loadSave()!;
     S.flags = { ...s.flags };
@@ -4159,6 +4566,40 @@ export function drawTitle(): void {
     text(sel ? `▶ ${it} ◀` : it, W / 2, titleTop(titleItems().length) + i * 18, sel ? "#ffd36a" : "#d8d0e0", "center");
   });
   text("↑↓ 선택 · Space 결정", W / 2, H - 10, "rgba(220,214,232,0.6)", "center");
+  const ends = endingsSeen();
+  if (ends.length) text(`엔딩 ${["A", "B"].map((e) => (ends.includes(e) ? `${e}✓` : `${e}·`)).join(" ")}`, W - 8, 12, "#ffd36a", "right");
+  if (S.album > 0) drawAlbum();
+}
+
+function drawAlbum(): void {
+  const got = photosFound();
+  g.fillStyle = "rgba(6,5,10,0.92)";
+  g.fillRect(0, 0, W, H);
+  text(`추억 앨범  ${got.length}/${PHOTOS.length}`, W / 2, 18, "#ffd36a", "center");
+  PHOTOS.forEach((ph, i) => {
+    const col = i % 4;
+    const row = Math.floor(i / 4);
+    const x = 70 + col * 113;
+    const y = 50 + row * 52;
+    const found = got.includes(ph.id);
+    const sel = S.album === i + 1;
+    g.fillStyle = sel ? "#ffd36a" : "#3a3440";
+    g.fillRect(x - 46, y - 18, 92, 44);
+    g.fillStyle = found ? "#e8dcc0" : "#1a1820";
+    g.fillRect(x - 44, y - 16, 88, 40);
+    if (found) {
+      // 작은 폴라로이드 그림: 샘 실루엣
+      g.fillStyle = "#8aa0b8";
+      g.fillRect(x - 40, y - 13, 80, 24);
+      g.drawImage(cat(`sitT${i % 8}`, 1), x - 12, y - 14, 24, 18);
+    }
+    text(found ? ph.title : "???", x, y + 18, found ? "#2a1a10" : "#6a6470", "center", "");
+  });
+  const ph = PHOTOS[S.album - 1];
+  const found = got.includes(ph.id);
+  const lines = wrap(found ? ph.text : "아직 찾지 못한 사진이다. 어딘가에 숨어 있다.", W - 60);
+  lines.forEach((l, i) => text(l, W / 2, 222 + i * 13, "#ece6f4", "center"));
+  text("←→ 넘기기 · Esc 닫기", W / 2, H - 8, "rgba(220,214,232,0.5)", "center", "");
 }
 
 
@@ -4181,7 +4622,7 @@ export function prewarm(): void {
   for (let i = 0; i < 8; i++) poses.push(`crouch${i}`);
   for (let i = 0; i < 4; i++) poses.push(`stand${i}`);
   poses.push("flashlight", "sit", "drink", "sleep", "armsUp", "back");
-  for (let i = 0; i < 8; i++) poses.push(`climb${i}`, `stair${i}`);
+  for (let i = 0; i < 8; i++) poses.push(`climb${i}`, `stair${i}`, `front${i}`);
   for (const p of poses) for (const f of [1, -1] as const) human(CHARLIE, "charlie", p, S.build, f);
   const catPoses: string[] = ["blink", "startle", "loaf", "butt", "jump"];
   for (let i = 0; i < 16; i++) catPoses.push(`walk${i}`);
@@ -4200,3 +4641,7 @@ const bakeQueue: Array<() => void> = [];
 export function bakeIdle(deadline: number): void {
   while (bakeQueue.length && performance.now() < deadline) bakeQueue.shift()!();
 }
+
+// stages.ts (추가 스테이지) 에서 쓰는 도구들
+export { SCENES, mkActor, walkTo, tween, writeSave, emote, focusCam, gameOver, hideAt, patrolKit, choose, unlock, flameTongues, smokePuffs, half, smoothDraw, playMovie, has, give, take, openKeypad, playSimon, photoSpot, findPhoto, descend, ascend, charlie, sam, drawFires };
+export type { Scene, Hotspot, Light, Zone };
