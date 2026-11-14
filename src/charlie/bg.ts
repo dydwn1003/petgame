@@ -81,8 +81,22 @@ function windowAt(g: G, x: number, y: number, w: number, h: number, state: "dark
       rect(g, x + w - 7, y + h - 12, 3, 6, "#4a8a3a");
     }
   } else if (state === "fire") {
-    vgrad(g, x + 1, y + 1, w - 2, y + h - 1, [[0, "#ffd86a"], [0.5, "#ff7a1a"], [1, "#a82a10"]]);
-    rect(g, x + 1, y + 1, w - 2, 3, "#2a1410");
+    // 정지 그림용 불: 달아오른 방 안에 혀 모양 불길 (거리 장면에선 위에 움직이는 불이 덧그려진다)
+    vgrad(g, x + 1, y + 1, w - 2, y + h - 1, [[0, "#3a120c"], [0.5, "#a83a14"], [1, "#ff9a3a"]]);
+    const n = 3;
+    for (let i = 0; i < n; i++) {
+      const fx = x + 1 + ((i + 0.5) / n) * (w - 2);
+      const fh = (h - 2) * (0.6 + r() * 0.35);
+      const fw = ((w - 2) / n) * 0.7;
+      for (const [hk, wk, col] of [[1, 1, "#ff5a1a"], [0.68, 0.6, "#ffb03a"], [0.38, 0.32, "#fff0b0"]] as Array<[number, number, string]>) {
+        g.fillStyle = col;
+        g.beginPath();
+        g.moveTo(fx - fw * wk, y + h - 1);
+        g.bezierCurveTo(fx - fw * wk, y + h - 1 - fh * hk * 0.45, fx - fw * wk * 0.3, y + h - 1 - fh * hk * 0.7, fx, y + h - 1 - fh * hk);
+        g.bezierCurveTo(fx + fw * wk * 0.3, y + h - 1 - fh * hk * 0.7, fx + fw * wk, y + h - 1 - fh * hk * 0.45, fx + fw * wk, y + h - 1);
+        g.fill();
+      }
+    }
   } else if (state === "broken") {
     rect(g, x + 1, y + 1, w - 2, h - 2, "#0c0c10");
     g.fillStyle = "#9aaaba";

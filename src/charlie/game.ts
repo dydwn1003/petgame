@@ -340,28 +340,92 @@ function gameOver(title: string, msg: string, checkpoint: number): void {
 const lampLights = (info: StreetInfo, broken: boolean) =>
   info.lamps.map((x, i): Light => ({ x: x + 1, y: 124, r: broken && i % 2 ? 0 : 78, a: 0.85, warm: "rgba(255,210,140,0.10)", cone: undefined }));
 
-function drawFires(fires: StreetInfo["fires"], camX: number): void {
-  for (const f of fires) {
-    const sx = f.x - camX;
-    if (sx < -40 || sx > W + 40) continue;
-    for (let i = 0; i < 6; i++) {
-      const fl = Math.sin(clock.t * 9 + i * 1.7 + f.x) * 0.5 + 0.5;
-      const h = f.h * (0.4 + fl * 0.6);
-      g.fillStyle = i % 2 ? "#ffb02a" : "#ff5a1a";
-      g.fillRect(Math.round(sx + (i / 6) * f.w), Math.round(f.y + f.h - h), Math.ceil(f.w / 6), Math.round(h));
+/** 혀 모양 불길 여러 겹 (바깥 빨강 → 주황 → 노란 속불), 바닥 by 기준 */
+function flameTongues(x0: number, by: number, w: number, h: number, n: number, seed: number): void {
+  const prev = g.globalCompositeOperation;
+  g.globalCompositeOperation = "lighter";
+  for (let i = 0; i < n; i++) {
+    const fx = x0 + ((i + 0.5) / n) * w;
+    const fl = 0.7 + 0.3 * Math.sin(clock.t * 9 + i * 1.7 + seed) * Math.sin(clock.t * 5.3 + i + seed * 0.3);
+    const hh0 = h * (0.65 + 0.45 * fl) * (i % 2 ? 0.8 : 1);
+    const sway = Math.sin(clock.t * 6 + i + seed) * w * 0.06;
+    const ww0 = (w / n) * 0.75;
+    for (const [hk, wk, c0, c1] of [
+      [1, 1, "rgba(255,70,20,0.8)", "rgba(255,120,30,0)"],
+      [0.7, 0.62, "rgba(255,170,50,0.85)", "rgba(255,200,80,0)"],
+      [0.4, 0.34, "rgba(255,245,190,0.9)", "rgba(255,240,170,0)"],
+    ] as Array<[number, number, string, string]>) {
+      const hh = hh0 * hk;
+      const ww = ww0 * wk;
+      const gr = g.createLinearGradient(0, by, 0, by - hh);
+      gr.addColorStop(0, c0);
+      gr.addColorStop(1, c1);
+      g.fillStyle = gr;
+      g.beginPath();
+      g.moveTo(fx - ww, by);
+      g.bezierCurveTo(fx - ww, by - hh * 0.45, fx + sway - ww * 0.4, by - hh * 0.7, fx + sway, by - hh);
+      g.bezierCurveTo(fx + sway + ww * 0.4, by - hh * 0.7, fx + ww, by - hh * 0.45, fx + ww, by);
+      g.closePath();
+      g.fill();
     }
-    g.fillStyle = "#fff0a0";
-    g.fillRect(Math.round(sx + f.w / 3), Math.round(f.y + f.h - 3), Math.round(f.w / 3), 3);
+  }
+  g.globalCompositeOperation = prev;
+}
+
+/** 부드러운 검은 연기 뭉치 (아래는 불빛에 물든다) */
+function smokePuffs(x: number, y: number, n: number, rise: number, size: number, seed: number, alpha = 0.85): void {
+  for (let i = 0; i < n; i++) {
+    const p = (clock.t * 0.12 + i / n + seed * 0.13) % 1;
+    const sx = x + p * size * 1.6 + Math.sin(p * 5 + i + seed) * size * 0.3;
+    const sy = y - p * rise;
+    const r = size * (0.45 + p * 1.2);
+    const a = alpha * Math.pow(1 - p, 0.5);
+    const lit = Math.max(0, 1 - p * 3);
+    const sg = g.createRadialGradient(sx, sy, 0, sx, sy, r);
+    sg.addColorStop(0, `rgba(${Math.round(14 + lit * 60)},${Math.round(11 + lit * 22)},${Math.round(13 + lit * 8)},${a.toFixed(2)})`);
+    sg.addColorStop(0.65, `rgba(14,10,12,${(a * 0.7).toFixed(2)})`);
+    sg.addColorStop(1, "rgba(14,10,12,0)");
+    g.fillStyle = sg;
+    g.beginPath();
+    g.arc(sx, sy, r, 0, Math.PI * 2);
+    g.fill();
   }
 }
 
-function smoke(x: number, y: number, n: number, camX: number, color = "rgba(40,30,34,0.5)"): void {
-  g.fillStyle = color;
-  for (let i = 0; i < n; i++) {
-    const t = (clock.t * 0.25 + i / n) % 1;
-    g.beginPath();
-    g.ellipse(x - camX + Math.sin(t * 6 + i) * 8, y - t * 70, 6 + t * 16, 4 + t * 8, 0, 0, Math.PI * 2);
-    g.fill();
+/** 불타는 창문 · 불타는 차: 창 안은 일렁이는 불, 창 위로 불길이 혀를 내밀고 연기가 피어오른다 */
+function drawFires(fires: StreetInfo["fires"], camX: number): void {
+  for (const f of fires) {
+    const sx = f.x - camX;
+    if (sx < -60 || sx > W + 60) continue;
+    const seed = f.x * 0.37;
+    const win = f.h >= 16;
+    // 주변 불빛
+    const glow = g.createRadialGradient(sx + f.w / 2, f.y + f.h * 0.6, 0, sx + f.w / 2, f.y + f.h * 0.6, f.w * 1.6);
+    glow.addColorStop(0, `rgba(255,140,50,${(0.28 + 0.06 * Math.sin(clock.t * 11 + seed)).toFixed(2)})`);
+    glow.addColorStop(1, "rgba(255,90,30,0)");
+    g.fillStyle = glow;
+    g.fillRect(sx - f.w * 1.2, f.y - f.w, f.w * 3.4, f.h + f.w * 2);
+    if (win) {
+      // 창 안: 붉게 달아오른 방 + 불길
+      g.save();
+      g.beginPath();
+      g.rect(sx, f.y, f.w, f.h);
+      g.clip();
+      const room = g.createLinearGradient(0, f.y, 0, f.y + f.h);
+      room.addColorStop(0, "#3a120c");
+      room.addColorStop(0.5, "#a83a14");
+      room.addColorStop(1, "#ff9a3a");
+      g.fillStyle = room;
+      g.fillRect(sx, f.y, f.w, f.h);
+      flameTongues(sx - 1, f.y + f.h + 1, f.w + 2, f.h * 1.05, 4, seed);
+      g.restore();
+      // 창 위로 넘실대는 불길과 연기
+      flameTongues(sx + 1, f.y + 2, f.w - 2, 9, 3, seed + 3);
+      smokePuffs(sx + f.w / 2, f.y - 6, 6, 70, 8, seed, 0.9);
+    } else {
+      flameTongues(sx - 2, f.y + f.h, f.w + 4, f.h * 1.9, 4, seed);
+      smokePuffs(sx + f.w / 2, f.y - 8, 5, 70, 7, seed, 0.8);
+    }
   }
 }
 
@@ -1224,7 +1288,6 @@ SCENES.chapter1 = (checkpoint) => {
     },
     back: (camX) => {
       drawFires(info.fires, camX);
-      for (const f of info.fires) smoke(f.x + f.w / 2, f.y, 4, camX);
       // 냥이네 펫숍
       const px = PET - camX;
       if (px > -80 && px < W + 80) {
