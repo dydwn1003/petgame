@@ -800,19 +800,19 @@ const CH = 96;
 const GROUND_Y = 88;
 
 const C = {
-  base: "#c5c8d0",
-  light: "#e9ebef",
-  pale: "#f3f4f6",
-  shade: "#9a9eab",
+  base: "#cfd2da",
+  light: "#eef0f4",
+  pale: "#fafbfc",
+  shade: "#a9adba",
   deep: "#5d6272",
   ruff: "#e8eaee",
   earIn: "#d9a6ae",
   earDeep: "#8a6a72",
   nose: "#c98892",
   noseDark: "#7a4a52",
-  iris: "#e0922c",
-  irisIn: "#f6c860",
-  irisRim: "#9a5a1a",
+  iris: "#eea63a",
+  irisIn: "#ffd98a",
+  irisRim: "#b8701e",
   pupil: "#120a06",
   lid: "#3e3f4a",
 };
@@ -873,7 +873,7 @@ function furMass(g: CanvasRenderingContext2D, parts: Part[], o: { flow: number; 
   const base = mix(C.base, tone);
   const r = seeded(o.seed * 977 + 13);
   // 가장자리 털 (실루엣 밖으로 삐져나옴)
-  const edge = o.edge ?? 1.6;
+  const edge = (o.edge ?? 1.6) * 0.6;
   g.lineCap = "round";
   for (const s2 of parts) {
     if (s2.kind !== "e") continue;
@@ -886,7 +886,7 @@ function furMass(g: CanvasRenderingContext2D, parts: Part[], o: { flow: number; 
       const fx = Math.cos(o.flow) * 0.8 + Math.cos(a) * 0.6;
       const fy = Math.sin(o.flow) * 0.8 + Math.sin(a) * 0.6;
       g.strokeStyle = Math.sin(a) > 0.3 ? mix(base, -0.08) : base;
-      g.lineWidth = 0.95;
+      g.lineWidth = 1.15;
       g.beginPath();
       g.moveTo(px - fx * 0.6, py - fy * 0.6);
       g.quadraticCurveTo(px + fx * out * 0.6, py + fy * out * 0.6, px + fx * out, py + fy * out + 0.3);
@@ -910,11 +910,11 @@ function furMass(g: CanvasRenderingContext2D, parts: Part[], o: { flow: number; 
   const sg = g.createLinearGradient(0, y0, 0, y1);
   sg.addColorStop(0, "rgba(40,44,60,0)");
   sg.addColorStop(0.6, "rgba(40,44,60,0.06)");
-  sg.addColorStop(1, `rgba(50,54,70,${o.far ? 0.34 : 0.22})`);
+  sg.addColorStop(1, `rgba(60,64,84,${o.far ? 0.28 : 0.16})`);
   g.fillStyle = sg;
   g.fillRect(x0 - 2, y0 - 2, x1 - x0 + 4, y1 - y0 + 4);
   // 결을 따라 흐르는 털
-  const n = o.strands ?? Math.floor((x1 - x0) * (y1 - y0) * 0.55);
+  const n = Math.floor((o.strands ?? (x1 - x0) * (y1 - y0) * 0.55) * 0.16);
   for (let i = 0; i < n; i++) {
     const sx = x0 + r() * (x1 - x0);
     const sy = y0 + r() * (y1 - y0);
@@ -922,7 +922,7 @@ function furMass(g: CanvasRenderingContext2D, parts: Part[], o: { flow: number; 
     const len = 2.2 + r() * 3.2;
     const ang = o.flow + (r() - 0.5) * 0.5;
     const light = r() < 0.5 - t * 0.35;
-    g.strokeStyle = light ? `rgba(248,249,252,${0.25 + r() * 0.3})` : `rgba(90,94,110,${0.05 + r() * 0.1})`;
+    g.strokeStyle = light ? `rgba(252,252,255,${0.14 + r() * 0.18})` : `rgba(110,114,130,${0.03 + r() * 0.05})`;
     g.lineWidth = 0.45 + r() * 0.35;
     g.beginPath();
     g.moveTo(sx, sy);
@@ -935,14 +935,16 @@ function furMass(g: CanvasRenderingContext2D, parts: Part[], o: { flow: number; 
 /** 머리 (오른쪽 3/4) */
 function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { closed?: boolean; wide?: boolean; happy?: boolean; hiss?: boolean; earsBack?: boolean; tilt?: number }, seed: number): void {
   g.save();
-  g.translate(hx, hy);
+  g.translate(hx, hy - 1.5);
   g.rotate(o.tilt ?? 0);
+  g.scale(1.2, 1.2); // 아기 고양이처럼 큰 머리
   // 귀
   const ear = (bx: number, tipX: number, tipY: number, w: number, near: boolean) => {
     const path = new Path2D();
     path.moveTo(bx - w, -4);
-    path.quadraticCurveTo(bx - w * 0.7, tipY * 0.55, tipX, tipY);
-    path.quadraticCurveTo(bx + w * 0.75, tipY * 0.5, bx + w, -3);
+    path.quadraticCurveTo(bx - w * 0.75, tipY * 0.6, tipX - 1.6, tipY + 1.2);
+    path.quadraticCurveTo(tipX, tipY - 0.8, tipX + 1.6, tipY + 1.2);
+    path.quadraticCurveTo(bx + w * 0.8, tipY * 0.55, bx + w, -3);
     path.closePath();
     g.fillStyle = near ? C.base : mix(C.base, -0.15);
     g.fill(path);
@@ -980,15 +982,21 @@ function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { 
     ear(-8, -18, -2, 5.5, false);
     ear(4, -6, -4, 6, true);
   } else {
-    ear(-8, -11, -17, 6, false);
-    ear(5, 7, -18, 6.5, true);
+    ear(-9, -11.5, -15.5, 7, false);
+    ear(5.5, 7, -16.5, 7.5, true);
   }
   // 머리통 + 볼털 + 주둥이
-  furMass(g, [{ kind: "e", x: 0, y: 0, rx: 13, ry: 11.5 }], { flow: Math.PI * 0.85, seed: seed + 1, strands: 160, edge: 1.4, light: [-4, -6] });
-  furMass(g, [{ kind: "e", x: 1, y: 7, rx: 15, ry: 7.5 }, { kind: "e", x: -9, y: 5, rx: 6, ry: 6 }], { flow: Math.PI * 0.7, seed: seed + 2, tone: 0.12, strands: 120, edge: 2.4, light: [0, 2] });
+  furMass(g, [{ kind: "e", x: 0, y: 0, rx: 15, ry: 13.5 }], { flow: Math.PI * 0.85, seed: seed + 1, strands: 160, edge: 1.2, light: [-5, -7] });
+  furMass(g, [{ kind: "e", x: 1, y: 8, rx: 16.5, ry: 8 }, { kind: "e", x: -10, y: 6, rx: 6.5, ry: 6.5 }], { flow: Math.PI * 0.7, seed: seed + 2, tone: 0.1, strands: 100, edge: 2, light: [0, 3] });
+  // 볼 홍조
+  g.fillStyle = "rgba(244,170,180,0.35)";
+  g.beginPath();
+  g.ellipse(-7, 6, 3.4, 1.8, 0, 0, Math.PI * 2);
+  g.ellipse(12.5, 4.5, 3, 1.6, 0, 0, Math.PI * 2);
+  g.fill();
   // 이마 줄무늬 (옅은 태비)
-  g.strokeStyle = "rgba(90,94,110,0.35)";
-  g.lineWidth = 0.7;
+  g.strokeStyle = "rgba(110,114,130,0.18)";
+  g.lineWidth = 0.6;
   for (const dx of [-3, 0, 3]) {
     g.beginPath();
     g.moveTo(dx + 1, -10);
@@ -1064,9 +1072,7 @@ function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { 
       return;
     }
     const shape = new Path2D();
-    shape.moveTo(ex - w / 2, ey + 0.4);
-    shape.bezierCurveTo(ex - w / 3, ey - h * 0.62, ex + w / 3, ey - h * 0.66, ex + w / 2 + 0.8, ey - 0.6);
-    shape.bezierCurveTo(ex + w / 3, ey + h * 0.6, ex - w / 3, ey + h * 0.58, ex - w / 2, ey + 0.4);
+    shape.ellipse(ex, ey, w / 2 + 0.3, h / 2 + 0.2, -0.08, 0, Math.PI * 2);
     // 눈가 그늘
     g.fillStyle = "rgba(70,74,90,0.35)";
     g.beginPath();
@@ -1097,19 +1103,20 @@ function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { 
     // 동공 (세로로 긴 고양이 동공)
     g.fillStyle = C.pupil;
     g.beginPath();
-    g.ellipse(ex + 0.3, ey, o.wide ? w * 0.3 : w * 0.12, h * 0.45, 0, 0, Math.PI * 2);
+    g.ellipse(ex + 0.3, ey + 0.2, o.wide ? w * 0.34 : w * 0.24, o.wide ? h * 0.38 : h * 0.34, 0, 0, Math.PI * 2);
     g.fill();
     // 윗눈꺼풀 그림자
-    g.fillStyle = "rgba(20,16,24,0.35)";
-    g.fillRect(ex - w, ey - h, w * 2, h * 0.45);
+    g.fillStyle = "rgba(20,16,24,0.22)";
+    g.fillRect(ex - w, ey - h, w * 2, h * 0.55);
     g.restore();
     // 반사광
     g.fillStyle = "#ffffff";
     g.beginPath();
-    g.ellipse(ex - w * 0.16, ey - h * 0.18, near ? 0.9 : 0.7, near ? 0.75 : 0.6, 0, 0, Math.PI * 2);
+    g.ellipse(ex - w * 0.14, ey - h * 0.16, near ? 1.5 : 1.2, near ? 1.4 : 1.1, 0, 0, Math.PI * 2);
     g.fill();
-    g.fillStyle = "rgba(255,255,255,0.5)";
-    g.fillRect(ex + w * 0.15, ey + h * 0.22, 0.9, 0.45);
+    g.beginPath();
+    g.ellipse(ex + w * 0.18, ey + h * 0.2, near ? 0.7 : 0.55, near ? 0.6 : 0.5, 0, 0, Math.PI * 2);
+    g.fill();
     // 아래 눈꺼풀 촉촉한 빛 + 눈물 자국 라인
     g.strokeStyle = "rgba(240,240,248,0.6)";
     g.lineWidth = 0.4;
@@ -1117,15 +1124,15 @@ function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { 
     g.moveTo(ex - w / 3, ey + h * 0.5);
     g.quadraticCurveTo(ex, ey + h * 0.62, ex + w / 3, ey + h * 0.45);
     g.stroke();
-    g.strokeStyle = "rgba(70,74,90,0.55)";
-    g.lineWidth = 0.6;
+    g.strokeStyle = "rgba(90,94,110,0.25)";
+    g.lineWidth = 0.5;
     g.beginPath();
     g.moveTo(ex + w / 2 + 0.6, ey + 0.2);
     g.quadraticCurveTo(ex + w / 2 + 1.6, ey + 2.2, ex + w / 2 + 1.2, ey + 4);
     g.stroke();
   };
-  eye(-4.2, -2.2, 5.4, 3.9, false);
-  eye(5.4, -2.4, 6.8, 4.8, true);
+  eye(-4.8, -1.8, 6.2, 5.8, false);
+  eye(5.6, -2, 7.6, 7, true);
   g.restore();
   whiskerAt = { x: hx + 12, y: hy + 5, tilt: o.tilt ?? 0 };
 }
@@ -1141,9 +1148,9 @@ function catLegPath(pts: Array<[number, number]>, radii: number[]): Part[] {
 }
 
 function paw(g: CanvasRenderingContext2D, x: number, y: number, far: boolean): void {
-  g.fillStyle = far ? mix(C.light, -0.18) : C.light;
+  g.fillStyle = far ? mix(C.pale, -0.15) : C.pale;
   g.beginPath();
-  g.ellipse(x + 1.6, y, 4.2, 2.4, 0, 0, Math.PI * 2);
+  g.ellipse(x + 1.6, y, 4.4, 2.6, 0, 0, Math.PI * 2);
   g.fill();
   g.strokeStyle = "rgba(80,84,100,0.6)";
   g.lineWidth = 0.45;
@@ -1156,16 +1163,16 @@ function paw(g: CanvasRenderingContext2D, x: number, y: number, far: boolean): v
 }
 
 function frontLegParts(sx: number, sy: number, ang: number, lift: number): { parts: Part[]; foot: [number, number] } {
-  const [ex, ey] = bend(sx, sy, 10, ang);
-  const [wx, wy] = bend(ex, ey, 9, ang + lift * 0.9);
+  const [ex, ey] = bend(sx, sy, 8, ang);
+  const [wx, wy] = bend(ex, ey, 7, ang + lift * 0.9);
   const [fx, fy] = bend(wx, wy, 2.5, ang + lift * 1.4 + 0.2);
   return { parts: catLegPath([[sx, sy], [ex, ey], [wx, wy], [fx, fy]], [5, 3.6, 2.8, 2.6]), foot: [fx, fy] };
 }
 
 function hindLegParts(hx: number, hy: number, ang: number, lift: number): { parts: Part[]; foot: [number, number] } {
-  const [kx, ky] = bend(hx + 2, hy + 3, 9, ang + 0.6);
-  const [ax, ay] = bend(kx, ky, 8.5, ang - 0.7 - lift * 0.5);
-  const [fx, fy] = bend(ax, ay, 6, ang + 0.15 - lift * 0.2);
+  const [kx, ky] = bend(hx + 2, hy + 3, 7.5, ang + 0.6);
+  const [ax, ay] = bend(kx, ky, 7, ang - 0.7 - lift * 0.5);
+  const [fx, fy] = bend(ax, ay, 4.5, ang + 0.15 - lift * 0.2);
   return { parts: [{ kind: "e", x: hx + 1, y: hy + 3, rx: 8.5, ry: 9.5, rot: 0.2 }, ...catLegPath([[kx, ky], [ax, ay], [fx, fy]], [4.2, 2.8, 2.6])], foot: [fx, fy] };
 }
 
@@ -1204,7 +1211,7 @@ function paintCat(p: Px, pose: string): void {
     paw(g, 72, 86, false);
     // 뒷발
     furMass(g, [{ kind: "e", x: 54, y: 84, rx: 9, ry: 3.4 }], { flow: 0, seed: 6, strands: 30, edge: 0.8 });
-    paintCatHead(g, 74, 27, { closed: pose === "blink" }, 30);
+    paintCatHead(g, 73, 25, { closed: pose === "blink" }, 30);
     return;
   }
   if (pose === "loaf") {
@@ -1253,33 +1260,33 @@ function paintCat(p: Px, pose: string): void {
   const lift = (q: number) => Math.max(0, Math.cos(q)) * 0.95;
   // 다리를 먼저 계산해 낮은 발이 땅에 닿도록 몸 높이를 정한다
   const legsAt = (by: number) => ({
-    hf: hindLegParts(38, by + 33, swing(ph + Math.PI), lift(ph + Math.PI)),
-    ff: frontLegParts(80, by + 36, swing(ph), lift(ph)),
-    hn: hindLegParts(42, by + 34, swing(ph), lift(ph)),
-    fn: frontLegParts(85, by + 37, swing(ph + Math.PI), lift(ph + Math.PI)),
+    hf: hindLegParts(42, by + 33, swing(ph + Math.PI), lift(ph + Math.PI)),
+    ff: frontLegParts(76, by + 36, swing(ph), lift(ph)),
+    hn: hindLegParts(46, by + 34, swing(ph), lift(ph)),
+    fn: frontLegParts(81, by + 37, swing(ph + Math.PI), lift(ph + Math.PI)),
   });
   const probe = legsAt(0);
   const low = Math.max(probe.hf.foot[1], probe.ff.foot[1], probe.hn.foot[1], probe.fn.foot[1]);
   const by = GROUND_Y - 2 - low;
   const L = legsAt(by);
   const sway = Math.sin(ph + 1) * 2.5;
-  catTail(g, [28, by + 28], [6, by + 20], [12 + sway, by - 2], 5, 25);
+  catTail(g, [32, by + 28], [12, by + 20], [16 + sway, by], 5, 25);
   furMass(g, L.hf.parts, { flow: Math.PI * 0.6, seed: 41, far: true, strands: 90 });
   paw(g, L.hf.foot[0], L.hf.foot[1], true);
   furMass(g, L.ff.parts, { flow: Math.PI * 0.55, seed: 42, far: true, strands: 60 });
   paw(g, L.ff.foot[0], L.ff.foot[1], true);
   // 몸통: 엉덩이 · 허리 · 깊은 가슴 · 목
-  furMass(g, [{ kind: "e", x: 40, y: by + 29, rx: 14, ry: 12.5 }, { kind: "e", x: 60, y: by + 30, rx: 20, ry: 11 }, { kind: "e", x: 80, y: by + 29, rx: 12.5, ry: 13 }, { kind: "e", x: 89, y: by + 20, rx: 7.5, ry: 9, rot: -0.4 }], { flow: Math.PI * 1.02, seed: 43 });
-  furMass(g, [{ kind: "e", x: 62, y: by + 38, rx: 18, ry: 4.5 }], { flow: Math.PI * 0.55, seed: 44, tone: 0.14, strands: 120, edge: 2.4 });
+  furMass(g, [{ kind: "e", x: 44, y: by + 29, rx: 14, ry: 13 }, { kind: "e", x: 60, y: by + 30, rx: 16, ry: 12 }, { kind: "e", x: 76, y: by + 29, rx: 13, ry: 13.5 }, { kind: "e", x: 86, y: by + 20, rx: 8, ry: 9, rot: -0.4 }], { flow: Math.PI * 1.02, seed: 43 });
+  furMass(g, [{ kind: "e", x: 62, y: by + 39, rx: 15, ry: 4.5 }], { flow: Math.PI * 0.55, seed: 44, tone: 0.16, strands: 120, edge: 2 });
   furMass(g, L.hn.parts, { flow: Math.PI * 0.6, seed: 45, strands: 90 });
   paw(g, L.hn.foot[0], L.hn.foot[1], false);
   furMass(g, L.fn.parts, { flow: Math.PI * 0.55, seed: 46, tone: 0.04, strands: 60 });
   paw(g, L.fn.foot[0], L.fn.foot[1], false);
   // 가슴 갈기
-  furMass(g, [{ kind: "e", x: 89, y: by + 28, rx: 8, ry: 10 }], { flow: Math.PI * 0.55, seed: 47, tone: 0.18, strands: 140, edge: 2.6 });
+  furMass(g, [{ kind: "e", x: 86, y: by + 28, rx: 8.5, ry: 10 }], { flow: Math.PI * 0.55, seed: 47, tone: 0.2, strands: 140, edge: 2 });
   const nod = Math.sin(ph * 2) * 0.7;
-  if (butt) paintCatHead(g, 100, by + 20, { happy: true, tilt: 0.25 }, 34);
-  else paintCatHead(g, 99, by + 13 + nod, {}, 34);
+  if (butt) paintCatHead(g, 97, by + 19, { happy: true, tilt: 0.25 }, 34);
+  else paintCatHead(g, 96, by + 11 + nod, {}, 34);
 }
 
 /** 고양이 스프라이트 (화면 32×24 자리에 촘촘한 도트) */
