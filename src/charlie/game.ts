@@ -55,6 +55,7 @@ import {
   BUILD_3,
   BUILD_KID,
   BOSS,
+  STRANGERS,
   CHARLIE,
   HAZMAT,
   LILY,
@@ -65,7 +66,6 @@ import {
   FROGMAN,
   HUMAN_ORIGIN,
   SKELETON,
-  ZOMBIES,
   cat,
   human,
   spriteDensity,
@@ -455,6 +455,163 @@ SCENES.room = () => {
   const F = S.flags;
   let meteor = -1; // 운석 연출 시간
   let zzz = false;
+  let catOut = -1; // 샘이 창밖으로 나가는 연출 시간
+  const IMPACT = 1.9;
+  const IMPACT_X = 232;
+  const shards: Array<{ x: number; y: number; vx: number; vy: number; r: number; vr: number }> = [];
+  const burstGlass = () => {
+    for (let i = 0; i < 22; i++) {
+      shards.push({ x: 196 + Math.random() * 30, y: 80 + Math.random() * 40, vx: 20 + Math.random() * 70, vy: -30 + Math.random() * 30, r: Math.random() * 6, vr: (Math.random() - 0.5) * 14 });
+    }
+  };
+  // 창밖 빌딩 실루엣 (두 창문이 같은 바깥 풍경을 본다)
+  const towers: Array<[number, number, number]> = [];
+  for (let x = 60, i = 0; x < 300; i++) {
+    const w = 12 + ((i * 37) % 17);
+    towers.push([x, w, 26 + ((i * 53) % 46)]);
+    x += w + 1;
+  }
+  const FIRES: Array<[number, number, number]> = [
+    [200, 26, 6], [214, 38, 7], [228, 46, 8], [242, 40, 7], [256, 30, 6], [270, 22, 5], [120, 16, 4], [134, 20, 5],
+  ];
+  /** 창밖 풍경: 운석이 떨어지기 전 · 떨어지는 순간 · 불타는 도시 */
+  const paintOutside = (m: number, camX: number) => {
+    const X = (v: number) => v - camX;
+    const k = Math.min(1, m / IMPACT);
+    const after = m >= IMPACT;
+    const t2 = m - IMPACT;
+    // 하늘
+    const sky = g.createLinearGradient(0, 50, 0, 150);
+    if (!after) {
+      sky.addColorStop(0, "#0a0e1e");
+      sky.addColorStop(1, "#22284a");
+    } else {
+      sky.addColorStop(0, "#4a2018");
+      sky.addColorStop(0.5, "#9a4418");
+      sky.addColorStop(1, "#f08a2a");
+    }
+    g.fillStyle = sky;
+    g.fillRect(X(70), 50, 240, 100);
+    if (!after) {
+      for (let i = 0; i < 40; i++) {
+        g.fillStyle = `rgba(200,210,255,${(0.4 + 0.4 * Math.sin(clock.t * 2 + i)).toFixed(2)})`;
+        g.fillRect(X(70 + ((i * 53) % 240)), 52 + ((i * 29) % 50), 0.5, 0.5);
+      }
+      // 다가오는 초록빛이 하늘을 물들인다
+      const mx = 150 + (IMPACT_X - 150) * k * k;
+      const my = -30 + 180 * k * k;
+      const glow = g.createRadialGradient(X(mx), my, 0, X(mx), my, 30 + k * 90);
+      glow.addColorStop(0, `rgba(170,255,200,${(0.25 + k * 0.5).toFixed(2)})`);
+      glow.addColorStop(1, "rgba(120,255,170,0)");
+      g.fillStyle = glow;
+      g.fillRect(X(70), 50, 240, 100);
+      // 운석 본체 + 꼬리
+      const size = 0.8 + k * k * 2.6;
+      const ang = Math.atan2(180, IMPACT_X - 150);
+      const tail = 20 + k * 40;
+      const tg = g.createLinearGradient(X(mx), my, X(mx - Math.cos(ang) * tail), my - Math.sin(ang) * tail);
+      tg.addColorStop(0, "rgba(240,255,240,0.95)");
+      tg.addColorStop(0.2, "rgba(150,255,180,0.75)");
+      tg.addColorStop(1, "rgba(80,220,140,0)");
+      g.strokeStyle = tg;
+      g.lineCap = "round";
+      g.lineWidth = size * 1.5;
+      g.beginPath();
+      g.moveTo(X(mx), my);
+      g.lineTo(X(mx - Math.cos(ang) * tail), my - Math.sin(ang) * tail);
+      g.stroke();
+      g.fillStyle = "#f4fff6";
+      g.beginPath();
+      g.arc(X(mx), my, size, 0, Math.PI * 2);
+      g.fill();
+    } else {
+      // 불빛 번짐
+      const fg = g.createRadialGradient(X(IMPACT_X), 160, 0, X(IMPACT_X), 160, 130);
+      fg.addColorStop(0, `rgba(255,150,60,${(0.55 + 0.1 * Math.sin(clock.t * 11)).toFixed(2)})`);
+      fg.addColorStop(1, "rgba(255,90,30,0)");
+      g.fillStyle = fg;
+      g.fillRect(X(70), 50, 240, 100);
+    }
+    // 빌딩 실루엣
+    for (const [tx, tw, th] of towers) {
+      g.fillStyle = after ? "#140a0a" : "#141a30";
+      g.fillRect(X(tx), 150 - th, tw, th);
+      if (!after) {
+        g.fillStyle = "#e8c070";
+        for (let wy = 150 - th + 4; wy < 146; wy += 6) if ((tx + wy) % 3 === 0) g.fillRect(X(tx + 3), wy, 1.5, 1.5);
+      } else {
+        g.fillStyle = "rgba(255,120,40,0.5)";
+        g.fillRect(X(tx), 150 - th, 0.5, th);
+      }
+    }
+    if (!after) return;
+    const grow = Math.min(1, t2 / 0.9);
+    // 불길: 겹겹이 흔들리는 혀 모양
+    g.globalCompositeOperation = "lighter";
+    FIRES.forEach(([fx, fh, fw], i) => {
+      const fl = 0.7 + 0.3 * Math.sin(clock.t * 9 + i * 1.7) * Math.sin(clock.t * 5.3 + i);
+      const h = fh * 1.5 * (0.75 + 0.35 * fl) * grow;
+      const sway = Math.sin(clock.t * 6 + i) * 2.5;
+      for (const [hk, wk, c0, c1] of [
+        [1, 1, "rgba(255,70,20,0.85)", "rgba(255,120,30,0)"],
+        [0.7, 0.62, "rgba(255,170,50,0.9)", "rgba(255,200,80,0)"],
+        [0.4, 0.34, "rgba(255,245,190,0.95)", "rgba(255,240,170,0)"],
+      ] as Array<[number, number, string, string]>) {
+        const hh = h * hk;
+        const ww = fw * wk;
+        const by = 152;
+        const gr = g.createLinearGradient(0, by, 0, by - hh);
+        gr.addColorStop(0, c0);
+        gr.addColorStop(1, c1);
+        g.fillStyle = gr;
+        g.beginPath();
+        g.moveTo(X(fx - ww), by);
+        g.bezierCurveTo(X(fx - ww), by - hh * 0.45, X(fx + sway - ww * 0.4), by - hh * 0.7, X(fx + sway), by - hh);
+        g.bezierCurveTo(X(fx + sway + ww * 0.4), by - hh * 0.7, X(fx + ww), by - hh * 0.45, X(fx + ww), by);
+        g.closePath();
+        g.fill();
+      }
+    });
+    // 불티
+    for (let i = 0; i < 26; i++) {
+      const p = (clock.t * 0.45 + i / 26) % 1;
+      const ex = 196 + ((i * 37) % 80) + Math.sin(p * 8 + i) * 5 + p * 14;
+      g.fillStyle = `rgba(255,${160 + ((i * 13) % 80)},60,${((1 - p) * grow).toFixed(2)})`;
+      g.fillRect(X(ex), 146 - p * 90, 0.75, 0.75);
+    }
+    g.globalCompositeOperation = "source-over";
+    // 초록빛 핵: 불 속에서 맥박처럼 깜빡인다
+    const pulse = 0.5 + 0.5 * Math.sin(clock.t * 3.2);
+    const cg = g.createRadialGradient(X(IMPACT_X), 146, 0, X(IMPACT_X), 146, 16);
+    cg.addColorStop(0, `rgba(190,255,210,${(0.5 + pulse * 0.4).toFixed(2)})`);
+    cg.addColorStop(1, "rgba(120,255,170,0)");
+    g.fillStyle = cg;
+    g.fillRect(X(IMPACT_X - 16), 130, 32, 22);
+    // 검은 연기: 아래는 불빛에 물들고 위로 갈수록 짙게 퍼진다
+    const smokeIn = Math.min(1, t2 / 1.6);
+    for (let i = 0; i < 22; i++) {
+      const p = (clock.t * 0.1 + i / 22) % 1;
+      const src = FIRES[i % 8][0];
+      const sx = src + p * 40 + Math.sin(p * 5 + i) * 7;
+      const sy = 112 - p * 100;
+      const r = 8 + p * 26;
+      const a = 0.95 * Math.pow(1 - p, 0.45) * smokeIn;
+      const sg = g.createRadialGradient(X(sx), sy, 0, X(sx), sy, r);
+      const lit = Math.max(0, 1 - p * 3);
+      sg.addColorStop(0, `rgba(${Math.round(12 + lit * 60)},${Math.round(10 + lit * 22)},${Math.round(12 + lit * 8)},${a.toFixed(2)})`);
+      sg.addColorStop(0.65, `rgba(14,10,12,${(a * 0.75).toFixed(2)})`);
+      sg.addColorStop(1, "rgba(16,12,14,0)");
+      g.fillStyle = sg;
+      g.beginPath();
+      g.arc(X(sx), sy, r, 0, Math.PI * 2);
+      g.fill();
+    }
+    // 충돌 순간 섬광
+    if (t2 < 0.5) {
+      g.fillStyle = `rgba(220,255,230,${(1 - t2 / 0.5).toFixed(2)})`;
+      g.fillRect(X(70), 50, 240, 100);
+    }
+  };
   const searched = new Set<string>();
 
   const findSam = async () => {
@@ -521,32 +678,59 @@ SCENES.room = () => {
     charlie.pose = "sleep";
     zzz = true;
     S.scene!.ambient = 0.7;
-    await wait(3.2);
-    // 운석 낙하
+    await wait(2.6);
+    // 운석 낙하: 창밖 하늘에 초록빛이 번지고, 별똥별이 점점 커지며 떨어진다
     meteor = 0;
-    await wait(1.4);
+    await wait(0.7);
+    sam.pose = "sit";
+    sam.facing = -1;
+    emote(sam, "!");
+    await until(() => meteor >= IMPACT);
     sfx.boom();
     sfx.glass();
     shake(1.2);
-    flash("#ff6a2a", 1);
+    flash("#d8ffe0", 1);
+    burstGlass();
     zzz = false;
     charlie.pose = "armsUp";
     charlie.y = GROUND;
     sam.pose = "startle";
-    charlie.bubble = null;
+    await tween(sam, sam.x + 4, GROUND - 12, 0.18, 0);
+    await tween(sam, sam.x + 2, GROUND, 0.16, 0);
     emote(charlie, "!");
     await say(charlie, "씨...!? 뭐, 뭐야!");
-    sam.facing = -1;
-    sam.pose = "jump";
-    await tween(sam, ROOM.desk + 20, 168, 0.45, 26);
-    sam.pose = "startle";
-    await wait(0.25);
-    sam.pose = "jump";
-    await tween(sam, ROOM.windowExit, 128, 0.4, 20);
-    sfx.glass();
-    sam.visible = false;
     charlie.pose = null;
-    await wait(0.3);
+    focusCam(205, 1.25);
+    await caption("창밖에서 불길이 치솟고, 검은 연기가 하늘을 덮는다.");
+    await caption("그 불길 한가운데서... 초록빛이 심장처럼 깜빡이고 있었다.");
+    await say(charlie, "운석...? 진짜로 떨어진 거야?");
+    // 샘은 초록빛에 홀린 듯 창가로 다가간다
+    focusCam(null, 1);
+    sam.pose = "sit";
+    emote(sam, "…");
+    await wait(0.8);
+    sam.pose = null;
+    await walkTo(sam, ROOM.desk + 30, 20);
+    sam.pose = "sit";
+    emote(charlie, "?");
+    await say(charlie, "샘...? 왜 그래?");
+    sam.pose = "jump";
+    await tween(sam, ROOM.desk + 14, 168, 0.4, 16);
+    sam.pose = "sit";
+    await wait(0.5);
+    sam.pose = "jump";
+    await tween(sam, ROOM.windowExit + 4, 139, 0.35, 12);
+    sam.pose = "sit";
+    await wait(0.4);
+    void walkTo(charlie, ROOM.desk + 56, 80);
+    emote(charlie, "!");
+    await say(charlie, "샘, 거기 위험해! 이리 와!");
+    // 깨진 창으로 뛰어나가 비상계단을 타고 사라진다
+    sam.visible = false;
+    catOut = 0;
+    sfx.step();
+    await until(() => catOut >= 1.7);
+    catOut = -1;
     await walkTo(charlie, ROOM.desk + 40, 70);
     charlie.facing = -1;
     shake(0.4);
@@ -563,8 +747,12 @@ SCENES.room = () => {
     ambient: 0.55,
     lights: () => {
       const L: Light[] = [
-        { x: 112, y: 100, r: 70, a: 0.5, warm: "rgba(120,150,255,0.05)" },
-        { x: 210, y: 92, r: meteor >= 0 ? 130 : 70, a: meteor >= 1.4 ? 0.95 : 0.5, warm: meteor >= 1.4 ? "rgba(255,90,30,0.22)" : "rgba(120,150,255,0.05)" },
+        { x: 112, y: 100, r: meteor >= IMPACT ? 90 : 70, a: meteor >= IMPACT ? 0.75 : 0.5, warm: meteor >= IMPACT ? "rgba(255,110,40,0.14)" : "rgba(120,150,255,0.05)" },
+        meteor >= IMPACT
+          ? { x: 210, y: 96, r: 135 + Math.sin(clock.t * 11) * 8, a: 0.95, warm: `rgba(255,${Math.round(100 + Math.sin(clock.t * 7) * 20)},40,0.22)` }
+          : meteor >= 0
+            ? { x: 210, y: 92, r: 70 + (meteor / IMPACT) * 80, a: 0.5 + (meteor / IMPACT) * 0.45, warm: `rgba(120,255,170,${(0.05 + (meteor / IMPACT) * 0.2).toFixed(2)})` }
+            : { x: 210, y: 92, r: 70, a: 0.5, warm: "rgba(120,150,255,0.05)" },
         { x: 203, y: 154, r: 34, a: 0.7, warm: "rgba(90,150,255,0.10)" },
         { x: 470, y: 30, r: 110, a: 0.4 },
         { x: ROOM.lamp + 1, y: 124, r: zzz ? 70 : 95, a: 0.85, warm: "rgba(255,200,130,0.12)" },
@@ -623,6 +811,19 @@ SCENES.room = () => {
     zones: [],
     update: (dt) => {
       if (meteor >= 0) meteor += dt;
+      if (catOut >= 0) catOut += dt;
+      for (const sh of [...shards]) {
+        sh.vy += 160 * dt;
+        sh.x += sh.vx * dt;
+        sh.y += sh.vy * dt;
+        sh.r += sh.vr * dt;
+        if (sh.y > GROUND + 2) {
+          sh.y = GROUND + 2;
+          sh.vx *= 0.3;
+          sh.vy = 0;
+          sh.vr = 0;
+        }
+      }
       // 샘이 찰리를 따라다님
       if (F.followCat && !F.slept && sam.visible && S.control) {
         const target = charlie.x - charlie.facing * 26;
@@ -640,34 +841,44 @@ SCENES.room = () => {
       }
     },
     back: (camX) => {
-      // 창밖 운석
-      const wx = 178 - camX;
-      if (meteor >= 0 && meteor < 1.4) {
-        for (let i = 0; i < 3; i++) {
-          const k = (meteor * 1.3 + i * 0.3) % 1;
-          const mx = wx + 64 - k * 70;
-          const my = 52 + k * 70;
-          g.strokeStyle = "#ff6a2a";
-          g.lineWidth = 2;
+      // 창밖 풍경 (창유리 안쪽만 칠하고 창틀·비상계단을 다시 그린다)
+      if (meteor >= 0) {
+        for (const [x0, y0, w, h] of [[178, 52, 64, 82], [82, 58, 60, 88]]) {
+          g.save();
           g.beginPath();
-          g.moveTo(mx, my);
-          g.lineTo(mx + 14, my - 14);
-          g.stroke();
-          g.fillStyle = "#fff0a0";
-          g.fillRect(mx - 1, my - 1, 3, 3);
+          g.rect(x0 - camX, y0, w, h);
+          g.clip();
+          paintOutside(meteor, camX);
+          // 창밖으로 나간 샘: 비상계단에 내려앉아 불빛 쪽으로 사라진다
+          if (catOut >= 0 && x0 === 178) {
+            const c = Math.min(1, catOut / 0.45);
+            const cx = catOut < 0.45 ? 214 + c * 10 : 224 + (catOut - 0.45) * 34;
+            const cy = catOut < 0.45 ? 139 - Math.sin(c * Math.PI) * 14 - c * 26 : 113;
+            const pose = catOut < 0.45 ? "jump" : `walk${Math.floor(catOut * 18) % 16}`;
+            smoothDraw(cat(pose, 1), half(cx - camX - 10), half(cy - 15), 20, 15);
+          }
+          if (meteor >= IMPACT && x0 === 178) {
+            // 깨진 유리 가장자리
+            g.strokeStyle = "rgba(200,225,240,0.7)";
+            g.lineWidth = 0.5;
+            g.beginPath();
+            g.moveTo(x0 + 6 - camX, y0 + h / 2 + 1);
+            g.lineTo(x0 + 12 - camX, y0 + h / 2 + 9);
+            g.lineTo(x0 + 4 - camX, y0 + h / 2 + 16);
+            g.moveTo(x0 + w / 2 + 2 - camX, y0 + 2);
+            g.lineTo(x0 + w / 2 + 10 - camX, y0 + 8);
+            g.lineTo(x0 + w / 2 + 5 - camX, y0 + 15);
+            g.lineTo(x0 + w / 2 + 14 - camX, y0 + 22);
+            g.stroke();
+          }
+          g.restore();
+          g.fillStyle = "#0a0a10";
+          for (let k2 = 0; k2 < w; k2 += 5) g.fillRect(half(x0 + k2 - camX), y0 + h - 20, 1, 20);
+          g.fillRect(half(x0 - camX), y0 + h - 21, w, 2);
+          g.fillStyle = "#d8d0c0";
+          g.fillRect(half(x0 + w / 2 - 1 - camX), y0, 2, h);
+          g.fillRect(half(x0 - camX), y0 + h / 2 - 1, w, 2);
         }
-      }
-      if (meteor >= 1.4) {
-        g.fillStyle = "#0e0a0c";
-        g.fillRect(wx, 52, 64, 82);
-        for (let i = 0; i < 4; i++) {
-          const fl = Math.sin(clock.t * 8 + i * 2) * 0.5 + 0.5;
-          g.fillStyle = i % 2 ? "#ff8a2a" : "#ff4a1a";
-          g.fillRect(wx + 4 + i * 15, 134 - 30 - fl * 30, 12, 30 + fl * 30);
-        }
-        g.fillStyle = "#8a9aaa";
-        for (const [sx, sy, sh] of [[6, 52, 12], [24, 52, 6], [50, 52, 10], [58, 120, 8]]) g.fillRect(wx + sx, sy, 2, sh);
-        smoke(210, 60, 6, camX, "rgba(60,50,56,0.6)");
       }
       // 빈 맥주캔
       for (let i = 0; i < (F.cans ?? 0); i++) {
@@ -680,6 +891,18 @@ SCENES.room = () => {
       }
     },
     front: (camX) => {
+      for (const sh of shards) {
+        g.save();
+        g.translate(sh.x - camX, sh.y);
+        g.rotate(sh.r);
+        g.fillStyle = "rgba(200,230,245,0.8)";
+        g.beginPath();
+        g.moveTo(-1.5, -1);
+        g.lineTo(1.8, -0.4);
+        g.lineTo(-0.2, 1.6);
+        g.fill();
+        g.restore();
+      }
       if (zzz) {
         for (let i = 0; i < 3; i++) {
           const k = (clock.t * 0.5 + i / 3) % 1;
@@ -767,36 +990,26 @@ const SIGNS = ["채식", "VEGAN", "육식X", "회개"];
 SCENES.chapter1 = (checkpoint) => {
   const F = S.flags;
   const info = buildStreet(1900, true, 11);
-  const zombies: Actor[] = [
-    mkActor("person", 780, -1, { look: ZOMBIES[0], lookId: "z0", role: "zombie", state: "idle", home: 780 }),
-    mkActor("person", 1040, -1, { look: ZOMBIES[1], lookId: "z1", role: "zombie", state: "idle", home: 1040 }),
-    mkActor("person", 1640, -1, { look: ZOMBIES[2], lookId: "z2", role: "zombie", state: "idle", home: 1640 }),
+  const PET = 1380;
+  const NEWS = 760;
+  // 넋이 나간 사람들: 배경처럼 흔들리고 중얼거릴 뿐, 찰리에게 관심이 없다
+  type Stranger = Actor & { mode: "sway" | "wander" | "sit" | "sky"; a: number; b: number; lines: string[]; talkT: number };
+  const mkStranger = (x: number, look: Look, id: string, mode: Stranger["mode"], lines: string[], a = x, b = x): Stranger =>
+    Object.assign(mkActor("person", x, -1, { look, lookId: id, pose: mode === "sit" ? "sit" : "stand" }), { mode, a, b, lines, talkT: 2 + Math.random() * 4 });
+  const strangers: Stranger[] = [
+    mkStranger(520, STRANGERS[0], "st0", "sway", ["초록... 초록빛이 보여...", "들려...? 하늘이 부르는 소리..."]),
+    mkStranger(905, STRANGERS[1], "st1", "wander", ["출근... 출근해야 하는데...", "보고서... 보고서가..."], 860, 990),
+    mkStranger(1150, STRANGERS[2], "st2", "sky", ["...", "별이... 떨어졌어..."]),
+    mkStranger(1240, ADDICT, "addict", "sway", ["한 번만... 딱 한 번만 더...", "..."]),
+    mkStranger(1640, STRANGERS[0], "st0", "wander", ["내 고양이... 어디 갔지...", "나비야... 나비야..."], 1600, 1720),
   ];
+  strangers[2].y = GROUND;
+  // 멀리 지나가는 해골 시위대 (배경)
   const march: Actor[] = [];
+  let marchX = -1;
+  let chantT = 1.5;
   let frog: Actor | null = null;
-  let chantT = 2;
-  const hideSpots = [...info.dumpsters, 1340];
   const exitX = 1860;
-
-  const spawnMarch = () => {
-    for (let i = 0; i < 5; i++) {
-      march.push(mkActor("person", S.camX + W + 110 + i * 44, -1, { look: SKELETON, lookId: "sk", role: "skeleton", sign: SIGNS[i % SIGNS.length] }));
-    }
-  };
-
-  const hide = (x: number): Hotspot => ({
-    x,
-    iconY: 172,
-    label: "숨기",
-    range: 22,
-    enabled: () => !S.hidden,
-    use: async () => {
-      charlie.x = x;
-      S.hidden = true;
-      charlie.visible = false;
-      sfx.step();
-    },
-  });
 
   const sc: Scene = {
     id: "chapter1",
@@ -807,11 +1020,12 @@ SCENES.chapter1 = (checkpoint) => {
     lights: () => [
       ...lampLights(info, true),
       ...info.fires.map((f): Light => ({ x: f.x + f.w / 2, y: f.y + f.h / 2, r: 46 + Math.sin(clock.t * 10 + f.x) * 4, a: 0.7, warm: "rgba(255,110,40,0.12)" })),
+      { x: PET, y: 176, r: 50, a: 0.5, warm: "rgba(255,150,200,0.06)" },
     ],
     minX: 60,
     maxX: 1880,
     get actors() {
-      return [...zombies, ...march, ...(frog ? [frog] : [])];
+      return [...strangers, ...(frog ? [frog] : [])];
     },
     hotspots: [
       {
@@ -823,9 +1037,12 @@ SCENES.chapter1 = (checkpoint) => {
           await caption("부서진 편의점. 선반은 거의 비어 있다.");
           sfx.item();
           F.supplies = 1;
-          F.treats = 1;
-          await caption("고양이 간식(츄르)과 손전등을 챙겼다.");
-          await say(charlie, "샘은 이걸 정말 좋아하지. 어디선가 배고파하고 있을 거야.");
+          await caption("손전등을 챙겼다.");
+          await caption("...그런데 고양이 간식 칸은 텅 비어 있다. 누가 몽땅 털어 간 모양이다.");
+          emote(charlie, "💧");
+          await say(charlie, "츄르가 없으면 샘을 불러낼 수가 없는데...");
+          emote(charlie, "!");
+          await say(charlie, "그래, 펫숍! 이 길 끝에 '냥이네 펫숍'이 있었지.");
           writeSave("chapter1", info.bodega);
         },
       },
@@ -839,7 +1056,42 @@ SCENES.chapter1 = (checkpoint) => {
           await say(charlie, i === 0 ? "...설마. 그냥 운석이 떨어진 것뿐이야." : "회개는 나중에 하고, 샘부터 찾자.");
         },
       })),
-      ...hideSpots.map(hide),
+      {
+        x: NEWS,
+        iconY: 168,
+        label: "신문 가판대",
+        enabled: () => true,
+        use: async () => {
+          await caption("바람에 날리는 호외. 「운석 낙하 세 시간째... 시민들 '이상 행동' 잇따라」");
+          await caption("「전문가: 운석에서 퍼진 미세 먼지와 관련 있을 가능성」");
+          await say(charlie, "먼지...? 그럼 저 사람들도...");
+        },
+      },
+      {
+        x: PET,
+        iconY: 128,
+        label: "펫숍 뒤지기",
+        enabled: () => !!F.supplies && !F.treats && !F.robbed,
+        use: async () => {
+          await caption("깨진 진열장 너머, 쓰러진 캣타워와 흩어진 사료 봉지.");
+          await caption("선반 맨 아래 칸에 손을 넣어 더듬어 본다...");
+          sfx.item();
+          F.treats = 1;
+          emote(charlie, "♥");
+          await caption("츄르를 찾았다! 딱 한 봉지 남아 있었다.");
+          await say(charlie, "됐다! 샘, 이거면 어디에 있든 달려올 거야.");
+          writeSave("chapter1", 1400);
+        },
+      },
+      {
+        x: PET,
+        iconY: 128,
+        label: "살펴보다",
+        enabled: () => !F.supplies,
+        use: async () => {
+          await caption("'냥이네 펫숍'. 진열장이 깨져 있다. 맨손으로 뒤지기엔 너무 어둡다.");
+        },
+      },
     ],
     zones: [
       {
@@ -853,34 +1105,41 @@ SCENES.chapter1 = (checkpoint) => {
         },
       },
       {
-        x: 640,
+        x: 470,
         dir: 1,
-        when: () => !!F.supplies,
+        when: () => !F.metStrange,
         run: async () => {
+          F.metStrange = 1;
           charlie.facing = 1;
-          await say(charlie, "저 사람... 아까 퇴근길에 흔들리던 그 사람인가?");
-          await caption("발소리에 반응하는 것 같다. ↓(살금) 버튼을 누른 채로 걸으면 들키지 않고 옆을 지나갈 수 있다.");
-          await caption("들켜서 쫓기면 쓰레기통에 숨어 따돌리자.");
+          focusCam(510, 1.2);
+          await say(charlie, "저기요... 괜찮으세요?");
+          await wait(0.6);
+          await caption("대답이 없다. 남자는 하늘을 향해 고개를 든 채 천천히 흔들릴 뿐이다.");
+          emote(charlie, "💧");
+          await say(charlie, "...요즘 이런 사람이 부쩍 늘었다 싶었는데. 운석이 떨어지고 나서 더 심해졌어.");
+          focusCam(null, 1);
         },
       },
       {
-        x: 1260,
+        x: 1060,
         dir: 1,
-        when: () => !F.marchDone,
+        when: () => !F.marchSeen,
         run: async () => {
-          spawnMarch();
+          F.marchSeen = 1;
+          marchX = S.camX + W + 40;
+          for (let i = 0; i < 7; i++) march.push(mkActor("person", 0, -1, { look: SKELETON, lookId: "sk", sign: SIGNS[i % SIGNS.length] }));
           sfx.chant();
           charlie.facing = 1;
-          await wait(0.6);
-          await say(charlie, "저건... 시위대?");
-          await caption("해골이 된 채식 시위대다. 닿으면 해골이 된다! 근처 문틈이나 쓰레기통에 숨자.");
-          writeSave("chapter1", 1200);
+          await wait(1.2);
+          emote(charlie, "?");
+          await say(charlie, "저건... 채식 시위대? 뼈만 남았잖아...");
+          await caption("시위대는 찰리를 거들떠보지도 않고, 구호만 외치며 길 건너편을 지나간다.");
         },
       },
       {
         x: 1500,
         dir: 1,
-        when: () => !!F.marchDone && !F.robbed,
+        when: () => !!F.treats && !F.robbed,
         run: async () => {
           F.robbed = 1;
           frog = mkActor("person", 1720, -1, { look: FROGMAN, lookId: "frog", role: "frog", hop: 0 });
@@ -916,99 +1175,153 @@ SCENES.chapter1 = (checkpoint) => {
         repeat: true,
         when: () => !F.robbed,
         run: async () => {
-          await say(charlie, "샘이 이쪽으로 갔을 리 없어... 오던 길을 다시 살펴보자.");
+          await say(charlie, F.treats ? "츄르는 구했어. 이제 샘을 찾아보자... 어느 쪽이지?" : "샘 간식부터 구해야 해. 펫숍이 이 근처였는데...");
           await walkTo(charlie, 1760, 60);
         },
       },
     ],
     update: (dt) => {
-      if (!S.control) return; // 대사·연출 중에는 멈춤
-      // 좀비
-      for (const z of zombies) {
-        const d = charlie.x - z.x;
-        const dist = Math.abs(d);
-        if (z.state === "idle") {
-          z.pose = "stand";
-          z.x = (z.home ?? z.x) + Math.sin(clock.t * 0.9 + (z.home ?? 0)) * 1.2;
-          // 멈춰 있는 좀비는 '움직임'에만 반응한다: 살금살금 걷거나 가만히 있으면 들키지 않는다
-          const noticeR = S.hidden || sneaking() || !charlie.moving ? 0 : running() ? 150 : 74;
-          if (S.control && dist < noticeR) {
-            z.state = "chase";
-            z.bubble = "으어어...";
-            sfx.groan();
-          }
-        } else {
-          z.pose = null;
-          if (dist > 240 || S.hidden) {
-            z.state = "idle";
-            z.home = z.x;
-            z.bubble = null;
-          } else {
-            const step = Math.sign(d) * 30 * dt;
-            z.x += step;
-            z.walkDist += Math.abs(step) * 0.6;
-            z.moving = true;
-            z.facing = d > 0 ? 1 : -1;
-            if (dist < 12 && S.mode === "play") gameOver("GAME OVER", "찰리는 마약에 취한 좀비들에게 붙잡혔다...", checkpointNow());
-          }
+      // 넋이 나간 사람들 (조작 여부와 관계없이 배경처럼 움직인다)
+      for (const st of strangers) {
+        if (st.mode === "sway") {
+          st.pose = "stand";
+          st.x = st.a + Math.sin(clock.t * 0.9 + st.a) * 1.5;
+        } else if (st.mode === "wander") {
+          const target = st.facing > 0 ? st.b : st.a;
+          const step = Math.sign(target - st.x) * 9 * dt;
+          st.x += step;
+          st.walkDist += Math.abs(step) * 0.7;
+          st.moving = true;
+          st.pose = null;
+          if (Math.abs(target - st.x) < 1) st.facing = st.facing > 0 ? -1 : 1;
+        } else if (st.mode === "sky") {
+          st.pose = "back";
+        }
+        st.talkT -= dt;
+        if (st.talkT <= 0) {
+          const near = Math.abs(st.x - charlie.x) < 200;
+          st.bubble = st.bubble || !near ? null : st.lines[Math.floor(Math.random() * st.lines.length)];
+          st.talkT = st.bubble ? 2.6 : 3 + Math.random() * 5;
         }
       }
-      // 해골 시위대
-      if (march.length) {
-        for (const s of march) {
-          s.x -= 34 * dt;
-          s.walkDist += 34 * dt;
-          s.moving = true;
-          s.facing = -1;
-          if (!S.hidden && Math.abs(s.x - charlie.x) < 10 && S.mode === "play") {
-            charlie.look = SKELETON;
-            charlie.lookId = "sk";
-            flash("#ffffff", 1);
-            gameOver("GAME OVER", "찰리는 해골이 되었다... 채식 시위대에 닿고 말았다.", 1200);
-          }
-        }
+      // 배경 시위대
+      if (marchX > 0) {
+        marchX -= 26 * dt;
+        march.forEach((m, i) => {
+          m.x = marchX + i * 34;
+          m.walkDist += 26 * dt;
+        });
         chantT -= dt;
         if (chantT <= 0) {
-          chantT = 2.4;
-          for (const s of march) s.bubble = null;
-          const s = march[Math.floor(Math.random() * march.length)];
-          s.bubble = CHANTS[Math.floor(Math.random() * CHANTS.length)];
+          chantT = 2.6;
           sfx.chant();
         }
-        if (march.every((s) => s.x < S.camX - 30 || s.x < charlie.x - 260)) {
+        if (marchX + march.length * 34 < S.camX - 40) {
+          marchX = -1;
           march.length = 0;
-          F.marchDone = 1;
-          writeSave("chapter1", 1400);
         }
       }
     },
     back: (camX) => {
-      // 무너진 문틈 (숨을 곳)
-      const dx = 1340 - camX;
-      g.fillStyle = "#0a080a";
-      g.fillRect(dx - 12, 160, 24, 52);
-      g.fillStyle = "#3a2a22";
-      g.fillRect(dx - 14, 158, 4, 54);
-      g.fillRect(dx + 10, 164, 4, 48);
-      g.fillRect(dx - 6, 168, 14, 3);
       drawFires(info.fires, camX);
       for (const f of info.fires) smoke(f.x + f.w / 2, f.y, 4, camX);
-      // 쓰레기통 숨는 중 표시
-      if (S.hidden) {
-        g.fillStyle = "rgba(255,255,255,0.15)";
-        g.fillRect(Math.round(charlie.x - camX - 20), 183, 40, 4);
+      // 냥이네 펫숍
+      const px = PET - camX;
+      if (px > -80 && px < W + 80) {
+        g.fillStyle = "#24181c";
+        g.fillRect(px - 52, 136, 104, 78);
+        g.fillStyle = "#e88aa8";
+        g.fillRect(px - 48, 139, 96, 14);
+        g.fillStyle = "#b85a7a";
+        g.fillRect(px - 48, 152, 96, 1);
+        g.save();
+        g.font = "8px Galmuri11";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillStyle = "#3a1424";
+        g.fillText("냥이네 펫숍  PET SHOP", px + 4, 146);
+        g.restore();
+        g.fillStyle = "#3a1424";
+        g.beginPath();
+        g.moveTo(px - 42, 149);
+        g.lineTo(px - 41, 142);
+        g.lineTo(px - 38, 145);
+        g.lineTo(px - 35, 142);
+        g.lineTo(px - 34, 149);
+        g.fill();
+        // 깨진 진열장
+        g.fillStyle = "#0e0a10";
+        g.fillRect(px - 46, 158, 60, 44);
+        g.fillStyle = "#c8b490";
+        g.fillRect(px - 38, 176, 6, 26);
+        g.fillRect(px - 44, 172, 18, 4);
+        g.fillRect(px - 30, 186, 14, 3);
+        g.fillStyle = "#8a6a4a";
+        g.fillRect(px - 14, 194, 8, 8);
+        g.fillStyle = "#4a8ac8";
+        g.fillRect(px - 2, 197, 5, 5);
+        g.fillStyle = "#e85a6a";
+        g.fillRect(px + 6, 198, 4, 4);
+        g.strokeStyle = "rgba(200,225,240,0.6)";
+        g.lineWidth = 0.5;
+        g.beginPath();
+        g.moveTo(px - 46, 158);
+        g.lineTo(px - 36, 166);
+        g.lineTo(px - 42, 172);
+        g.moveTo(px + 14, 160);
+        g.lineTo(px + 4, 168);
+        g.lineTo(px + 10, 176);
+        g.lineTo(px + 2, 184);
+        g.stroke();
+        g.fillStyle = "#3a2a24";
+        g.fillRect(px + 20, 160, 26, 54);
+        g.fillStyle = "#c8a83a";
+        g.fillRect(px + 24, 188, 2, 3);
       }
-    },
-    front: (camX) => {
-      for (const s of march) {
-        const sx = Math.round(s.x - camX);
-        g.fillStyle = "#6a4a2a";
-        g.fillRect(sx - 2, GROUND - 74, 2, 34);
-        g.fillStyle = "#e8e0c8";
-        g.fillRect(sx - 15, GROUND - 90, 28, 16);
-        g.fillStyle = "#2a6a2a";
-        g.fillRect(sx - 15, GROUND - 90, 28, 2);
-        text(s.sign ?? "", sx - 1, GROUND - 81, "#2a6a2a", "center", "");
+      // 신문 가판대
+      const nx = NEWS - camX;
+      g.fillStyle = "#2a5a8a";
+      g.fillRect(nx - 8, 186, 16, 28);
+      g.fillStyle = "#e8e4d8";
+      g.fillRect(nx - 6, 189, 12, 9);
+      g.fillStyle = "#1a1a1a";
+      for (let i = 0; i < 3; i++) g.fillRect(nx - 5, 191 + i * 2.5, 10 - i * 2, 0.75);
+      for (let i = 0; i < 3; i++) {
+        const k = (clock.t * 0.3 + i / 3) % 1;
+        g.fillStyle = "rgba(232,228,216,0.7)";
+        g.fillRect(nx + 10 + k * 60, 200 - Math.sin(k * 6 + i) * 8 - k * 20, 4, 3);
+      }
+      // 멀리 길 건너편을 지나가는 해골 시위대
+      for (const m of march) {
+        const sx = m.x - camX;
+        if (sx < -40 || sx > W + 40) continue;
+        const spr = human(SKELETON, "sk", `walk${Math.floor(m.walkDist / 2) % 16}`, BUILD_3, -1);
+        g.globalAlpha = 0.78;
+        smoothDraw(spr, half(sx - 23 + 9), half(GROUND - 16 - 39), 23, 39);
+        g.globalAlpha = 1;
+        g.fillStyle = "#5a3e24";
+        g.fillRect(half(sx - 2), GROUND - 74, 1.5, 24);
+        g.fillStyle = "#c8c0a8";
+        g.fillRect(half(sx - 11), GROUND - 86, 20, 12);
+        g.save();
+        g.font = "8px Galmuri11";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillStyle = "#2a5a2a";
+        g.fillText(m.sign ?? "", sx - 1, GROUND - 80);
+        g.restore();
+      }
+      if (march.length && Math.floor(clock.t / 2.6) % 2 === 0) {
+        const lead = march[Math.floor(clock.t / 5.2) % march.length];
+        const sx = lead.x - camX;
+        if (sx > 20 && sx < W - 20) {
+          g.save();
+          g.font = "8px Galmuri11";
+          g.textAlign = "center";
+          g.fillStyle = "rgba(232,224,200,0.75)";
+          g.fillText(CHANTS[Math.floor(clock.t / 5.2) % CHANTS.length], sx, GROUND - 94);
+          g.restore();
+        }
       }
     },
     start: async () => {
@@ -1035,7 +1348,10 @@ SCENES.chapter1 = (checkpoint) => {
       }
       charlie.anim = null;
       await wait(0.4);
-      await say(charlie, "샘을 찾으러 가야겠어.");
+      focusCam(charlie.x + 120, 1);
+      await caption("불타는 건물, 뒤집힌 차, 깨진 유리. 하룻밤 사이에 거리가 무너졌다.");
+      focusCam(null, 1);
+      await say(charlie, "샘을 찾으러 가야겠어. 그 전에... 샘이 좋아하는 츄르부터 구하자.");
       await chapterCard("제1장", "무너진 거리");
       S.help = 10;
       S.control = true;
@@ -1044,13 +1360,6 @@ SCENES.chapter1 = (checkpoint) => {
   return sc;
 };
 
-function checkpointNow(): number {
-  const F = S.flags;
-  if (F.robbed) return 1500;
-  if (F.marchDone) return 1400;
-  if (F.supplies) return 600;
-  return 0;
-}
 
 // ═════════════════════════════════════════════════════════
 // 제1장 끝: 어두운 골목
@@ -3562,17 +3871,24 @@ export function drawPlay(): void {
       g.fillRect(W - 92, 6, 86, 16);
       text(`손전등${S.flags.treats ? " · 츄르" : ""}`, W - 12, 14, "#d8d0c0", "right");
     }
+    if (sc.id === "chapter1" && S.flags.supplies && !S.flags.treats && !S.flags.robbed) {
+      g.fillStyle = "rgba(6,5,10,0.6)";
+      g.fillRect(W - 128, 24, 122, 16);
+      text("목표: 샘의 츄르 찾기", W - 12, 32, "#ffd36a", "right");
+    }
   }
   if (S.help > 0 && S.control) {
     g.globalAlpha = Math.min(1, S.help);
     g.fillStyle = "rgba(6,5,10,0.6)";
     g.fillRect(0, H - 18, W, 18);
     text(
-      ["chapter1", "church", "pier", "center", "helipad"].includes(sc.id)
+      ["church", "pier", "center", "helipad"].includes(sc.id)
         ? "←→ 이동  Shift 달리기  ↓ 살금살금  Space 조사/숨기"
         : sc.id === "roofs"
           ? "←→ 이동  Shift 달리기(틈 뛰어넘기)  Space 숨기"
-          : "←→ 이동  Space 살펴보기 (클릭도 가능)",
+          : sc.id === "chapter1"
+            ? "←→ 이동  Shift 달리기  Space 살펴보기 (클릭도 가능)"
+            : "←→ 이동  Space 살펴보기 (클릭도 가능)",
       W / 2,
       H - 9,
       "#ece6f4",
@@ -3809,7 +4125,7 @@ export function prewarm(): void {
   for (let i = 0; i < 8; i++) catPoses.push(`sitT${i}`);
   for (const p of catPoses) for (const f of [1, -1] as const) cat(p, f);
   // 다른 등장인물은 게임 중 남는 시간에 조금씩 굽는다
-  const others: Array<[Look, string]> = [[ADDICT, "addict"], [ZOMBIES[0], "z0"], [ZOMBIES[1], "z1"], [ZOMBIES[2], "z2"], [SKELETON, "sk"], [FROGMAN, "frog"], [FROG_KING, "frogking"], [RUTH, "ruth"], [TOMAS, "tomas"], [HAZMAT, "hazmat"], [BOSS, "boss"]];
+  const others: Array<[Look, string]> = [[ADDICT, "addict"], [STRANGERS[0], "st0"], [STRANGERS[1], "st1"], [STRANGERS[2], "st2"], [SKELETON, "sk"], [FROGMAN, "frog"], [FROG_KING, "frogking"], [RUTH, "ruth"], [TOMAS, "tomas"], [HAZMAT, "hazmat"], [BOSS, "boss"]];
   for (const [look, id] of others) {
     for (const p of [...poses.slice(0, 20), "sit"]) for (const f of [1, -1] as const) bakeQueue.push(() => human(look, id, p, BUILD_3, f));
   }

@@ -804,6 +804,18 @@ export const ZOMBIES: Look[] = [
   zombie("#4a5a4a", "#36443a", "#2c3240", "#2a2422"),
 ];
 
+/** 운석 먼지에 넋이 나간 사람들 (좀비가 아니라, 멍하니 흔들리고 중얼거린다) */
+export const STRANGERS: Look[] = ZOMBIES.map((z, i) => ({
+  ...z,
+  skin: ["#e4c6aa", "#c49674", "#f0d6c0"][i],
+  skinShade: ["#c4a084", "#9a7054", "#d4b49c"][i],
+  skinLight: ["#f4dcc6", "#d8ac8a", "#fbe6d4"][i],
+  eye: "#4a3a2e",
+  brow: ["#5a4a3a", "#2a1e18", "#7a5a3a"][i],
+  armsForward: false,
+  hunch: [4, 2, 5][i],
+}));
+
 export const ADDICT: Look = {
   ...ZOMBIES[0],
   skin: "#e2b898",
