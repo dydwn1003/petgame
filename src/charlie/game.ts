@@ -75,6 +75,7 @@ import {
   type Pose,
 } from "./sprites";
 import { makeCanvas } from "./pixel";
+import { farewellShots, introShots, memoryShots, type Shot } from "./movies";
 
 // ── 타입 ─────────────────────────────────────────────────
 type Kind = "charlie" | "sam" | "person";
@@ -101,7 +102,10 @@ export interface Actor {
   hop?: number;
   /** 연출 중 반복 재생할 동작 (예: 계단 오르기) */
   anim?: { prefix: string; frames: number; fps: number } | null;
+  /** 머리 위 감정 아이콘 */
+  emote?: { kind: Emote; t0: number } | null;
 }
+type Emote = "!" | "?" | "♥" | "…" | "💢" | "💧" | "♪";
 
 interface Hotspot {
   x: number;
@@ -169,7 +173,34 @@ export const S = {
   titleSel: 0,
   fridgeSel: 0,
   choice: null as null | { options: string[]; sel: number; picked: number },
+  movie: null as null | { shots: Shot[]; i: number; t: number },
+  /** 연출용 카메라: 초점 x, 확대 */
+  cam: { focus: null as number | null, zoom: 1, zoomTarget: 1 },
+  bars: 0,
 };
+
+// ── 연출 도구 ────────────────────────────────────────────
+/** 머리 위에 감정 아이콘을 띄운다 */
+function emote(a: Actor, kind: Emote): void {
+  a.emote = { kind, t0: clock.t };
+  if (kind === "!") sfx.blip();
+}
+/** 카메라를 x 에 맞추고 확대한다 (조작이 돌아오면 자동으로 풀린다) */
+function focusCam(x: number | null, zoom = 1): void {
+  S.cam.focus = x;
+  S.cam.zoomTarget = zoom;
+}
+/** 애니메이션 컷을 끝까지 재생한다 (Space 로 넘기기) */
+function playMovie(shots: Shot[]): Promise<void> {
+  S.movie = { shots, i: 0, t: 0 };
+  return until(() => S.movie === null);
+}
+const ZOOM_Y = 0.66;
+/** 확대 중인 월드 좌표 → 화면 좌표 */
+function toScreen(x: number, y: number): [number, number] {
+  const z = S.cam.zoom;
+  return [W / 2 + (x - W / 2) * z, H * ZOOM_Y + (y - H * ZOOM_Y) * z];
+}
 
 function mkActor(kind: Kind, x: number, facing: 1 | -1 = 1, extra: Partial<Actor> = {}): Actor {
   return { kind, x, y: GROUND, facing, pose: null, walkDist: 0, moving: false, visible: true, bubble: null, ...extra };
@@ -276,6 +307,9 @@ export async function goScene(id: string, checkpoint = 0, fade = true): Promise<
   S.talk = null;
   S.hidden = false;
   S.over = null;
+  S.movie = null;
+  S.cam.focus = null;
+  S.cam.zoom = S.cam.zoomTarget = 1;
   S.mode = "play";
   fx.card = null;
   charlie = mkActor("charlie", 0);
@@ -445,6 +479,7 @@ SCENES.room = () => {
     sam.facing = -1;
     sam.pose = "butt";
     sfx.meow();
+    emote(charlie, "!");
     await say(charlie, "샘! 여기 있었구나!");
     sam.pose = "sit";
     await wait(0.4);
@@ -499,6 +534,7 @@ SCENES.room = () => {
     charlie.y = GROUND;
     sam.pose = "startle";
     charlie.bubble = null;
+    emote(charlie, "!");
     await say(charlie, "씨...!? 뭐, 뭐야!");
     sam.facing = -1;
     sam.pose = "jump";
@@ -514,6 +550,7 @@ SCENES.room = () => {
     await walkTo(charlie, ROOM.desk + 40, 70);
     charlie.facing = -1;
     shake(0.4);
+    emote(charlie, "!");
     await say(charlie, "샘! 안 돼!");
     await wait(0.4);
     await goScene("chapter1", 0);
@@ -857,6 +894,7 @@ SCENES.chapter1 = (checkpoint) => {
           frog.facing = 1;
           await tween(frog, charlie.x + 50, GROUND, 0.3, 26);
           await caption("개구리 인간이 츄르를 낚아채 달아났다!");
+          emote(charlie, "💢");
           await say(charlie, "야! 그건 샘 거야!");
           for (let i = 0; i < 5; i++) await tween(frog, frog.x + 70, GROUND, 0.3, 24);
           frog.visible = false;
@@ -1336,6 +1374,7 @@ SCENES.subway = (checkpoint) => {
           sfx.croak();
           shake(0.6);
           king.bubble = "개구우우울!!";
+          emote(charlie, "💧");
           await say(charlie, "...깼다.");
           king.bubble = null;
           writeSave("subway", 1360);
@@ -1599,6 +1638,7 @@ SCENES.rooftop = () => {
       sam.y = 150;
       sam.facing = -1;
       sam.pose = "sit";
+      emote(charlie, "!");
       await say(charlie, "샘!! 거기 있었구나!");
       await walkTo(charlie, 330, 60);
       ufo = 0;
@@ -1607,6 +1647,7 @@ SCENES.rooftop = () => {
       await wait(1.2);
       sam.pose = "startle";
       await caption("하늘에서 이상한 초록빛이 내려왔다.");
+      emote(charlie, "?");
       await say(charlie, "...이번엔 또 뭐야.");
       sam.pose = "jump";
       sam.facing = 1;
@@ -1850,6 +1891,7 @@ SCENES.roofs = (checkpoint) => {
           await tween(sam, ROOFS.skylight - 4, 204, 0.35, 12);
           sam.visible = false;
           sfx.glass();
+          emote(charlie, "?");
           await say(charlie, "채광창 안으로 들어갔어... 여긴, 교회?");
           await walkTo(charlie, ROOFS.skylight - 8, 40);
           await say(charlie, "...에라, 모르겠다!");
@@ -1988,6 +2030,9 @@ SCENES.church = (checkpoint) => {
   const startRaid = async () => {
     sfx.siren();
     shake(0.3);
+    emote(charlie, "!");
+    emote(ruth, "!");
+    emote(tomas, "!");
     await caption("밖에서 사이렌이 울린다. 확성기 소리가 교회 벽을 울렸다.");
     await caption("「특별대응단이다. 면역자 검사를 실시한다. 즉시 문을 열어라.」");
     await say(ruth, "찰리, 넌 명단에 없어. 들키면 그대로 끌려가. 저 고해실에 숨어!");
@@ -2040,7 +2085,10 @@ SCENES.church = (checkpoint) => {
     a2.facing = -1;
     await wait(0.7);
     await caption("품 안에서 샘이 꿈틀거린다. 안 돼, 샘... 조금만...");
+    focusCam(CHURCH.confessional + 10, 1.4);
     await say(a2, "...이 안에 누구 있나?");
+    focusCam(null, 1);
+    emote(a2, "?");
     await say(ruth, "거긴 비었어요! 찾는 게 면역자라면... 나예요.");
     a2.facing = -1;
     await walkTo(a2, 160, 60);
@@ -2051,6 +2099,7 @@ SCENES.church = (checkpoint) => {
     await say(tomas, "루스!");
     await say(ruth, "토마스, 애들 부탁해.");
     ruth.facing = 1;
+    emote(ruth, "♥");
     await say(ruth, "...저기 덩치 큰 애도.");
     await Promise.all([walkTo(a1, CHURCH.door - 10, 40), walkTo(ruth, CHURCH.door, 40), walkTo(a2, CHURCH.door + 10, 40)]);
     a1.visible = a2.visible = ruth.visible = false;
@@ -2064,6 +2113,7 @@ SCENES.church = (checkpoint) => {
     lily.visible = true;
     lily.x = CHURCH.altar - 10;
     await walkTo(lily, 330, 70);
+    emote(lily, "💧");
     await say(lily, "루스 할머니...");
     sam.visible = true;
     sam.x = charlie.x + 10;
@@ -2078,6 +2128,7 @@ SCENES.church = (checkpoint) => {
     await say(tomas, "격리 센터는 허드슨 강변의 옛 컨벤션 센터야. 거기 끌려간 사람은... 아무도 돌아오지 않았어.");
     charlie.facing = 1;
     await say(charlie, "루스 할머니는 저를 숨겨 주셨어요. 저 대신 나가신 거예요.");
+    focusCam(charlie.x, 1.3);
     await say(charlie, "...제가 데려올게요.");
     sam.pose = "sit";
     sam.facing = -1;
@@ -2276,8 +2327,11 @@ SCENES.church = (checkpoint) => {
       await say(charlie, "으윽... 허리...");
       await walkTo(tomas, charlie.x - 40, 110);
       tomas.pose = "stand";
+      emote(tomas, "!");
+      focusCam(charlie.x - 20, 1.25);
       await say(tomas, "움직이지 마! 물렸어? 어디 물린 데 있어?");
       charlie.pose = "armsUp";
+      emote(charlie, "💧");
       await say(charlie, "아, 아니에요! 고양이를 쫓아왔을 뿐이에요!");
       charlie.pose = null;
       await walkTo(ruth, charlie.x - 64, 50);
@@ -2286,9 +2340,14 @@ SCENES.church = (checkpoint) => {
       await say(ruth, "열은? 환청은? 갑자기 고기가 싫어지거나, 손가락 사이가 끈적해지진 않고?");
       await say(charlie, "...없는데요. 3일 밤샌 피로 말고는.");
       await say(ruth, "그럼 너도 우리처럼 '면역자'구나. 난 루스. 이쪽은 토마스, 저 애는 릴리.");
+      emote(lily, "♪");
+      focusCam(CHURCH.lily, 1.2);
       await say(lily, "아저씨! 이 고양이 아저씨 거예요?");
       charlie.facing = -1;
+      emote(charlie, "♥");
+      emote(sam, "♥");
       await say(charlie, "샘!! ...다행이다. 다친 데는 없구나.");
+      focusCam(null);
       sfx.purr();
       await Promise.all([walkTo(tomas, CHURCH.tomas, 50), walkTo(ruth, CHURCH.ruth, 40)]);
       tomas.pose = ruth.pose = "stand";
@@ -2740,14 +2799,19 @@ SCENES.lab = () => {
       boss.pose = null;
       await walkTo(boss, LAB.lift - 50, 40);
       boss.pose = "stand";
+      focusCam((boss.x + charlie.x) / 2, 1.3);
+      emote(boss, "…");
       await say(boss, "이런, 이런. 찰리 군 아닌가?");
       charlie.facing = 1;
       charlie.pose = "armsUp";
+      emote(charlie, "!");
+      shake(0.2);
       await say(charlie, "부... 부장님?!");
       charlie.pose = null;
       await say(boss, "3일 연속 야근 끝에 무단 퇴근이라니. 자네 인사고과는 이미 바닥이야.");
       await say(charlie, "부장님이 왜 여기 계세요?!");
       await say(boss, "특별대응단? 우리 블랙컴퍼니가 따낸 용역이지. 면역자의 피로 백신을 만들면, 세상에서 제일 비싼 상품이 되거든.");
+      emote(ruth, "💢");
       await say(ruth, "사람을 상품 취급하다니.");
       await say(boss, "그리고 저 초록빛. 녀석들은 고양이만 찾아. 고양이를 미끼로 쓰면 외계 기술까지 손에 넣을 수 있지.");
       sam.visible = true;
@@ -2756,6 +2820,7 @@ SCENES.lab = () => {
       sam.facing = 1;
       sam.pose = "startle";
       sfx.meow();
+      emote(sam, "💢");
       await say(boss, "오호, 마침 미끼가 제 발로 왔군.");
       await caption("부장이 그물을 던졌다!");
       sam.pose = "jump";
@@ -2763,6 +2828,8 @@ SCENES.lab = () => {
       sam.visible = false;
       cage = true;
       shake(0.3);
+      emote(charlie, "💢");
+      focusCam(null);
       await say(charlie, "샘!!");
       await say(boss, "옥상에서 기다리지. 정시 퇴근은 꿈도 꾸지 말게, 찰리 군.");
       boss.facing = 1;
@@ -2894,6 +2961,7 @@ SCENES.helipad = (checkpoint) => {
   const finale = async () => {
     charlie.moving = false;
     await walkTo(charlie, 720, 50);
+    focusCam((boss.x + charlie.x) / 2, 1.3);
     await say(boss, "늦었네, 찰리 군. 정시 퇴근은 꿈도 꾸지 말라고 했지?");
     await say(charlie, "샘을 돌려주세요, 부장님!");
     await say(boss, "이건 회사 자산이야. 자, 초록빛이여! 고양이를 바치마! 그 대신 기술을 내놔라!");
@@ -2904,10 +2972,12 @@ SCENES.helipad = (checkpoint) => {
     await wait(1);
     await caption("빛이 부장을 감쌌다. 고양이가 아니라... 부장을?");
     boss.pose = "armsUp";
+    emote(boss, "💧");
     await say(boss, "자, 잠깐! 나는 고양이가 아니야! 나는 부장이라고!");
     await tween(boss, boss.x, 40, 1.8, 0);
     boss.visible = false;
     await caption("「욕심으로 가득 찬 마음... 표본으로 가져가겠다.」");
+    focusCam(null, 1);
     await say(charlie, "...부장님, 드디어 퇴근하셨네요.");
     for (const f of kit.guards) {
       f.bubble = "으, 으악!";
@@ -2926,8 +2996,11 @@ SCENES.helipad = (checkpoint) => {
     await caption("철창이 녹듯이 사라지고, 빛이 샘을 감쌌다.");
     sam.pose = "jump";
     await tween(sam, sam.x, GROUND - 40, 1.6, 0);
+    focusCam(sam.x, 1.45);
     await caption("「돌아오렴, 작은 별의 아이야. 너는 원래 우리의 아이란다.」");
     await say(charlie, "샘이... 저 별에서 왔다고?");
+    await playMovie(memoryShots());
+    await say(charlie, "...그날 비 오는 골목. 상자 속에서 떨던 게 너였구나.");
     await caption("샘이 빛 속에서 찰리를 돌아본다.");
     const pick = await choose(["샘, 가지 마! 내 곁에 있어 줘.", "...가고 싶으면, 가도 돼."]);
     if (pick === 0) {
@@ -2938,10 +3011,14 @@ SCENES.helipad = (checkpoint) => {
       await tween(sam, charlie.x + 8, GROUND, 0.5, 20);
       sam.pose = "butt";
       sfx.purr();
+      emote(sam, "♥");
+      emote(charlie, "♥");
+      focusCam(charlie.x, 1.35);
       await say(charlie, "...샘!");
       await caption("「그 아이가 너를 골랐구나. 작은 별의 아이를 부탁한다, 지구의 친구여.」");
     } else {
       F.endB = 1;
+      emote(charlie, "💧");
       await say(charlie, "가고 싶으면, 가도 돼. 네가 행복하다면... 그걸로 됐어.");
       sfx.meow();
       await caption("샘이 오래, 오래 찰리를 바라보았다.");
@@ -2956,6 +3033,8 @@ SCENES.helipad = (checkpoint) => {
     sfx.item();
     await wait(1.5);
     await caption("초록빛 비가 뉴욕 위로 부드럽게 내렸다.");
+    focusCam(null, 1);
+    await playMovie(farewellShots(pick === 0));
     ufo = false;
     flash("#ffffff", 1);
     await fadeTo(1, 1.6);
@@ -3010,11 +3089,14 @@ SCENES.epiA = () => {
       await say(lily, "샘! 찰리 아저씨!");
       await say(tomas, "가게 다시 열었어. 츄르는 평생 공짜야. 샘 한정으로.");
       await say(ruth, "좀비였던 사람들은 재활 센터에 다니고, 해골 시위대는 다시 살이 붙더니... 고기 한 점 두고 싸우더군.");
+      emote(lily, "♪");
       await say(lily, "나비도 돌아왔어요! 초록빛이 고양이들을 다 돌려보내 줬대요!");
       await caption("휴대폰 알림: 「블랙컴퍼니(주) 파산. 그림스 부장 행방불명.」");
+      emote(charlie, "♪");
       await say(charlie, "...출근은 안 해도 되겠네.");
       sam.pose = "butt";
       sfx.purr();
+      emote(sam, "♥");
       await say(charlie, "가자, 샘. 오늘은 맥주 말고 우유로 건배다.");
       sfx.meow();
       sam.pose = null;
@@ -3065,11 +3147,40 @@ SCENES.epiB = () => {
       await tween(sam, ROOM.armchair + 40, GROUND, 0.6, 20);
       sam.pose = "sit";
       await caption("샘의 목에는 초록빛으로 반짝이는 방울이 달려 있었다. 꼬리표에는 서툰 글씨로 「가끔 들를게」.");
+      emote(charlie, "💧");
+      focusCam(ROOM.armchair + 20, 1.35);
       await say(charlie, "...어서 와, 샘.");
+      emote(sam, "♥");
       sam.pose = "butt";
       sfx.purr();
       await fadeTo(1, 2);
       await credits("— 또 다른 끝 —");
+    },
+  };
+  return sc;
+};
+
+/** 오프닝 애니메이션 */
+SCENES.intro = () => {
+  const c = makeCanvas(W * BG_SCALE, H * BG_SCALE);
+  const sc: Scene = {
+    id: "intro",
+    width: W,
+    bg: c,
+    ambient: 0,
+    lights: () => [],
+    minX: 0,
+    maxX: W,
+    actors: [],
+    hotspots: [],
+    zones: [],
+    start: async () => {
+      charlie.visible = false;
+      S.movie = { shots: introShots(), i: 0, t: 0 };
+      await fadeTo(0, 0.8);
+      await until(() => S.movie === null);
+      await fadeTo(1, 0.6);
+      await goScene("street1", 0, false);
     },
   };
   return sc;
@@ -3081,6 +3192,27 @@ SCENES.epiB = () => {
 export function update(dt: number): void {
   if (S.help > 0) S.help -= dt;
   const sc = S.scene;
+  // 컷신 레터박스
+  const cine = S.mode === "play" && !!S.scene && !S.control && !S.scene.noPlayer;
+  S.bars += ((cine ? 1 : 0) - S.bars) * Math.min(1, dt * 5);
+  S.cam.zoom += (S.cam.zoomTarget - S.cam.zoom) * Math.min(1, dt * 3);
+  if (S.control) {
+    S.cam.focus = null;
+    S.cam.zoomTarget = 1;
+  }
+  if (S.movie) {
+    const m = S.movie;
+    m.t += dt;
+    const shot = m.shots[m.i];
+    if (took(...ADVANCE) && m.t > 0.6) m.t = Math.max(m.t, shot.dur - 0.4);
+    if (took("Escape")) m.i = m.shots.length;
+    if (m.t >= shot.dur || m.i >= m.shots.length) {
+      m.i++;
+      m.t = 0;
+      if (m.i >= m.shots.length) S.movie = null;
+    }
+    return;
+  }
   if (S.talk) {
     S.talk.typed = Math.min(S.talk.text.length, S.talk.typed + dt * 32);
     if (took(...ADVANCE)) advanceTalk();
@@ -3172,7 +3304,7 @@ export function update(dt: number): void {
   sc.update?.(dt);
 
   // 카메라
-  const target = Math.max(0, Math.min(sc.width - W, charlie.x - W / 2));
+  const target = Math.max(0, Math.min(sc.width - W, (S.cam.focus ?? charlie.x) - W / 2));
   S.camX += (target - S.camX) * Math.min(1, dt * 6);
 }
 
@@ -3216,6 +3348,8 @@ function drawActor(a: Actor, camX: number): void {
   if (!a.visible) return;
   const sx = half(a.x - camX);
   if (sx < -40 || sx > W + 40) return;
+  const talking = S.talk && !S.talk.caption && S.talk.actor === a && S.talk.typed < S.talk.text.length;
+  const bob = talking ? -Math.abs(Math.sin(clock.t * 12)) * 0.8 : 0;
   if (a.kind === "sam") {
     let pose: CatPose;
     const idle = (): CatPose => {
@@ -3228,7 +3362,7 @@ function drawActor(a: Actor, camX: number): void {
     else if (a.pose) pose = a.pose as CatPose;
     else pose = a.moving ? `walk${Math.floor(a.walkDist / 1.5) % 16}` : idle();
     const spr = cat(pose, a.facing, !!a.silhouette);
-    smoothDraw(spr, sx - 15, half(a.y) - 22, 32, 24);
+    smoothDraw(spr, sx - 15, half(a.y + bob) - 22, 32, 24);
     return;
   }
   const isCharlie = a.kind === "charlie";
@@ -3249,7 +3383,7 @@ function drawActor(a: Actor, camX: number): void {
   const ox = a.facing === 1 ? HUMAN_ORIGIN.x : 32 - HUMAN_ORIGIN.x;
   g.fillStyle = "rgba(0,0,0,0.3)";
   g.fillRect(sx - 9, half(a.y) - 1, 18, 2);
-  smoothDraw(spr, sx - ox, half(a.y) - HUMAN_ORIGIN.y, 32, 54);
+  smoothDraw(spr, sx - ox, half(a.y + bob) - HUMAN_ORIGIN.y, 32, 54);
 }
 
 function drawLighting(sc: Scene, camX: number): void {
@@ -3345,6 +3479,12 @@ export function drawPlay(): void {
   const sy = fx.shake > 0 ? Math.round((Math.random() - 0.5) * fx.shake * 10) : 0;
   g.save();
   g.translate(sx, sy);
+  const z = S.cam.zoom;
+  if (Math.abs(z - 1) > 0.001) {
+    g.translate(W / 2, H * ZOOM_Y);
+    g.scale(z, z);
+    g.translate(-W / 2, -H * ZOOM_Y);
+  }
   g.drawImage(sc.bg, camX * BG_SCALE, 0, W * BG_SCALE, H * BG_SCALE, 0, 0, W, H);
   sc.back?.(camX);
   if (!sc.noPlayer) {
@@ -3354,12 +3494,13 @@ export function drawPlay(): void {
   sc.front?.(camX);
   drawLighting(sc, camX);
   sc.overlay?.(camX);
+  if (!sc.noPlayer) for (const a of [...sc.actors, charlie, sam]) drawEmote(a, camX);
   g.restore();
 
   // 말풍선
   if (!sc.noPlayer) {
     for (const a of [...sc.actors, charlie]) {
-      if (a.bubble && a.visible && !S.talk) bubble(a.bubble, a.x - camX, a.y - 58);
+      if (a.bubble && a.visible && !S.talk) bubble(a.bubble, ...toScreen(a.x - camX, a.y - 58));
     }
   }
   // 조사 아이콘
@@ -3383,6 +3524,14 @@ export function drawPlay(): void {
     else if (near) text(`[Space] ${near.label}`, near.x - camX, near.iconY - 14, "#d8d0c0", "center");
   }
 
+  // 컷신 레터박스
+  if (S.bars > 0.01) {
+    const bh = Math.round(S.bars * 20 * render.scale) / render.scale;
+    g.fillStyle = "#000";
+    g.fillRect(0, 0, W, bh);
+    g.fillRect(0, H - bh, W, bh);
+  }
+
   // 대사
   if (S.talk) {
     const shown = S.talk.text.slice(0, Math.floor(S.talk.typed));
@@ -3400,7 +3549,7 @@ export function drawPlay(): void {
     } else {
       const a = S.talk.actor;
       const topY = a.pose === "sit" || a.pose === "drink" || a.pose === "sleep" ? a.y - 46 : a.y - 58;
-      bubble(shown || " ", a.x - camX, topY);
+      bubble(shown || " ", ...toScreen(a.x - camX, topY));
     }
   }
 
@@ -3444,6 +3593,108 @@ export function drawPlay(): void {
     text(S.over.msg, W / 2, 138, "#ece6f4", "center");
     text("[Space] 다시 하기     [Esc] 타이틀로", W / 2, 176, "#b8b0c8", "center");
   }
+  drawMovie();
+}
+
+/** 애니메이션 컷: 시네마 비율 화면 + 자막 */
+function drawMovie(): void {
+  const m = S.movie;
+  if (!m || m.i >= m.shots.length) return;
+  const shot = m.shots[m.i];
+  const k = Math.min(1, m.t / shot.dur);
+  g.save();
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, W, H);
+  shot.draw(m.t, k);
+  g.restore();
+  g.imageSmoothingEnabled = false;
+  // 컷 사이 페이드
+  const edge = Math.min(m.t / 0.6, (shot.dur - m.t) / 0.6, 1);
+  if (edge < 1) {
+    g.fillStyle = `rgba(0,0,0,${(1 - Math.max(0, edge)).toFixed(2)})`;
+    g.fillRect(0, 0, W, H);
+  }
+  // 시네마 바 + 자막
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, W, 30);
+  g.fillRect(0, H - 34, W, 34);
+  if (shot.text) {
+    const shown = shot.text.slice(0, Math.floor(Math.max(0, m.t - 0.4) * 26));
+    const lines = wrap(shot.text, W - 60);
+    let rest = shown;
+    lines.forEach((l, i) => {
+      const part = rest.slice(0, l.length);
+      rest = rest.slice(l.length + 1);
+      text(part, W / 2, H - 22 + i * 13 - (lines.length - 1) * 6, "#ece6f4", "center", "");
+    });
+  }
+  text("Space 넘기기 · Esc 건너뛰기", W - 8, 12, "rgba(220,214,232,0.35)", "right", "");
+}
+
+/** 머리 위 감정 아이콘 (톡 튀어나왔다가 사라진다) */
+function drawEmote(a: Actor, camX: number): void {
+  const e = a.emote;
+  if (!e || !a.visible) return;
+  const t = clock.t - e.t0;
+  if (t > 1.8) {
+    a.emote = null;
+    return;
+  }
+  const pop = t < 0.15 ? t / 0.15 * 1.25 : t < 0.25 ? 1.25 - (t - 0.15) * 2.5 : 1;
+  const fade = t > 1.5 ? 1 - (t - 1.5) / 0.3 : 1;
+  const cat2 = a.kind === "sam";
+  // 말풍선과 겹치지 않게 머리 옆(바라보는 반대쪽)에 띄운다
+  const x = a.x - camX + (cat2 ? a.facing * 6 : -a.facing * 14);
+  const y = a.y - (cat2 ? 30 : 50) - Math.min(t, 0.3) * 6;
+  g.save();
+  g.globalAlpha = fade;
+  g.translate(x, y);
+  g.scale(pop, pop);
+  g.fillStyle = "#0b0a0c";
+  g.beginPath();
+  g.ellipse(0, 0, 8, 7, 0, 0, Math.PI * 2);
+  g.fill();
+  g.beginPath();
+  g.moveTo(-2, 5);
+  g.lineTo(-4, 10);
+  g.lineTo(2, 6);
+  g.fill();
+  g.fillStyle = "#f4ecff";
+  g.beginPath();
+  g.ellipse(0, 0, 7, 6, 0, 0, Math.PI * 2);
+  g.fill();
+  if (e.kind === "♥") {
+    g.fillStyle = "#e84a6a";
+    g.beginPath();
+    g.moveTo(0, 3.5);
+    g.bezierCurveTo(-6, -1, -3, -5.5, 0, -2);
+    g.bezierCurveTo(3, -5.5, 6, -1, 0, 3.5);
+    g.fill();
+  } else if (e.kind === "💧") {
+    g.fillStyle = "#4a9ae8";
+    g.beginPath();
+    g.moveTo(0, -4.5);
+    g.quadraticCurveTo(3.5, 1, 0, 3.5);
+    g.quadraticCurveTo(-3.5, 1, 0, -4.5);
+    g.fill();
+  } else if (e.kind === "💢") {
+    g.strokeStyle = "#e83a3a";
+    g.lineWidth = 1.2;
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      g.beginPath();
+      g.moveTo(dx * 1, dy * 3.5);
+      g.quadraticCurveTo(dx * 1, dy * 1, dx * 3.5, dy * 1);
+      g.stroke();
+    }
+  } else {
+    const col = e.kind === "!" ? "#e83a3a" : e.kind === "?" ? "#3a6ae8" : e.kind === "♪" ? "#3aa86a" : "#3a3a4a";
+    g.font = "bold 9px Galmuri11";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillStyle = col;
+    g.fillText(e.kind, 0, 0.5);
+  }
+  g.restore();
 }
 
 // ═════════════════════════════════════════════════════════
@@ -3482,7 +3733,7 @@ export function updateTitle(): void {
   sfx.blip();
   if (label === "새 게임") {
     S.flags = {};
-    void goScene("street1", 0, false);
+    void goScene("intro", 0, false);
   } else if (label === "제2장부터") {
     S.flags = { supplies: 1, ch1: 1 };
     void goScene("subwayGate", 0, false);
