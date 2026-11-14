@@ -1240,12 +1240,14 @@ function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { 
       return;
     }
     const shape = new Path2D();
-    shape.ellipse(ex, ey, w / 2 + 0.3, h / 2 + 0.2, -0.08, 0, Math.PI * 2);
+    // 옆에서 본 눈: 뒤쪽은 둥글고 앞쪽(코 방향)으로 살짝 뾰족한 아몬드꼴
+    shape.moveTo(ex - w / 2, ey);
+    shape.bezierCurveTo(ex - w / 2, ey - h * 0.62, ex + w * 0.2, ey - h * 0.66, ex + w / 2 + 0.6, ey - h * 0.08);
+    shape.bezierCurveTo(ex + w * 0.25, ey + h * 0.62, ex - w / 2, ey + h * 0.6, ex - w / 2, ey);
     // 눈가 그늘
-    g.fillStyle = "rgba(70,74,90,0.35)";
-    g.beginPath();
-    g.ellipse(ex, ey + 0.2, w / 2 + 1.6, h / 2 + 1.4, 0, 0, Math.PI * 2);
-    g.fill();
+    g.strokeStyle = "rgba(70,74,90,0.3)";
+    g.lineWidth = 1.4;
+    g.stroke(shape);
     g.fillStyle = C.lid;
     g.fill(shape);
     g.save();
@@ -1256,7 +1258,7 @@ function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { 
     ig.addColorStop(1, C.irisRim);
     g.fillStyle = ig;
     g.beginPath();
-    g.ellipse(ex + 0.2, ey, w / 2 - 0.35, h / 2 - 0.15, 0, 0, Math.PI * 2);
+    g.ellipse(ex + w * 0.16, ey, w * 0.42, h / 2 - 0.1, 0, 0, Math.PI * 2);
     g.fill();
     // 홍채 결
     g.strokeStyle = "rgba(150,80,20,0.35)";
@@ -1264,14 +1266,14 @@ function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { 
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2;
       g.beginPath();
-      g.moveTo(ex + Math.cos(a) * w * 0.12, ey + Math.sin(a) * h * 0.12);
-      g.lineTo(ex + Math.cos(a) * w * 0.42, ey + Math.sin(a) * h * 0.4);
+      g.moveTo(ex + w * 0.24 + Math.cos(a) * w * 0.1, ey + Math.sin(a) * h * 0.12);
+      g.lineTo(ex + w * 0.24 + Math.cos(a) * w * 0.36, ey + Math.sin(a) * h * 0.4);
       g.stroke();
     }
     // 동공 (세로로 긴 고양이 동공)
     g.fillStyle = C.pupil;
     g.beginPath();
-    g.ellipse(ex + 0.3, ey + 0.2, o.wide ? w * 0.34 : w * 0.24, o.wide ? h * 0.38 : h * 0.34, 0, 0, Math.PI * 2);
+    g.ellipse(ex + w * 0.27, ey + 0.1, o.wide ? w * 0.26 : w * 0.17, o.wide ? h * 0.38 : h * 0.33, 0, 0, Math.PI * 2);
     g.fill();
     // 윗눈꺼풀 그림자
     g.fillStyle = "rgba(20,16,24,0.22)";
@@ -1280,10 +1282,10 @@ function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { 
     // 반사광
     g.fillStyle = "#ffffff";
     g.beginPath();
-    g.ellipse(ex - w * 0.14, ey - h * 0.16, near ? 1.5 : 1.2, near ? 1.4 : 1.1, 0, 0, Math.PI * 2);
+    g.ellipse(ex + w * 0.12, ey - h * 0.18, near ? 1.2 : 0.9, near ? 1.1 : 0.85, 0, 0, Math.PI * 2);
     g.fill();
     g.beginPath();
-    g.ellipse(ex + w * 0.18, ey + h * 0.2, near ? 0.7 : 0.55, near ? 0.6 : 0.5, 0, 0, Math.PI * 2);
+    g.ellipse(ex + w * 0.34, ey + h * 0.2, near ? 0.55 : 0.45, near ? 0.5 : 0.4, 0, 0, Math.PI * 2);
     g.fill();
     // 아래 눈꺼풀 촉촉한 빛 + 눈물 자국 라인
     g.strokeStyle = "rgba(240,240,248,0.6)";
@@ -1299,8 +1301,8 @@ function paintCatHead(g: CanvasRenderingContext2D, hx: number, hy: number, o: { 
     g.quadraticCurveTo(ex + w / 2 + 1.6, ey + 2.2, ex + w / 2 + 1.2, ey + 4);
     g.stroke();
   };
-  eye(-4.8, -1.8, 6.2, 5.8, false);
-  eye(5.6, -2, 7.6, 7, true);
+  eye(-4, -1.8, 4.6, 5.6, false);
+  eye(6, -2, 6.8, 6.8, true);
   g.restore();
   whiskerAt = { x: hx + 12, y: hy + 5, tilt: o.tilt ?? 0 };
 }
