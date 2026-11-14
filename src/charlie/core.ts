@@ -11,6 +11,9 @@ g.imageSmoothingEnabled = false;
 
 export const clock = { t: 0 };
 
+/** 화면 해상도: 게임 좌표 1칸이 실제 몇 도트인지 (기기 화면에 맞춰 정해진다) */
+export const render = { scale: 4 };
+
 // ── 입력 ─────────────────────────────────────────────────
 export const keys = new Set<string>();
 export const pressed = new Set<string>();

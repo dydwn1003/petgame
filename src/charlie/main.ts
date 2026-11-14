@@ -1,6 +1,7 @@
 import "../fonts.css";
 import "./style.css";
-import { FONT, H, W, canvas, clock, fx, g, keys, mouse, pressed, tickScripts, unlockAudio, updateFx } from "./core";
+import { FONT, H, W, canvas, clock, fx, g, keys, mouse, pressed, render, tickScripts, unlockAudio, updateFx } from "./core";
+import { setSpriteDensity } from "./sprites";
 import { S, bakeIdle, debug, drawPlay, drawTitle, goScene, prewarm, update, updateTitle } from "./game";
 
 const stage = document.getElementById("stage")!;
@@ -10,6 +11,12 @@ function resize(): void {
   const u = k >= 2 ? Math.floor(k) : k;
   stage.style.width = `${W * u}px`;
   stage.style.height = `${H * u}px`;
+  // 캔버스는 실제 화면 도트 수에 맞춘다 (1080p = 4배, 1440p ≈ 5.3배, 4K = 8배)
+  const dpr = window.devicePixelRatio || 1;
+  const scale = Math.max(2, Math.min(8, u * dpr));
+  canvas.width = Math.round(W * scale);
+  canvas.height = Math.round(H * scale);
+  render.scale = canvas.width / W;
 }
 
 function drawOverlays(): void {
@@ -54,8 +61,8 @@ function frame(now: number): void {
   else update(dt);
   tickScripts();
   updateFx(dt);
-  // 캔버스는 4배 해상도: 게임 좌표 1칸 = 4도트
-  g.setTransform(4, 0, 0, 4, 0, 0);
+  // 게임 좌표 1칸 = render.scale 도트
+  g.setTransform(render.scale, 0, 0, render.scale, 0, 0);
   g.imageSmoothingEnabled = false;
   g.fillStyle = "#000";
   g.fillRect(0, 0, W, H);
@@ -115,6 +122,8 @@ fx.fade = 0;
 fx.fadeTarget = 0;
 void document.fonts.load(FONT).finally(() => {
   const t0 = performance.now();
+  // 캐릭터 도트 밀도: 기본 6배, 더 촘촘한 화면이면 그만큼 (최대 8배)
+  setSpriteDensity(Math.max(6, Math.ceil(render.scale)));
   prewarm();
   console.info(`sprites ready in ${Math.round(performance.now() - t0)}ms`);
   last = performance.now();

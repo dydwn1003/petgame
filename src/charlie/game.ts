@@ -14,6 +14,7 @@ import {
   fx,
   g,
   mouse,
+  render,
   running,
   sfx,
   shake,
@@ -37,6 +38,7 @@ import {
   ZOMBIES,
   cat,
   human,
+  spriteDensity,
   type Build,
   type CatPose,
   type Look,
@@ -65,6 +67,8 @@ export interface Actor {
   home?: number;
   sign?: string;
   hop?: number;
+  /** 연출 중 반복 재생할 동작 (예: 계단 오르기) */
+  anim?: { prefix: string; frames: number; fps: number } | null;
 }
 
 interface Hotspot {
@@ -345,11 +349,13 @@ SCENES.street1 = () => {
           await wait(0.3);
           await say(charlie, "맥주와 휴식이 필요해...");
           await walkTo(charlie, info.door, 40);
-          charlie.pose = "back";
+          charlie.anim = { prefix: "climb", frames: 8, fps: 8 };
           for (let s = 0; s < 6; s++) {
             sfx.step();
-            await tween(charlie, info.door, GROUND - (s + 1) * 6, 0.22, 1);
+            await tween(charlie, info.door, GROUND - (s + 1) * 6, 0.25, 0);
           }
+          charlie.anim = null;
+          charlie.pose = "climb0";
           await wait(0.3);
           await goScene("room");
         },
@@ -461,12 +467,12 @@ SCENES.room = () => {
     sam.pose = "startle";
     charlie.bubble = null;
     await say(charlie, "씨...!? 뭐, 뭐야!");
-    sam.pose = null;
     sam.facing = -1;
+    sam.pose = "jump";
     await tween(sam, ROOM.desk + 20, 168, 0.45, 26);
     sam.pose = "startle";
     await wait(0.25);
-    sam.pose = null;
+    sam.pose = "jump";
     await tween(sam, ROOM.windowExit, 128, 0.4, 20);
     sfx.glass();
     sam.visible = false;
@@ -951,10 +957,12 @@ SCENES.chapter1 = (checkpoint) => {
       await fadeTo(0, 1.2);
       await wait(0.6);
       charlie.pose = null;
+      charlie.anim = { prefix: "walk", frames: 16, fps: 20 };
       for (let s = 0; s < 6; s++) {
         sfx.step();
-        await tween(charlie, info.door + s * 4, GROUND - 30 + s * 6, 0.18, 1);
+        await tween(charlie, info.door + s * 4, GROUND - 30 + s * 6, 0.2, 0);
       }
+      charlie.anim = null;
       await wait(0.4);
       await say(charlie, "샘을 찾으러 가야겠어.");
       await chapterCard("제1장", "무너진 거리");
@@ -1115,11 +1123,12 @@ SCENES.subwayGate = () => {
         use: async () => {
           if (!S.flags.tracks) await say(charlie, "어디로 간 거지...? 바닥에 뭔가 있는 것 같은데.");
           else {
-            charlie.pose = "back";
+            charlie.anim = { prefix: "climb", frames: 8, fps: 8 };
             for (let i = 0; i < 4; i++) {
               sfx.step();
-              await tween(charlie, gateX, GROUND + (i + 1) * 3, 0.22, 0);
+              await tween(charlie, gateX, GROUND + (i + 1) * 3, 0.26, 0);
             }
+            charlie.anim = null;
             await goScene("subway");
           }
         },
@@ -1366,6 +1375,13 @@ SCENES.subway = (checkpoint) => {
         when: () => !!F.gotTreats,
         run: async () => {
           chase = false;
+          charlie.facing = 1;
+          charlie.anim = { prefix: "stair", frames: 8, fps: 10 };
+          for (let st = 0; st < 7; st++) {
+            sfx.step();
+            await tween(charlie, charlie.x + 9, charlie.y - 10, 0.2, 0);
+          }
+          charlie.anim = null;
           await goScene("rooftop");
         },
       },
@@ -1559,7 +1575,7 @@ SCENES.rooftop = () => {
       sam.pose = "startle";
       await caption("하늘에서 이상한 초록빛이 내려왔다.");
       await say(charlie, "...이번엔 또 뭐야.");
-      sam.pose = null;
+      sam.pose = "jump";
       sam.facing = 1;
       await tween(sam, 470, 120, 0.6, 30);
       await tween(sam, 640, 100, 0.6, 30);
@@ -1702,8 +1718,19 @@ function nearestHotspot(): Hotspot | null {
 // ═════════════════════════════════════════════════════════
 // 그리기
 // ═════════════════════════════════════════════════════════
-/** 0.25 화면칸 단위로 반올림 (4배 해상도 캔버스에서 1도트) */
-const half = (v: number) => Math.round(v * 4) / 4;
+/** 화면 도트 단위로 반올림 (해상도에 따라 1/4 ~ 1/8 칸) */
+const half = (v: number) => Math.round(v * render.scale) / render.scale;
+
+/** 스프라이트 밀도가 화면과 다르면 고품질로 줄여 그린다 */
+function smoothDraw(img: HTMLCanvasElement, x: number, y: number, w: number, h: number): void {
+  const same = Math.abs(spriteDensity() - render.scale) < 0.01;
+  if (!same) {
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = "low";
+  }
+  g.drawImage(img, x, y, w, h);
+  g.imageSmoothingEnabled = false;
+}
 
 const dark = makeCanvas(W, H);
 const dg = dark.getContext("2d")!;
@@ -1719,11 +1746,12 @@ function drawActor(a: Actor, camX: number): void {
       if (t > 3.82) return "blink";
       return `sitT${Math.floor(clock.t * 6) % 8}`;
     };
-    if (a.pose === "sit") pose = idle();
+    if (a.anim) pose = `${a.anim.prefix}${Math.floor(clock.t * a.anim.fps) % a.anim.frames}`;
+    else if (a.pose === "sit") pose = idle();
     else if (a.pose) pose = a.pose as CatPose;
     else pose = a.moving ? `walk${Math.floor(a.walkDist / 1.5) % 16}` : idle();
     const spr = cat(pose, a.facing, !!a.silhouette);
-    g.drawImage(spr, sx - 15, half(a.y) - 22, 32, 24);
+    smoothDraw(spr, sx - 15, half(a.y) - 22, 32, 24);
     return;
   }
   const isCharlie = a.kind === "charlie";
@@ -1732,7 +1760,8 @@ function drawActor(a: Actor, camX: number): void {
   let pose: Pose;
   const sneakNow = isCharlie && sneaking() && S.control;
   const breath: Pose = `stand${Math.floor(clock.t / 0.55 + a.x * 0.01) % 4}`;
-  if (a.pose === "stand") pose = breath;
+  if (a.anim) pose = `${a.anim.prefix}${Math.floor(clock.t * a.anim.fps) % a.anim.frames}`;
+  else if (a.pose === "stand") pose = breath;
   else if (a.pose) pose = a.pose as Pose;
   else if (a.moving) pose = sneakNow ? `crouch${Math.floor(a.walkDist / 2.5) % 8}` : `walk${Math.floor(a.walkDist / 2) % 16}`;
   else if (sneakNow) pose = "crouch0";
@@ -1743,7 +1772,7 @@ function drawActor(a: Actor, camX: number): void {
   const ox = a.facing === 1 ? HUMAN_ORIGIN.x : 32 - HUMAN_ORIGIN.x;
   g.fillStyle = "rgba(0,0,0,0.3)";
   g.fillRect(sx - 9, half(a.y) - 1, 18, 2);
-  g.drawImage(spr, sx - ox, half(a.y) - HUMAN_ORIGIN.y, 32, 54);
+  smoothDraw(spr, sx - ox, half(a.y) - HUMAN_ORIGIN.y, 32, 54);
 }
 
 function drawLighting(sc: Scene, camX: number): void {
@@ -2010,8 +2039,9 @@ export function prewarm(): void {
   for (let i = 0; i < 8; i++) poses.push(`crouch${i}`);
   for (let i = 0; i < 4; i++) poses.push(`stand${i}`);
   poses.push("flashlight", "sit", "drink", "sleep", "armsUp", "back");
-  for (const b of [BUILD_3, BUILD_25]) for (const p of poses) for (const f of [1, -1] as const) human(CHARLIE, "charlie", p, b, f);
-  const catPoses: string[] = ["blink", "startle", "loaf", "butt"];
+  for (let i = 0; i < 8; i++) poses.push(`climb${i}`, `stair${i}`);
+  for (const p of poses) for (const f of [1, -1] as const) human(CHARLIE, "charlie", p, S.build, f);
+  const catPoses: string[] = ["blink", "startle", "loaf", "butt", "jump"];
   for (let i = 0; i < 16; i++) catPoses.push(`walk${i}`);
   for (let i = 0; i < 8; i++) catPoses.push(`sitT${i}`);
   for (const p of catPoses) for (const f of [1, -1] as const) cat(p, f);

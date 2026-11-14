@@ -2,8 +2,8 @@
 import { FONT, GROUND, H } from "./core";
 import { makeDense, mix, rng } from "./pixel";
 
-/** 배경은 논리 좌표의 2배 밀도로 칠한다 (반 칸 = 1도트) */
-export const BG_SCALE = 2;
+/** 배경은 논리 좌표의 4배 밀도로 칠한다 (1/4 칸 = 1도트) */
+export const BG_SCALE = 4;
 
 type G = CanvasRenderingContext2D;
 
@@ -32,12 +32,13 @@ function bricks(g: G, x: number, y: number, w: number, h: number, base: string, 
       if (cw <= 0) continue;
       const col = r() < 0.3 ? vary[Math.floor(r() * vary.length)] : base;
       rect(g, x + cx, y + by, cw, bh, col);
-      rect(g, x + cx, y + by, cw, 0.5, mix(col, 0.16));
-      rect(g, x + cx, y + by + 0.5, 0.5, bh - 0.5, mix(col, 0.08));
+      rect(g, x + cx, y + by, cw, 0.25, mix(col, 0.22));
+      rect(g, x + cx, y + by + 0.25, cw, 0.25, mix(col, 0.1));
+      rect(g, x + cx, y + by + 0.5, 0.25, bh - 0.5, mix(col, 0.08));
       if (bx + 7 < w && bx + 7 >= 0) rect(g, x + bx + 7, y + by + 0.5, 0.5, bh - 0.5, mix(col, -0.2));
       rect(g, x + cx, y + by + bh - 0.5, cw, 0.5, mix(col, -0.14));
       // 얼룩과 결
-      for (let k = 0; k < 3; k++) if (r() < 0.55) rect(g, x + cx + 0.5 + Math.floor(r() * (cw - 1) * 2) / 2, y + by + 1 + Math.floor(r() * 4) / 2, 0.5, 0.5, mix(col, r() < 0.5 ? -0.22 : 0.12));
+      for (let k = 0; k < 5; k++) if (r() < 0.6) rect(g, x + cx + 0.5 + Math.floor(r() * (cw - 1) * 4) / 4, y + by + 1 + Math.floor(r() * 8) / 4, 0.25, 0.25, mix(col, r() < 0.5 ? -0.24 : 0.14));
       if (r() < 0.2) rect(g, x + cx + 1, y + by + 1.5, Math.min(3, cw - 1.5), 0.5, mix(col, -0.1));
       if (r() < 0.07) rect(g, x + cx, y + by, 1, 1, mortar);
     }
