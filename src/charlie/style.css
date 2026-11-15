@@ -38,39 +38,44 @@ body {
 }
 .pad {
   position: fixed;
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  width: calc(var(--side, 120px) - 14px);
+  display: grid;
+  grid-template-columns: repeat(2, var(--btn, 46px));
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
   z-index: 5;
 }
 .pad-left {
-  left: calc(14px + env(safe-area-inset-left, 0px));
+  left: calc(7px + env(safe-area-inset-left, 0px));
 }
 .pad-right {
-  right: calc(14px + env(safe-area-inset-right, 0px));
+  right: calc(7px + env(safe-area-inset-right, 0px));
 }
 .pad button {
-  width: 58px;
-  height: 58px;
+  width: var(--btn, 46px);
+  height: var(--btn, 46px);
+  padding: 0;
   border-radius: 50%;
   border: 2px solid rgba(236, 230, 244, 0.35);
-  background: rgba(14, 10, 20, 0.45);
+  background: rgba(14, 10, 20, 0.55);
   color: #ece6f4;
-  font: 700 18px "Galmuri11", system-ui, sans-serif;
+  font: 700 16px "Galmuri11", system-ui, sans-serif;
   touch-action: none;
 }
 .pad button.small {
-  width: 52px;
-  height: 52px;
   font-size: 10px;
   white-space: nowrap;
   letter-spacing: -0.5px;
 }
+/* 조사 버튼은 아래 한 줄을 통째로 */
 .pad button.big {
-  width: 70px;
-  height: 70px;
-  font-size: 14px;
+  grid-column: 1 / span 2;
+  justify-self: center;
+  width: calc(var(--btn, 46px) * 1.45);
+  height: calc(var(--btn, 46px) * 1.45);
+  font-size: 13px;
   border-color: rgba(255, 211, 106, 0.6);
 }
 .pad button.on {

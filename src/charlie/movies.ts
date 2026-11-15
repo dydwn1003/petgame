@@ -1,9 +1,9 @@
 // 애니메이션 컷: 오프닝 · 샘의 기억 · 엔딩 영상
 // 각 컷은 시간 t(초)와 진행도 k(0~1)를 받아 화면 전체를 그린다.
 import { H, W, clock, g } from "./core";
-import { ALLEY, BG_SCALE, buildAlley } from "./bg";
+import { ALLEY, buildAlley } from "./bg";
 import { BUILD_3, CHARLIE, cat, human, tintCat } from "./sprites";
-import { rng } from "./pixel";
+import { PIX, rng } from "./pixel";
 
 export interface Shot {
   dur: number;
@@ -320,7 +320,7 @@ export function memoryShots(): Shot[] {
       draw: (t, k) => {
         if (!alleyBg) alleyBg = buildAlley();
         const cam = lerp(60, 110, ease(k));
-        g.drawImage(alleyBg, cam * BG_SCALE, 0, W * BG_SCALE, H * BG_SCALE, 0, 0, W, H);
+        g.drawImage(alleyBg, cam * PIX, 0, W * PIX, H * PIX, 0, 0, W, H);
         g.fillStyle = "rgba(10,14,30,0.45)";
         g.fillRect(0, 0, W, H);
         void ALLEY;

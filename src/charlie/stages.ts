@@ -1315,7 +1315,7 @@ room({
         },
       }),
     ),
-    hideAt(560, "계산대 뒤에 숨기", 160),
+    hideAt(560, "계산대 뒤에 숨기", 160, undefined, "counter"),
     {
       x: 860,
       iconY: 140,
@@ -1442,7 +1442,7 @@ SCENES.march5 = () => {
     get actors() {
       return marchers;
     },
-    hotspots: MARCH_DOORS.map((x) => hideAt(x, "문간 그늘에 웅크리기", 160)),
+    hotspots: MARCH_DOORS.map((x) => hideAt(x, "문간 그늘에 웅크리기", 160, undefined, "doorway")),
     zones: [
       {
         x: 1050,
@@ -1735,7 +1735,7 @@ SCENES.night1 = (checkpoint) => {
     get actors() {
       return kit.guards;
     },
-    hotspots: ROOFS.cover.map((cv) => hideAt(cv.x, cv.kind === "tank" ? "물탱크 밑으로 쏙" : "그늘에 웅크리기", 150)),
+    hotspots: ROOFS.cover.map((cv) => hideAt(cv.x, cv.kind === "tank" ? "물탱크 밑으로 쏙" : "그늘에 웅크리기", 150, undefined, cv.kind === "tank" ? "tank" : cv.kind === "chimney" ? "chimney" : "stairbox")),
     zones: [
       {
         x: 1880,
@@ -1822,8 +1822,8 @@ SCENES.night2 = () => {
           },
         }),
       ),
-      hideAt(390, "상자 사이로 쏙", 170),
-      hideAt(680, "수조 뒤로 쏙", 170),
+      hideAt(390, "상자 사이로 쏙", 170, undefined, "crates", true),
+      hideAt(680, "생선 상자 뒤로 쏙", 170, undefined, "crates", true),
     ],
     zones: [
       {
@@ -1930,7 +1930,7 @@ room({
   width: 940,
   seed: 1101,
   startX: 70,
-  props: [["ticket", 170], ["rope", 330], ["dino", 470], ["rope", 640], ["tallplant", 80], ["bench", 560], ["clock", 470]],
+  props: [["whale", 470], ["ticket", 170], ["rope", 330], ["dino", 470], ["rope", 640], ["tallplant", 80], ["bench", 560], ["clock", 470], ["moai", 820], ["totem", 380], ["banner", 120], ["banner", 690], ["spot", 820], ["spot", 470]],
   doors: [
     {
       x: 40,
@@ -1979,7 +1979,7 @@ room({
   width: 620,
   seed: 1102,
   startX: 70,
-  props: [["meteorcase", 300], ["telescope", 480], ["rope", 200], ["notice", 130]],
+  props: [["meteorcase", 300], ["telescope", 480], ["rope", 200], ["notice", 130], ["crystal", 560], ["probe", 220], ["banner", 400], ["spot", 300], ["orrery", 420]],
   doors: [{ x: 40, kind: "door", label: "로비", to: "mLobby", toX: 730, dir: "in" }],
   actors: () => {
     adaHere.length = 0;
@@ -2042,7 +2042,7 @@ room({
   width: 760,
   seed: 1103,
   startX: 60,
-  props: [["sarco", 220], ["mummy", 340], ["mural", 470], ["statue", 620], ["rope", 470]],
+  props: [["sarco", 220], ["mummy", 340], ["mural", 470], ["statue", 620], ["rope", 470], ["pharaoh", 140], ["sphinx", 520], ["anubis", 400], ["obelisk", 720], ["vase", 280], ["pottery", 680], ["spot", 140], ["spot", 620]],
   doors: [{ x: 40, kind: "arch", to: "mLobby", toX: 610, dir: "in" }],
   hotspots: () => [
     look(340, 140, ["고양이 미라. 이름표: 「바스테트의 사자(使者), 기원전 1200년」", "찰리:...샘도 미라처럼 자는데."], "고양이 미라"),
@@ -2079,7 +2079,7 @@ room({
   seed: 1104,
   startX: 60,
   ambient: 0.3,
-  props: [["projector", 320], ["telescope", 520], ["bench", 180], ["bench", 450]],
+  props: [["projector", 320], ["telescope", 520], ["bench", 180], ["bench", 450], ["orrery", 320], ["probe", 590]],
   doors: [{ x: 40, kind: "stairs", label: "로비 ↓", to: "mLobby", toX: 880, dir: "down" }],
   hotspots: () => [
     {
@@ -2123,7 +2123,7 @@ room({
   seed: 1105,
   startX: 60,
   dark: true,
-  props: [["gemcase", 180], ["gemcase", 320], ["gemcase", 470], ["gemcase", 600], ["boxes", 740]],
+  props: [["gemcase", 180], ["gemcase", 320], ["gemcase", 470], ["gemcase", 600], ["boxes", 740], ["crystal", 400], ["crystal", 540], ["greek", 90]],
   doors: [{ x: 40, kind: "stairs", label: "로비 ↑", to: "mLobby", toX: 250, dir: "up" }],
   actors: () => {
     gemKit.guards.length = 0;
@@ -2132,7 +2132,7 @@ room({
     return gemKit.guards;
   },
   hotspots: () => [
-    ...[180, 470, 600].map((x) => hideAt(x + 22, "진열장 그늘에 웅크리기", 160)),
+    ...[180, 470, 600].map((x) => hideAt(x + 26, "진열장 뒤에 웅크리기", 160, undefined, "case", true)),
     shardSpot(4, 740, "개구리들의 장물 더미"),
     look(320, 140, ["깨진 진열장. 「호프 다이아몬드」 자리가 비어 있다.", "찰리:...개구리 녀석들, 취향 한번 고급이네."], "빈 진열장"),
   ],

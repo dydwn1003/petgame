@@ -29,7 +29,6 @@ import {
 } from "./core";
 import {
   ALLEY,
-  BG_SCALE,
   CENTER,
   CHURCH,
   FRIDGE_SPOTS,
@@ -78,13 +77,12 @@ import {
   SKELETON,
   cat,
   human,
-  spriteDensity,
   type Build,
   type CatPose,
   type Look,
   type Pose,
 } from "./sprites";
-import { makeCanvas, mix } from "./pixel";
+import { PIX, makeCanvas, mix } from "./pixel";
 import { catsRiseShots, farewellShots, introShots, memoryShots, type Shot } from "./movies";
 
 // ── 타입 ─────────────────────────────────────────────────
@@ -1774,7 +1772,8 @@ SCENES.subway = (checkpoint) => {
     gameOver("GAME OVER", "개구리 인간들에게 소지품을 몽땅 털렸다...", checkpointNow2());
   };
   const checkpointNow2 = () => (F.gotTreats ? 1360 : F.cp2 ? 1180 : 0);
-  const pillarHide = (x: number): Hotspot => ({
+  const pillarHide = (x: number): Hotspot & { cover?: { kind: CoverKind; back: boolean } } => ({
+    cover: { kind: "pillar", back: false },
     x,
     iconY: 150,
     label: "숨기",
@@ -2362,7 +2361,8 @@ SCENES.roofs = (checkpoint) => {
     maxX: ROOFS.width - 30,
     actors: [],
     hotspots: [photoSpot("p9", 1480, 176, "버려진 카메라"), ...ROOFS.cover.map(
-      (cv): Hotspot => ({
+      (cv): Hotspot & { cover?: { kind: CoverKind; back: boolean } } => ({
+        cover: { kind: cv.kind === "tank" ? "tank" : cv.kind === "chimney" ? "chimney" : "stairbox", back: false },
         x: cv.x,
         iconY: 130,
         label: cv.kind === "tank" ? "물탱크 밑에 숨기" : cv.kind === "chimney" ? "굴뚝 뒤에 숨기" : "계단실 그늘에 숨기",
@@ -2646,7 +2646,8 @@ SCENES.church = (checkpoint) => {
     await goScene("mLobby", 70, false);
   };
 
-  const hideSpot = (x: number): Hotspot => ({
+  const hideSpot = (x: number): Hotspot & { cover?: { kind: CoverKind; back: boolean } } => ({
+    cover: { kind: "pew", back: false },
     x,
     iconY: 158,
     label: "의자 뒤에 웅크리기",
@@ -3038,8 +3039,96 @@ function patrolKit(o: { look: Look; lookId: string; range: number; quiet?: () =>
   };
 }
 
-function hideAt(x: number, label: string, iconY: number, when: () => boolean = () => true): Hotspot {
+export type CoverKind = "crates" | "case" | "cart" | "pew" | "container" | "chimney" | "tank" | "stairbox" | "doorway" | "counter" | "pillar" | "vent";
+/** 숨는 곳의 엄폐물. back=true 면 배경에도 그려 두고, 숨으면 찰리 앞을 가린다 */
+function drawCover(kind: CoverKind, x: number, front: boolean): void {
+  const F = GROUND + 1;
+  const R = (xx: number, y: number, w: number, h: number, c: string) => {
+    g.fillStyle = c;
+    g.fillRect(half(xx), half(y), w, h);
+  };
+  switch (kind) {
+    case "crates":
+      for (const [dx, w, h, y0] of [[-16, 22, 18, 0], [4, 16, 24, 0], [-12, 16, 13, 18]] as Array<[number, number, number, number]>) {
+        R(x + dx, F - y0 - h, w, h, "#7a5432");
+        R(x + dx, F - y0 - h, w, 1.5, "#a87a4a");
+        R(x + dx, F - y0 - h, 1.2, h, "#5a3a20");
+        R(x + dx + w - 1.2, F - y0 - h, 1.2, h, "#5a3a20");
+        g.strokeStyle = "#5a3a20";
+        g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(x + dx + 1, F - y0 - 1);
+        g.lineTo(x + dx + w - 1, F - y0 - h + 1);
+        g.stroke();
+      }
+      break;
+    case "case":
+      R(x - 16, F - 26, 32, 26, "#2a2230");
+      R(x - 16, F - 26, 32, 2, "#5a4a6a");
+      R(x - 13, F - 20, 26, 14, "#3a3044");
+      R(x - 2, F - 14, 4, 2, "#c8a83a");
+      break;
+    case "cart":
+      R(x - 16, F - 30, 32, 3, "#c8ccd0");
+      R(x - 15, F - 27, 30, 22, "rgba(240,242,248,0.95)");
+      for (let i = 0; i < 4; i++) R(x - 15 + i * 8, F - 27, 0.6, 22, "rgba(160,160,170,0.7)");
+      R(x - 15, F - 5, 2, 4, "#8a9096");
+      R(x + 13, F - 5, 2, 4, "#8a9096");
+      break;
+    case "pew":
+      R(x - 22, F - 30, 44, 4, "#7a5038");
+      R(x - 22, F - 26, 44, 18, "#5a3828");
+      for (let i = 0; i < 4; i++) R(x - 20 + i * 11, F - 24, 9, 14, "#4a2e20");
+      R(x - 22, F - 8, 4, 8, "#3a2218");
+      R(x + 18, F - 8, 4, 8, "#3a2218");
+      break;
+    case "container":
+      R(x - 10, F - 40, 22, 40, "#7a3a2a");
+      for (let i = 0; i < 6; i++) R(x - 9 + i * 3.6, F - 38, 1, 36, "#5a2a1e");
+      R(x - 10, F - 40, 22, 2, "#9a4a3a");
+      break;
+    case "chimney":
+      R(x - 12, F - 36, 24, 36, "#7a3a2a");
+      for (let y = F - 36; y < F; y += 4) R(x - 12 + ((y / 4) % 2) * 4, y, 24, 0.6, "#4a2018");
+      break;
+    case "tank":
+      for (const lx of [-14, -4, 6, 14]) R(x + lx, F - 30, 2.5, 30, "#2a2224");
+      R(x - 16, F - 22, 32, 1.5, "#2a2224");
+      R(x - 16, F - 12, 32, 1.5, "#2a2224");
+      R(x - 14, F - 8, 28, 8, "rgba(20,16,18,0.6)");
+      break;
+    case "stairbox":
+      R(x - 14, F - 34, 28, 34, "#5a5048");
+      R(x - 14, F - 34, 28, 1.5, "#8a7e72");
+      break;
+    case "doorway":
+      R(x - 17, F - 60, 4, 60, "#3a2a22");
+      R(x + 13, F - 60, 4, 60, "#3a2a22");
+      if (front) {
+        g.fillStyle = "rgba(6,4,8,0.45)";
+        g.fillRect(half(x - 13), F - 58, 26, 58);
+      }
+      break;
+    case "counter":
+      R(x - 18, F - 30, 36, 30, "#e8e4dc");
+      R(x - 20, F - 33, 40, 4, "#3a8a5a");
+      R(x - 16, F - 26, 32, 1, "#c8c4bc");
+      break;
+    case "pillar":
+      R(x - 8, F - 120, 16, 120, "#c8c0b0");
+      R(x - 8, F - 120, 3, 120, "#e0d8c8");
+      R(x + 5, F - 120, 3, 120, "#9a9284");
+      break;
+    case "vent":
+      R(x - 18, F - 34, 36, 34, "#7a7e82");
+      R(x - 18, F - 34, 36, 1.5, "#aaaeb2");
+      for (let i = 0; i < 6; i++) R(x - 16, F - 30 + i * 5, 32, 2, "#5a5e62");
+      break;
+  }
+}
+function hideAt(x: number, label: string, iconY: number, when: () => boolean = () => true, cover: CoverKind = "crates", back = false): Hotspot & { cover?: { kind: CoverKind; back: boolean } } {
   return {
+    cover: { kind: cover, back },
     x,
     iconY,
     label,
@@ -3138,7 +3227,7 @@ SCENES.pier = (checkpoint) => {
     get actors() {
       return kit.guards;
     },
-    hotspots: [...PIER.hide.map((x) => hideAt(x, "컨테이너 뒤에 숨기", 150)), photoSpot("p11", 640, 176, "젖은 상자")],
+    hotspots: [...PIER.hide.map((x) => hideAt(x, "컨테이너 뒤에 숨기", 150, undefined, "container")), photoSpot("p11", 640, 176, "젖은 상자")],
     zones: [
       {
         x: 740,
@@ -3232,7 +3321,7 @@ SCENES.center = (checkpoint) => {
       return kit.guards;
     },
     hotspots: [
-      ...CENTER.carts.map((x) => hideAt(x, "수레 밑에 숨기", 160)),
+      ...CENTER.carts.map((x) => hideAt(x, "수레 천 뒤에 숨기", 160, undefined, "cart")),
       {
         x: CENTER.desk,
         iconY: 140,
@@ -3519,7 +3608,7 @@ SCENES.helipad = (checkpoint) => {
     get actors() {
       return [...kit.guards, boss];
     },
-    hotspots: HELIPAD.hide.map((x) => hideAt(x, "환풍기 뒤에 숨기", 150)),
+    hotspots: HELIPAD.hide.map((x) => hideAt(x, "환풍기 뒤에 숨기", 150, undefined, "vent")),
     zones: [
       {
         x: 700,
@@ -3920,7 +4009,7 @@ SCENES.epiB = () => {
 
 /** 오프닝 애니메이션 */
 SCENES.intro = () => {
-  const c = makeCanvas(W * BG_SCALE, H * BG_SCALE);
+  const c = makeCanvas(W * PIX, H * PIX);
   const sc: Scene = {
     id: "intro",
     width: W,
@@ -4710,17 +4799,29 @@ const half = (v: number) => Math.round(v * render.scale) / render.scale;
 
 /** 스프라이트 밀도가 화면과 다르면 고품질로 줄여 그린다 */
 function smoothDraw(img: HTMLCanvasElement, x: number, y: number, w: number, h: number): void {
-  const same = Math.abs(spriteDensity() - render.scale) < 0.01;
-  if (!same) {
-    g.imageSmoothingEnabled = true;
-    g.imageSmoothingQuality = "low";
-  }
-  g.drawImage(img, x, y, w, h);
+  // 네모 도트 그대로 (도트 경계에 맞춰서)
+  g.drawImage(img, Math.round(x * render.scale) / render.scale, Math.round(y * render.scale) / render.scale, w, h);
   g.imageSmoothingEnabled = false;
 }
 
 const dark = makeCanvas(W, H);
 const dg = dark.getContext("2d")!;
+
+/** 인물 머리 꼭대기의 높이 (발 기준, 화면 칸). 말풍선 · 감정 아이콘을 머리 바로 위에 붙이기 위해 */
+function headTop(a: Actor): number {
+  if (a.kind === "sam") {
+    if (a.pose === "loaf" || a.pose === "butt") return 15;
+    return a.pose === "sit" || (a.pose ?? "").startsWith("sitT") || !a.moving ? 22 : 19;
+  }
+  const B = a.kind === "charlie" ? S.build : (a.build ?? BUILD_3);
+  let h = (B.legLen - 8 + 12 + B.torsoLen + 46) / 4;
+  const hair = a.look?.hairStyle;
+  if (hair === "pomp" || hair === "bun" || hair === "messy" || hair === "comb") h += 3;
+  if (hair === "frog") h -= 1;
+  if (a.pose === "sit" || a.pose === "drink" || a.pose === "sleep") h -= B.legLen * 0.14;
+  if ((a.lastPose ?? "").startsWith("crouch")) h -= 6;
+  return h;
+}
 
 /** 그늘 속에 숨은 모습: 어둡게 물든 실루엣 */
 const shadeCache = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>();
@@ -4789,7 +4890,7 @@ function drawActor(a: Actor, camX: number): void {
     const spr = cat(pose, a.facing, !!a.silhouette);
     smoothDraw(spr, sx - 15, half(a.y + bob) - 22, 32, 24);
     if (!a.silhouette && a === sam) drawCostume(sx - 15, half(a.y + bob) - 22, a.facing, pose);
-    if (a === sam && canPet()) text("[C] 쓰담쓰담", sx, half(a.y) - 30, "#ffd6e6", "center");
+    if (a === sam && canPet()) text("[C] 쓰담쓰담", sx, half(a.y) - headTop(a) - 6, "#ffd6e6", "center");
     return;
   }
   const isCharlie = a.kind === "charlie";
@@ -4980,14 +5081,19 @@ export function drawPlay(): void {
     g.scale(z, z);
     g.translate(-W / 2, -H * ZOOM_Y);
   }
-  g.drawImage(sc.bg, camX * BG_SCALE, 0, W * BG_SCALE, H * BG_SCALE, 0, 0, W, H);
+  g.drawImage(sc.bg, camX * PIX, 0, W * PIX, H * PIX, 0, 0, W, H);
   sc.back?.(camX);
   drawDoorBack(camX);
+  for (const h of sc.hotspots as Array<Hotspot & { cover?: { kind: CoverKind; back: boolean } }>) if (h.cover?.back) drawCover(h.cover.kind, h.x - camX, false);
   if (!sc.noPlayer) {
     const all = [...sc.actors, charlie, sam].filter((a, i, arr) => arr.indexOf(a) === i);
     for (const a of all.sort((p, q) => (p.kind === "sam" ? 1 : 0) - (q.kind === "sam" ? 1 : 0))) drawActor(a, camX);
   }
   drawDoorFront(camX);
+  // 숨으면 엄폐물이 찰리 앞을 가린다
+  if (S.hidden && !sc.noPlayer) {
+    for (const h of sc.hotspots as Array<Hotspot & { cover?: { kind: CoverKind; back: boolean } }>) if (h.cover && Math.abs(h.x - charlie.x) < 3) drawCover(h.cover.kind, h.x - camX, true);
+  }
   sc.front?.(camX);
   drawLighting(sc, camX);
   sc.overlay?.(camX);
@@ -4997,7 +5103,7 @@ export function drawPlay(): void {
   // 말풍선
   if (!sc.noPlayer) {
     for (const a of [...sc.actors, charlie]) {
-      if (a.bubble && a.visible && !S.talk) bubble(a.bubble, ...toScreen(a.x - camX, a.y - 58));
+      if (a.bubble && a.visible && !S.talk) bubble(a.bubble, ...toScreen(a.x - camX, a.y - headTop(a) - 2));
     }
   }
   // 조사 아이콘
@@ -5055,7 +5161,7 @@ export function drawPlay(): void {
       });
     } else {
       const a = S.talk.actor;
-      const topY = a.pose === "sit" || a.pose === "drink" || a.pose === "sleep" ? a.y - 46 : a.y - 58;
+      const topY = a.y - headTop(a) - 2;
       bubble(shown || " ", ...toScreen(a.x - camX, topY));
     }
   }
@@ -5235,7 +5341,7 @@ function drawEmote(a: Actor, camX: number): void {
   const cat2 = a.kind === "sam";
   // 말풍선과 겹치지 않게 머리 옆(바라보는 반대쪽)에 띄운다
   const x = a.x - camX + (cat2 ? a.facing * 6 : -a.facing * 14);
-  const y = a.y - (cat2 ? 30 : 50) - Math.min(t, 0.3) * 6;
+  const y = a.y - headTop(a) + (cat2 ? -4 : 8) - Math.min(t, 0.3) * 6;
   g.save();
   g.globalAlpha = fade;
   g.translate(x, y);
@@ -5383,7 +5489,7 @@ export function updateTitle(): void {
 export function drawTitle(): void {
   if (!titleBg) titleBg = buildStreet(1200, false, 11);
   const pan = (clock.t * 8) % (1200 - W);
-  g.drawImage(titleBg.canvas, pan * BG_SCALE, 0, W * BG_SCALE, H * BG_SCALE, 0, 0, W, H);
+  g.drawImage(titleBg.canvas, pan * PIX, 0, W * PIX, H * PIX, 0, 0, W, H);
   g.fillStyle = "rgba(6,5,14,0.55)";
   g.fillRect(0, 0, W, H);
   const spr = human(CHARLIE, "charlie", `stand${Math.floor(clock.t / 0.55) % 4}`, S.build, 1);

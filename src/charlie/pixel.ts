@@ -105,6 +105,7 @@ export function makeDense(w: number, h: number, scale: number): HTMLCanvasElemen
   const g = c.getContext("2d")!;
   g.scale(scale, scale);
   g.imageSmoothingEnabled = false;
+  blockify(g);
   return c;
 }
 
@@ -159,4 +160,200 @@ export function bakeVec(w: number, h: number, k: number, paint: (p: Px) => void,
   }
   g.putImageData(img, 0, 0);
   return c;
+}
+
+/** 화면 1칸 = 몇 개의 네모 도트인지 (전체 그래픽의 도트 크기) */
+export const PIX = 2;
+
+// 4×4 베이어 디더링 표 (그라데이션을 도트 무늬로)
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+/**
+ * 촘촘하게 그린 그림을 큼직한 네모 도트로 바꾼다.
+ * w×h(게임 칸) 크기 그림을 PIX 배 해상도로 줄이고, 색 단계를 줄여 디더링한다.
+ */
+export function pixelize(src: HTMLCanvasElement, w: number, h: number, opts: { step?: number; opaque?: boolean; dither?: boolean } = {}): HTMLCanvasElement {
+  const W = Math.round(w * PIX);
+  const H = Math.round(h * PIX);
+  if (src.width === W && src.height === H && !opts.step) return src;
+  // 단계별로 반씩 줄여야 가는 선이 사라지지 않는다
+  let cur = src;
+  while (cur.width / 2 >= W * 1.01) {
+    const nw = Math.max(W, Math.round(cur.width / 2));
+    const nh = Math.max(H, Math.round(cur.height / 2));
+    const t = makeCanvas(nw, nh);
+    const tg = t.getContext("2d")!;
+    tg.imageSmoothingEnabled = true;
+    tg.imageSmoothingQuality = "high";
+    tg.drawImage(cur, 0, 0, nw, nh);
+    cur = t;
+  }
+  const c = makeCanvas(W, H);
+  const g = c.getContext("2d", { willReadFrequently: true })!;
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = "high";
+  g.drawImage(cur, 0, 0, W, H);
+  const img = g.getImageData(0, 0, W, H);
+  const d = img.data;
+  const step = opts.step ?? 14;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const a = d[i + 3];
+      if (!opts.opaque) {
+        if (a < 120) {
+          d[i + 3] = 0;
+          continue;
+        }
+        // 반투명 가장자리는 색을 되살려 불투명하게
+        if (a < 255) {
+          const f = 255 / a;
+          d[i] = Math.min(255, d[i] * f);
+          d[i + 1] = Math.min(255, d[i + 1] * f);
+          d[i + 2] = Math.min(255, d[i + 2] * f);
+        }
+      }
+      d[i + 3] = 255;
+      const b = opts.dither === false ? 0 : (BAYER[(y & 3) * 4 + (x & 3)] - 7.5) / 16;
+      for (let k = 0; k < 3; k++) {
+        const v = d[i + k] + b * step;
+        d[i + k] = Math.max(0, Math.min(255, Math.round(v / step) * step));
+      }
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+
+/**
+ * 배경용: 둥근 도형(원·호·곡선)을 계단 모양 네모 도트로 그리게 바꾼다.
+ * step 칸 단위로 가로-세로 계단을 이어 붙여 윤곽이 네모네모해진다.
+ */
+export function blockify(g: CanvasRenderingContext2D, step = 1): void {
+  const P = CanvasRenderingContext2D.prototype;
+  let cx = NaN;
+  let cy = NaN;
+  let has = false;
+  const snap = (v: number) => Math.round(v / step) * step;
+  const moveTo = (x: number, y: number) => {
+    P.moveTo.call(g, x, y);
+    cx = x;
+    cy = y;
+    has = true;
+  };
+  const lineTo = (x: number, y: number) => {
+    P.lineTo.call(g, x, y);
+    cx = x;
+    cy = y;
+    has = true;
+  };
+  // 점들을 격자에 맞춰 계단으로 잇는다
+  const stairs = (pts: Array<[number, number]>) => {
+    if (!pts.length) return;
+    let [px, py] = [snap(pts[0][0]), snap(pts[0][1])];
+    if (has) lineTo(px, py);
+    else moveTo(px, py);
+    for (let i = 1; i < pts.length; i++) {
+      const nx = snap(pts[i][0]);
+      const ny = snap(pts[i][1]);
+      if (nx === px && ny === py) continue;
+      // 기울기가 큰 쪽을 먼저 (모서리가 자연스럽게)
+      if (Math.abs(pts[i][0] - pts[i - 1][0]) > Math.abs(pts[i][1] - pts[i - 1][1])) {
+        lineTo(px, ny);
+        lineTo(nx, ny);
+      } else {
+        lineTo(nx, py);
+        lineTo(nx, ny);
+      }
+      px = nx;
+      py = ny;
+    }
+  };
+  const ell = (x: number, y: number, rx: number, ry: number, rot: number, a0: number, a1: number, ccw: boolean) => {
+    let sweep = a1 - a0;
+    if (!ccw) {
+      while (sweep < 0) sweep += Math.PI * 2;
+      if (a1 - a0 >= Math.PI * 2) sweep = Math.PI * 2;
+    } else {
+      while (sweep > 0) sweep -= Math.PI * 2;
+      if (a0 - a1 >= Math.PI * 2) sweep = -Math.PI * 2;
+    }
+    const n = Math.max(6, Math.ceil((Math.abs(sweep) * Math.max(rx, ry)) / (step * 0.5)));
+    const cr = Math.cos(rot);
+    const sr = Math.sin(rot);
+    const pts: Array<[number, number]> = [];
+    for (let i = 0; i <= n; i++) {
+      const a = a0 + (sweep * i) / n;
+      const ex = Math.cos(a) * rx;
+      const ey = Math.sin(a) * ry;
+      pts.push([x + ex * cr - ey * sr, y + ex * sr + ey * cr]);
+    }
+    stairs(pts);
+  };
+  const tiny = (r: number) => r < step * 1.2;
+  Object.assign(g, {
+    beginPath() {
+      P.beginPath.call(g);
+      has = false;
+    },
+    moveTo,
+    lineTo,
+    closePath() {
+      P.closePath.call(g);
+    },
+    arc(x: number, y: number, r: number, a0: number, a1: number, ccw = false) {
+      if (tiny(r)) {
+        P.arc.call(g, x, y, r, a0, a1, ccw);
+        has = true;
+        return;
+      }
+      ell(x, y, r, r, 0, a0, a1, ccw);
+    },
+    ellipse(x: number, y: number, rx: number, ry: number, rot: number, a0: number, a1: number, ccw = false) {
+      if (tiny(Math.min(rx, ry))) {
+        P.ellipse.call(g, x, y, rx, ry, rot, a0, a1, ccw);
+        has = true;
+        return;
+      }
+      ell(x, y, rx, ry, rot, a0, a1, ccw);
+    },
+    quadraticCurveTo(qx: number, qy: number, x: number, y: number) {
+      const sx = cx;
+      const sy = cy;
+      const len = Math.hypot(qx - sx, qy - sy) + Math.hypot(x - qx, y - qy);
+      const n = Math.max(4, Math.ceil(len / (step * 0.5)));
+      const pts: Array<[number, number]> = [];
+      for (let i = 1; i <= n; i++) {
+        const t = i / n;
+        const u = 1 - t;
+        pts.push([u * u * sx + 2 * u * t * qx + t * t * x, u * u * sy + 2 * u * t * qy + t * t * y]);
+      }
+      stairs([[sx, sy], ...pts]);
+    },
+    bezierCurveTo(ax: number, ay: number, bx: number, by: number, x: number, y: number) {
+      const sx = cx;
+      const sy = cy;
+      const len = Math.hypot(ax - sx, ay - sy) + Math.hypot(bx - ax, by - ay) + Math.hypot(x - bx, y - by);
+      const n = Math.max(4, Math.ceil(len / (step * 0.5)));
+      const pts: Array<[number, number]> = [];
+      for (let i = 1; i <= n; i++) {
+        const t = i / n;
+        const u = 1 - t;
+        pts.push([
+          u * u * u * sx + 3 * u * u * t * ax + 3 * u * t * t * bx + t * t * t * x,
+          u * u * u * sy + 3 * u * u * t * ay + 3 * u * t * t * by + t * t * t * y,
+        ]);
+      }
+      stairs([[sx, sy], ...pts]);
+    },
+    roundRect(x: number, y: number, w: number, h: number) {
+      P.rect.call(g, x, y, w, h);
+    },
+    rect(x: number, y: number, w: number, h: number) {
+      P.rect.call(g, x, y, w, h);
+      cx = x;
+      cy = y;
+      has = true;
+    },
+  });
 }

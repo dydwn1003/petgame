@@ -4,7 +4,7 @@
 // 실제로는 128×216 도트로 칠해져서, 작은 도트를 촘촘하게 찍은 부드러운 그림이 된다.
 // 팔다리는 관절(엉덩이·무릎·어깨·팔꿈치) 각도로 움직이고, 몸 높이는
 // 땅에 닿은 발에 맞춰 저절로 정해진다.
-import { bakeVec, cached, ellipse, flip, makeCanvas, mix, type Px } from "./pixel";
+import { bakeVec, cached, ellipse, flip, makeCanvas, mix, pixelize, type Px } from "./pixel";
 
 export const HUMAN_W = 36; // 화면 기준 크기 (팔을 앞으로 뻗어도 잘리지 않게 넉넉히)
 export const HUMAN_H = 54;
@@ -18,6 +18,8 @@ export type Pose = string;
 
 /** 캐릭터 도트 밀도 (화면 1칸당 도트 수). 기본 6, 고해상도 화면에서는 8까지 */
 let density = 6;
+/** 스프라이트 도트화: 색 단계만 줄이고 얼굴엔 디더링 없이 */
+const SPR = { step: 10, dither: false };
 export function setSpriteDensity(d: number): void {
   density = Math.max(4, Math.min(8, Math.round(d)));
 }
@@ -1332,7 +1334,7 @@ export const HAZMAT: Look = {
 export function human(look: Look, lookId: string, pose: Pose, build: Build, facing: 1 | -1): HTMLCanvasElement {
   const key = `h:${lookId}:${pose}:${build.legLen}:${facing}`;
   return cached(key, () => {
-    const right = cached(`h:${lookId}:${pose}:${build.legLen}:1`, () => bakeVec(SW, SH, density / 4, (p) => paintHuman(p, look, pose, build), OUTLINE, 2));
+    const right = cached(`h:${lookId}:${pose}:${build.legLen}:1`, () => pixelize(bakeVec(SW, SH, density / 4, (p) => paintHuman(p, look, pose, build), OUTLINE, 2), SW / 4, SH / 4, SPR));
     return facing === 1 ? right : flip(right);
   });
 }
@@ -1943,7 +1945,7 @@ export function cat(pose: CatPose, facing: 1 | -1, silhouette = false): HTMLCanv
         g.stroke();
         g.setTransform(1, 0, 0, 1, 0, 0);
       }
-      return c;
+      return pixelize(c, CW / 4, CH / 4, SPR);
     });
     let out = facing === 1 ? base : flip(base);
     if (silhouette) {

@@ -2,21 +2,32 @@ import "../fonts.css";
 import "./style.css";
 import { FONT, H, W, canvas, clock, fx, g, keys, mouse, pressed, render, tickScripts, unlockAudio, updateFx } from "./core";
 import { setSpriteDensity } from "./sprites";
+import { PIX } from "./pixel";
 import { S, bakeIdle, debug, drawPlay, drawTitle, goScene, prewarm, update, updateTitle } from "./game";
 import "./stages";
 
 const stage = document.getElementById("stage")!;
 
+const touchMQ = window.matchMedia("(pointer: coarse)");
 function resize(): void {
-  const k = Math.min(window.innerWidth / W, window.innerHeight / H);
+  // 터치 기기: 양옆에 버튼 자리를 비워 두고 화면은 그 사이에 (버튼이 게임 화면·서로를 가리지 않게)
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let side = 0;
+  if (touchMQ.matches) {
+    side = Math.round(Math.max(100, Math.min(160, vw * 0.15, (vw - 200) / 2)));
+    const btn = Math.floor(Math.min((side - 22) / 2, (vh - 60) / 4.6, 64));
+    document.documentElement.style.setProperty("--side", `${side}px`);
+    document.documentElement.style.setProperty("--btn", `${btn}px`);
+  }
+  const k = Math.min((vw - side * 2) / W, vh / H);
   const u = k >= 2 ? Math.floor(k) : k;
   stage.style.width = `${W * u}px`;
   stage.style.height = `${H * u}px`;
   // 캔버스는 실제 화면 도트 수에 맞춘다 (1080p = 4배, 1440p ≈ 5.3배, 4K = 8배)
-  const dpr = window.devicePixelRatio || 1;
-  const scale = Math.max(2, Math.min(8, u * dpr));
-  canvas.width = Math.round(W * scale);
-  canvas.height = Math.round(H * scale);
+  // 전체 그래픽은 큼직한 네모 도트: 캔버스는 게임 칸의 PIX 배, 화면에는 그대로 확대
+  canvas.width = W * PIX;
+  canvas.height = H * PIX;
   render.scale = canvas.width / W;
 }
 
@@ -118,13 +129,14 @@ document.querySelectorAll<HTMLButtonElement>("#touch [data-key]").forEach((b) =>
 });
 
 window.addEventListener("resize", resize);
+touchMQ.addEventListener?.("change", resize);
 resize();
 fx.fade = 0;
 fx.fadeTarget = 0;
 void document.fonts.load(FONT).finally(() => {
   const t0 = performance.now();
   // 캐릭터 도트 밀도: 기본 6배, 더 촘촘한 화면이면 그만큼 (최대 8배)
-  setSpriteDensity(Math.max(6, Math.ceil(render.scale)));
+  setSpriteDensity(6);
   prewarm();
   console.info(`sprites ready in ${Math.round(performance.now() - t0)}ms`);
   last = performance.now();
