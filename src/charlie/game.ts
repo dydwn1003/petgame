@@ -192,6 +192,7 @@ export const S = {
   help: 0,
   titleSel: 0,
   titleSub: false,
+  backpack: false,
   fridgeSel: 0,
   choice: null as null | { options: string[]; sel: number; picked: number },
   movie: null as null | { shots: Shot[]; i: number; t: number },
@@ -366,6 +367,7 @@ export async function goScene(id: string, checkpoint = 0, fade = true): Promise<
   fx.card = null;
   charlie = mkActor("charlie", 0);
   sam = mkActor("sam", 0, 1, { visible: false });
+  S.backpack = id === "street1" || (id === "room" && !S.flags.bagDown);
   const sc = SCENES[id](checkpoint);
   S.loading = false;
   S.scene = sc;
@@ -544,6 +546,11 @@ const NORMAL = STRANGERS.map((l) => ({ ...l, hunch: 0 }));
 SCENES.street1 = () => {
   const info = buildStreet(1200, false, 11);
   const addict = passerby(930, 8, 6, ADDICT, "addict", ["...약... 약이 필요해...", "흐흐... 초록색... 예쁘다...", "머리가... 웅웅거려..."]);
+  let backT = 0;
+  let backCD = 0;
+  let backLine = 0;
+  let backBubble = 0;
+  const BACK_LINES = ["너무 피곤해... 얼른 집에 가야겠어.", "집은 반대쪽이야... 3일 만의 침대가 기다린다고.", "다리가 천근만근이야. 돌아가자.", "회사 쪽으로는 다시 안 가. 절대."];
   const passers = [
     addict,
     passerby(640, 26, 14, NORMAL[0], "pro0", ["오늘 밤 운석우래요! 꼭 하늘 보세요!", "망원경 싸게 팝니다~ 운석 구경하세요!", "저기요, 전단지 하나만 받아 가세요!"]),
@@ -585,10 +592,10 @@ SCENES.street1 = () => {
     ],
     zones: [
       {
-        x: 400,
+        // 현관 계단 앞에 도착했을 때
+        x: info.door + 34,
         dir: -1,
         run: async () => {
-          await walkTo(charlie, info.door + 46, 45);
           charlie.facing = -1;
           await say(charlie, "3일 만에 집이군...");
           await wait(0.5);
@@ -610,6 +617,19 @@ SCENES.street1 = () => {
     ],
     update: (dt) => {
       tickPassers(passers, dt);
+      // 집과 반대쪽으로 걸으면 한마디 (막지는 않는다)
+      if (S.control && charlie.moving && charlie.facing === 1) backT += dt;
+      else backT = 0;
+      backCD -= dt;
+      if (backT > 0.5 && backCD <= 0) {
+        charlie.bubble = BACK_LINES[backLine++ % BACK_LINES.length];
+        backBubble = 2.4;
+        backCD = 5;
+      }
+      if (backBubble > 0) {
+        backBubble -= dt;
+        if (backBubble <= 0) charlie.bubble = null;
+      }
     },
     back: (camX) => {
       // 문 위 번지수 조명 등은 배경에 포함
@@ -1022,6 +1042,25 @@ SCENES.room = () => {
       }
     },
     back: (camX) => {
+      // 현관 옆에 내려 둔 백팩
+      if (F.bagDown) {
+        const bx = half(ROOM.door + 20 - camX);
+        g.fillStyle = "rgba(0,0,0,0.3)";
+        g.fillRect(bx - 1, GROUND - 1, 12, 2);
+        g.fillStyle = "#1c2e44";
+        g.fillRect(bx - 0.5, GROUND - 11.5, 11, 11);
+        g.fillStyle = "#2e4a6a";
+        g.fillRect(bx, GROUND - 11, 10, 10);
+        g.fillStyle = "#46688e";
+        g.fillRect(bx, GROUND - 11, 10, 1);
+        g.fillStyle = "#3a5a7e";
+        g.fillRect(bx + 2, GROUND - 6, 6, 4.5);
+        g.fillStyle = "#c8c8d0";
+        g.fillRect(bx + 2, GROUND - 6, 6, 0.5);
+        g.fillStyle = "#1c2e44";
+        g.fillRect(bx + 3.5, GROUND - 13, 3, 2);
+        g.fillRect(bx + 9.5, GROUND - 10, 1, 8);
+      }
       // 창밖 풍경 (창유리 안쪽만 칠하고 창틀·비상계단을 다시 그린다)
       if (meteor >= 0) {
         for (const [x0, y0, w, h] of [[178, 52, 64, 82], [82, 58, 60, 88]]) {
@@ -1106,7 +1145,18 @@ SCENES.room = () => {
       charlie.x = ROOM.door + 6;
       charlie.facing = 1;
       await fadeTo(0, 1);
-      await walkTo(charlie, ROOM.door + 40, 40);
+      if (!F.bagDown) {
+        // 현관문 옆에 가방부터 내려놓는다
+        await walkTo(charlie, ROOM.door + 30, 40);
+        charlie.facing = -1;
+        await wait(0.3);
+        sfx.step();
+        F.bagDown = 1;
+        S.backpack = false;
+        await say(charlie, "후우... 가방부터 내려놓자.");
+        charlie.facing = 1;
+      }
+      await walkTo(charlie, ROOM.door + 48, 40);
       await say(charlie, "샘을 찾아보자.");
       await wait(0.3);
       await say(charlie, "샘? 어딨지?");
@@ -4992,7 +5042,66 @@ function drawActor(a: Actor, camX: number): void {
   const ox = a.facing === 1 ? HUMAN_ORIGIN.x : HUMAN_W - HUMAN_ORIGIN.x;
   g.fillStyle = "rgba(0,0,0,0.3)";
   g.fillRect(sx - 9, half(a.y) - 1, 18, 2);
+  const pack = isCharlie && S.backpack ? backpackView(pose) : null;
+  if (pack === "side") drawBackpack(sx, a.y + bob, a.facing, build, "behind");
   smoothDraw(spr, sx - ox, half(a.y + bob) - HUMAN_ORIGIN.y, HUMAN_W, 54);
+  if (pack === "side") drawBackpack(sx, a.y + bob, a.facing, build, "strap");
+  else if (pack === "back") drawBackpack(sx, a.y + bob, a.facing, build, "back");
+  else if (pack === "front") drawBackpack(sx, a.y + bob, a.facing, build, "front");
+}
+
+/** 퇴근길 백팩: 옆모습은 등 뒤로, 뒷모습은 등 한가운데, 앞모습은 어깨끈만 */
+function backpackView(pose: string): "side" | "back" | "front" | null {
+  if (pose.startsWith("climb") || pose === "back") return "back";
+  if (pose.startsWith("front") || pose.startsWith("stair")) return "front";
+  if (pose === "sit" || pose === "sleep" || pose === "drink") return null;
+  return "side";
+}
+function drawBackpack(sx: number, y: number, facing: 1 | -1, B: Build, part: "behind" | "strap" | "back" | "front"): void {
+  const shoulder = y - (B.legLen + B.torsoLen + 4) / 4;
+  const hip = y - (B.legLen + 4) / 4;
+  const h = Math.max(8, (hip - shoulder) * 0.95);
+  const top = half(shoulder + 1);
+  const body = "#2e4a6a";
+  const dark = "#1c2e44";
+  const light = "#46688e";
+  if (part === "behind") {
+    const x = half(sx - facing * 6.5 - 3.5);
+    g.fillStyle = dark;
+    g.fillRect(x - 0.5, top - 0.5, 8, h + 1);
+    g.fillStyle = body;
+    g.fillRect(x, top, 7, h);
+    g.fillStyle = light;
+    g.fillRect(x, top, 7, 1);
+    // 앞주머니와 지퍼
+    g.fillStyle = "#3a5a7e";
+    g.fillRect(facing === 1 ? x : x + 3, top + h * 0.5, 4, h * 0.42);
+    g.fillStyle = "#c8c8d0";
+    g.fillRect(facing === 1 ? x + 1 : x + 5, top + 2, 0.5, h * 0.35);
+    // 손잡이 고리
+    g.fillStyle = dark;
+    g.fillRect(x + 2.5, top - 1.5, 2, 1.5);
+  } else if (part === "strap") {
+    // 어깨끈: 어깨에서 겨드랑이로 비스듬히
+    g.fillStyle = dark;
+    for (let i = 0; i < 6; i++) g.fillRect(half(sx - facing * (2.5 - i * 0.5)), half(top + 0.5 + i * 1.2), 1, 1.5);
+  } else if (part === "back") {
+    const x = half(sx - 4.5);
+    g.fillStyle = dark;
+    g.fillRect(x - 0.5, top - 0.5, 10, h + 1);
+    g.fillStyle = body;
+    g.fillRect(x, top, 9, h);
+    g.fillStyle = light;
+    g.fillRect(x, top, 9, 1);
+    g.fillStyle = "#3a5a7e";
+    g.fillRect(x + 1.5, top + h * 0.5, 6, h * 0.4);
+    g.fillStyle = "#c8c8d0";
+    g.fillRect(x + 2, top + h * 0.5, 5, 0.5);
+  } else {
+    g.fillStyle = dark;
+    g.fillRect(half(sx - 4), top, 1, h * 0.7);
+    g.fillRect(half(sx + 3), top, 1, h * 0.7);
+  }
 }
 
 function drawLighting(sc: Scene, camX: number): void {
