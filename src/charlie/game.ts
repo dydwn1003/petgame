@@ -190,6 +190,7 @@ export const S = {
   over: null as null | { title: string; msg: string; checkpoint: number; scene: string },
   help: 0,
   titleSel: 0,
+  titleSub: false,
   fridgeSel: 0,
   choice: null as null | { options: string[]; sel: number; picked: number },
   movie: null as null | { shots: Shot[]; i: number; t: number },
@@ -5403,22 +5404,30 @@ function drawEmote(a: Actor, camX: number): void {
 // ═════════════════════════════════════════════════════════
 let titleBg: StreetInfo | null = null;
 export function titleItems(): string[] {
-  const save = loadSave();
-  const items = ["새 게임"];
-  if (save && !save.scene.startsWith("end")) items.push("이어하기");
-  const un = unlocked();
-  if (un >= 2) items.push("제2장부터");
-  if (un >= 3) items.push("제3장부터");
-  if (un >= 4) items.push("제4장부터");
-  if (un >= 5) items.push("제5장부터");
-  if (un >= 6) items.push("최종장부터");
-  items.push(`추억 앨범 ${photosFound().length}/${PHOTOS.length}`);
-  items.push(`샘 꾸미기: ${COSTUMES.find((c) => c.id === costume())?.name ?? "없음"} (참치캔 ${cansFound().length}/${CANS_TOTAL})`);
-  items.push(`체형: ${S.build === BUILD_3 ? "3등신" : "2.5등신"}`);
-  return items;
+  if (S.titleSub) {
+    const save = loadSave();
+    const items: string[] = [];
+    if (save && !save.scene.startsWith("end")) items.push("마지막 저장에서");
+    const un = unlocked();
+    items.push("제1장부터");
+    if (un >= 2) items.push("제2장부터");
+    if (un >= 3) items.push("제3장부터");
+    if (un >= 4) items.push("제4장부터");
+    if (un >= 5) items.push("제5장부터");
+    if (un >= 6) items.push("최종장부터");
+    items.push("돌아가기");
+    return items;
+  }
+  return [
+    "새 게임",
+    "이어하기",
+    `추억 앨범 ${photosFound().length}/${PHOTOS.length}`,
+    `샘 꾸미기: ${COSTUMES.find((c) => c.id === costume())?.name ?? "없음"} (참치캔 ${cansFound().length}/${CANS_TOTAL})`,
+  ];
 }
 
-const titleTop = (n: number) => 128 - Math.max(0, n - 5) * 9;
+const titleTop = (_n: number) => 112;
+const titleGap = () => (S.titleSub ? 14 : 17);
 const KONAMI = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight"];
 const konamiBuf: string[] = [];
 let konamiMsg = 0;
@@ -5445,6 +5454,11 @@ export function updateTitle(): void {
     if (took("Escape", "Enter", "Space") || mouse.clicked) S.album = 0;
     return;
   }
+  if (S.titleSub && took("Escape")) {
+    S.titleSub = false;
+    S.titleSel = 1;
+    return;
+  }
   const items = titleItems();
   if (took("ArrowUp", "KeyW")) S.titleSel = (S.titleSel + items.length - 1) % items.length;
   if (took("ArrowDown", "KeyS")) S.titleSel = (S.titleSel + 1) % items.length;
@@ -5452,7 +5466,7 @@ export function updateTitle(): void {
   let pick = took("Space", "Enter") ? S.titleSel : -1;
   if (mouse.clicked) {
     items.forEach((_, i) => {
-      const y = titleTop(items.length) + i * 18;
+      const y = titleTop(items.length) + i * titleGap();
       if (mouse.y > y - 8 && mouse.y < y + 8 && Math.abs(mouse.x - W / 2) < 80) pick = i;
     });
   }
@@ -5463,6 +5477,16 @@ export function updateTitle(): void {
   if (label === "새 게임") {
     S.flags = {};
     void goScene("intro", 0, false);
+  } else if (label === "이어하기") {
+    S.titleSub = true;
+    S.titleSel = 0;
+  } else if (label === "돌아가기") {
+    S.titleSub = false;
+    S.titleSel = 1;
+  } else if (label === "제1장부터") {
+    S.titleSub = false;
+    S.flags = {};
+    void goScene("chapter1", 0, false);
   } else if (label === "제2장부터") {
     S.flags = { supplies: 1, ch1: 1 };
     void goScene("drug1", 0, false);
@@ -5485,40 +5509,45 @@ export function updateTitle(): void {
     if (open2.length === 1) sfx.croak();
   } else if (label.startsWith("추억 앨범")) {
     S.album = 1;
-  } else if (label === "이어하기") {
+  } else if (label === "마지막 저장에서") {
     const s = loadSave()!;
     S.flags = { ...s.flags };
     S.build = s.tall ? BUILD_3 : BUILD_25;
     void goScene(s.scene, s.checkpoint, false);
-  } else {
-    S.build = S.build === BUILD_3 ? BUILD_25 : BUILD_3;
   }
+  if (label.endsWith("부터") || label === "마지막 저장에서") S.titleSub = false;
 }
 
 export function drawTitle(): void {
   if (!titleBg) titleBg = buildStreet(1200, false, 11);
-  const pan = (clock.t * 8) % (1200 - W);
-  g.drawImage(titleBg.canvas, pan * PIX, 0, W * PIX, H * PIX, 0, 0, W, H);
-  g.fillStyle = "rgba(6,5,14,0.55)";
+  // 배경은 멈춰 있고, 찰리와 샘만 움직인다
+  g.drawImage(titleBg.canvas, 120 * PIX, 0, W * PIX, H * PIX, 0, 0, W, H);
+  g.fillStyle = "rgba(6,5,14,0.5)";
   g.fillRect(0, 0, W, H);
-  const spr = human(CHARLIE, "charlie", `stand${Math.floor(clock.t / 0.55) % 4}`, S.build, 1);
-  g.drawImage(spr, W / 2 - 120, GROUND - 52, HUMAN_W, 54);
-  const tpose = `sitT${Math.floor(clock.t * 6) % 8}`;
-  g.drawImage(cat(tpose, -1), W / 2 - 92, GROUND - 22, 32, 24);
-  drawCostume(W / 2 - 92, GROUND - 22, -1, tpose);
+  drawTitleDuo();
   g.save();
   g.font = "bold 30px Galmuri11";
   g.textAlign = "center";
   g.textBaseline = "middle";
   g.fillStyle = "#1a0e08";
-  g.fillText("찰리와 고양이", W / 2 + 2, 72);
+  g.fillText("찰리와 고양이", W / 2 + 2, 50);
   g.fillStyle = "#ebc24a";
-  g.fillText("찰리와 고양이", W / 2, 70);
+  g.fillText("찰리와 고양이", W / 2, 48);
   g.restore();
-  text("CHARLIE & THE CAT", W / 2, 98, "#b8b0c8", "center");
-  titleItems().forEach((it, i) => {
+  text("CHARLIE & THE CAT", W / 2, 76, "#b8b0c8", "center");
+  const items = titleItems();
+  const top = titleTop(items.length);
+  {
+    // 메뉴는 반투명 판 위에 (배경과 겹쳐도 잘 읽히게)
+    const pw = S.titleSub ? 148 : 196;
+    g.fillStyle = S.titleSub ? "rgba(10,8,18,0.82)" : "rgba(10,8,18,0.6)";
+    g.fillRect(W / 2 - pw / 2, top - 12, pw, items.length * titleGap() + 8);
+    g.fillStyle = "#ebc24a";
+    g.fillRect(W / 2 - pw / 2, top - 12, pw, 1);
+  }
+  items.forEach((it, i) => {
     const sel = i === S.titleSel;
-    text(sel ? `▶ ${it} ◀` : it, W / 2, titleTop(titleItems().length) + i * 18, sel ? "#ffd36a" : "#d8d0e0", "center");
+    text(sel ? `▶ ${it} ◀` : it, W / 2, top + i * titleGap(), sel ? "#ffd36a" : "#d8d0e0", "center");
   });
   text("↑↓ 선택 · Space 결정", W / 2, H - 10, "rgba(220,214,232,0.6)", "center");
   const ends = endingsSeen();
@@ -5531,6 +5560,56 @@ export function drawTitle(): void {
     g.fillStyle = "rgba(6,5,10,0.85)";
     g.fillRect(W / 2 - 150, 40, 300, 22);
     text("★ 치트 냥! 모든 꾸미기가 해금되었다냥 ★", W / 2, 51, "#ffd36a", "center");
+  }
+}
+
+/** 타이틀: 샘이 찰리 다리에 머리를 비비고(헤드번팅), 찰리 머리 위로 하트 */
+const HEART = [".##.##.", "#######", "#######", ".#####.", "..###..", "...#..."];
+function pixelHeart(x: number, y: number, a: number, s = 1): void {
+  g.globalAlpha = a;
+  for (let yy = 0; yy < HEART.length; yy++)
+    for (let xx = 0; xx < 7; xx++) {
+      if (HEART[yy][xx] !== "#") continue;
+      g.fillStyle = yy === 1 && xx === 1 ? "#ffd0dc" : "#ff5a7e";
+      g.fillRect(Math.round((x + (xx - 3.5) * s) * 2) / 2, Math.round((y + yy * s) * 2) / 2, s, s);
+    }
+  g.globalAlpha = 1;
+}
+function drawTitleDuo(): void {
+  const t = clock.t;
+  const P = 2.6;
+  const ph = t % P;
+  const cyc = Math.floor(t / P);
+  const cx = 112; // 찰리 발 가운데
+  const fx = cx - HUMAN_ORIGIN.x;
+  const spr = human(CHARLIE, "charlie", `stand${Math.floor(t / 0.55) % 4}`, S.build, 1);
+  g.drawImage(spr, fx, GROUND - 52, HUMAN_W, 54);
+  // 샘: 앉아서 꼬리 살랑 → 다가와 머리 비비기 → 다시 앉기
+  let pose: CatPose;
+  let sx: number;
+  if (ph < 1.2) {
+    pose = `sitT${Math.floor(t * 6) % 8}` as CatPose;
+    sx = cx + 16;
+  } else if (ph < 2.2) {
+    pose = "butt";
+    const k = (ph - 1.2) / 1.0;
+    sx = cx + 11 + Math.sin(k * Math.PI * 3) * 1.2 + (k < 0.15 ? (1 - k / 0.15) * 5 : 0);
+  } else {
+    pose = `sitT${Math.floor(t * 6) % 8}` as CatPose;
+    sx = cx + 11 + ((ph - 2.2) / 0.4) * 5;
+  }
+  const catX = Math.round((sx - 16) * 2) / 2;
+  g.drawImage(cat(pose, -1), catX, GROUND - 22, 32, 24);
+  drawCostume(catX, GROUND - 22, -1, pose);
+  // 하트: 비빌 때마다 찰리 머리 위로 몽글몽글
+  const headY = GROUND - 56;
+  for (const c of [cyc - 1, cyc]) {
+    for (const [emit, ox] of [[1.3, -4], [1.65, 5], [2.0, 0]] as Array<[number, number]>) {
+      const age = t - (c * P + emit);
+      if (age < 0 || age > 1.6) continue;
+      const a = age < 0.2 ? age / 0.2 : 1 - (age - 0.2) / 1.4;
+      pixelHeart(cx + ox + Math.sin(age * 5 + ox) * 2, headY - age * 16, Math.max(0, a), age < 0.15 ? 0.7 + age * 2 : 1);
+    }
   }
 }
 

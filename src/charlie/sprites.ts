@@ -1894,9 +1894,9 @@ function paintCat(p: Px, pose: string): void {
 }
 
 /** 털색만 바꾼 고양이 (동네 고양이들, 엔딩 영상) */
-export function tintCat(pose: CatPose, facing: 1 | -1, col: string): HTMLCanvasElement {
-  return cached(`ct:${pose}:${facing}:${col}`, () => {
-    const src = cat(pose, facing);
+export function tintCat(pose: CatPose, facing: 1 | -1, col: string, soft = false): HTMLCanvasElement {
+  return cached(`ct:${pose}:${facing}:${col}:${soft}`, () => {
+    const src = soft ? catSoft(pose, facing) : cat(pose, facing);
     const c = makeCanvas(src.width, src.height);
     const g = c.getContext("2d")!;
     g.drawImage(src, 0, 0);
@@ -1906,6 +1906,14 @@ export function tintCat(pose: CatPose, facing: 1 | -1, col: string): HTMLCanvasE
     g.globalCompositeOperation = "destination-in";
     g.drawImage(src, 0, 0);
     return c;
+  });
+}
+
+/** 애니메이션용 부드러운 고양이: 도트로 줄이지 않고 촘촘하게, 외곽선도 옅게 */
+export function catSoft(pose: CatPose, facing: 1 | -1): HTMLCanvasElement {
+  return cached(`cs:${pose}:${facing}`, () => {
+    const base = cached(`cs:${pose}:1`, () => bakeVec(CW, CH, 3, (p) => paintCat(p, pose), "#9aa0b4", 0.35));
+    return facing === 1 ? base : flip(base);
   });
 }
 
