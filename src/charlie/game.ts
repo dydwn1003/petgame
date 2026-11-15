@@ -49,6 +49,7 @@ import {
   buildRoom,
   buildStreet,
   buildSubway,
+  STREET_SHIFT,
   type StreetInfo,
 } from "./bg";
 import {
@@ -485,22 +486,83 @@ function drawFires(fires: StreetInfo["fires"], camX: number): void {
 // 프롤로그 1: 퇴근길
 // ═════════════════════════════════════════════════════════
 
+/** 제자리 근처를 서성이는 행인: 가까이 지나가면 말풍선 */
+interface Passerby {
+  a: Actor;
+  x0: number;
+  range: number;
+  speed: number;
+  lines: string[];
+  target: number;
+  rest: number;
+  talk: number;
+  line: number;
+}
+function passerby(x: number, range: number, speed: number, look: Look, lookId: string, lines: string[], build: Build = BUILD_3): Passerby {
+  const a = mkActor("person", x, -1, { look, lookId, build });
+  return { a, x0: x, range, speed, lines, target: x, rest: Math.random() * 2, talk: 0, line: Math.floor(Math.random() * lines.length) };
+}
+function tickPassers(list: Passerby[], dt: number): void {
+  for (const p of list) {
+    const a = p.a;
+    // 서성이기: 목표 지점까지 걷고, 잠깐 멈췄다가, 다른 지점으로
+    if (p.rest > 0) {
+      p.rest -= dt;
+      a.moving = false;
+      a.pose = "stand";
+      if (p.rest <= 0) p.target = p.x0 + (Math.random() * 2 - 1) * p.range;
+    } else {
+      const d = p.target - a.x;
+      if (Math.abs(d) < 1) {
+        p.rest = 1 + Math.random() * 2.5;
+        // 멈추면 가끔 찰리 쪽을 본다
+        if (Math.abs(charlie.x - a.x) < 90) a.facing = charlie.x > a.x ? 1 : -1;
+      } else {
+        const step = Math.sign(d) * Math.min(Math.abs(d), p.speed * dt);
+        a.x += step;
+        a.walkDist += Math.abs(step) * 0.7;
+        a.facing = d > 0 ? 1 : -1;
+        a.moving = true;
+        a.pose = null;
+      }
+    }
+    // 찰리가 가까이 지나가면 한마디씩
+    const near = Math.abs(charlie.x - a.x) < 70;
+    p.talk -= dt;
+    if (near && p.talk <= 0) {
+      a.bubble = p.lines[p.line % p.lines.length];
+      p.line++;
+      p.talk = 3.2;
+    } else if ((!near && p.talk < 1.5) || p.talk < 0.6) {
+      a.bubble = null;
+    }
+  }
+}
+/** 평범한 행인 (재앙 전): 넋 나간 사람들과 같은 얼굴이지만 허리가 곧다 */
+const NORMAL = STRANGERS.map((l) => ({ ...l, hunch: 0 }));
+
 SCENES.street1 = () => {
   const info = buildStreet(1200, false, 11);
-  const addict = mkActor("person", 930, -1, { look: ADDICT, lookId: "addict", pose: "stand" });
+  const addict = passerby(930, 8, 6, ADDICT, "addict", ["...약... 약이 필요해...", "흐흐... 초록색... 예쁘다...", "머리가... 웅웅거려..."]);
+  const passers = [
+    addict,
+    passerby(640, 26, 14, NORMAL[0], "pro0", ["오늘 밤 운석우래요! 꼭 하늘 보세요!", "망원경 싸게 팝니다~ 운석 구경하세요!", "저기요, 전단지 하나만 받아 가세요!"]),
+    passerby(790, 34, 12, NORMAL[1], "pro1", ["응, 엄마. 뉴스 봤어? 운석 온대.", "아니, 별일 없을 거야... 아마도.", "근데 오늘 동네 고양이들이 이상하게 울더라."]),
+    passerby(420, 20, 10, NORMAL[2], "pro2", ["배달이 왜 이렇게 안 와...", "어휴, 야근 또 했어요? 얼굴이 말이 아니네.", "요즘 길에 멍하니 서 있는 사람이 많아요."]),
+  ];
   const sc: Scene = {
     id: "street1",
     width: 1200,
     bg: info.canvas,
     ambient: 0.42,
-    lights: () => [...lampLights(info, false), { x: info.door, y: 150, r: 60, a: 0.6, warm: "rgba(255,200,120,0.08)" }],
+    lights: () => [...lampLights(info, false), { x: info.door, y: 150 - STREET_SHIFT, r: 60, a: 0.6, warm: "rgba(255,200,120,0.08)" }],
     minX: 60,
     maxX: 1180,
-    actors: [addict],
+    actors: passers.map((p) => p.a),
     hotspots: [
       ...info.posters.map((p, i): Hotspot => ({
         x: p.x,
-        iconY: 148,
+        iconY: 148 - STREET_SHIFT,
         label: "살펴보다",
         enabled: () => true,
         use: async () => {
@@ -509,12 +571,14 @@ SCENES.street1 = () => {
         },
       })),
       {
-        x: 930,
+        get x() {
+          return addict.a.x;
+        },
         iconY: 150,
         label: "살펴보다",
         enabled: () => true,
         use: async () => {
-          await caption("고개를 푹 숙인 채, 몇 시간째 제자리에서 흔들리고 있다.");
+          await caption("고개를 푹 숙인 채, 몇 시간째 제자리를 맴돌고 있다.");
           await say(charlie, "...요즘 이런 사람이 부쩍 늘었어.");
         },
       },
@@ -533,9 +597,9 @@ SCENES.street1 = () => {
           await say(charlie, "맥주와 휴식이 필요해...");
           await walkTo(charlie, info.door, 40);
           charlie.anim = { prefix: "climb", frames: 8, fps: 8 };
-          for (let s = 0; s < 6; s++) {
+          for (let s = 0; s < 10; s++) {
             sfx.step();
-            await tween(charlie, info.door, GROUND - (s + 1) * 6, 0.25, 0);
+            await tween(charlie, info.door, GROUND - (s + 1) * 6, 0.22, 0);
           }
           charlie.anim = null;
           charlie.pose = "climb0";
@@ -544,8 +608,8 @@ SCENES.street1 = () => {
         },
       },
     ],
-    update: () => {
-      addict.x = 930 + Math.round(Math.sin(clock.t * 0.8) * 1);
+    update: (dt) => {
+      tickPassers(passers, dt);
     },
     back: (camX) => {
       // 문 위 번지수 조명 등은 배경에 포함
@@ -1149,7 +1213,7 @@ SCENES.chapter1 = (checkpoint) => {
     hotspots: [
       {
         x: info.bodega,
-        iconY: 150,
+        iconY: 150 - STREET_SHIFT,
         label: "살펴보다",
         enabled: () => !F.supplies,
         use: async () => {
@@ -1167,7 +1231,7 @@ SCENES.chapter1 = (checkpoint) => {
       },
       ...info.posters.slice(1, 3).map((p, i): Hotspot => ({
         x: p.x,
-        iconY: 148,
+        iconY: 148 - STREET_SHIFT,
         label: "살펴보다",
         enabled: () => true,
         use: async () => {
@@ -1515,21 +1579,21 @@ SCENES.chapter1 = (checkpoint) => {
       }
       writeSave("chapter1", 0);
       charlie.x = info.door;
-      charlie.y = GROUND - 36;
+      charlie.y = GROUND - 60;
       charlie.pose = "stand";
       charlie.facing = 1;
       await fadeTo(0, 1.2);
       await wait(0.6);
       charlie.pose = null;
       charlie.anim = { prefix: "front", frames: 8, fps: 9 };
-      for (let s = 0; s < 6; s++) {
+      for (let s = 0; s < 10; s++) {
         sfx.step();
-        await tween(charlie, info.door + s * 4, GROUND - 30 + s * 6, 0.2, 0);
+        await tween(charlie, info.door + s * 2.4, GROUND - 54 + s * 6, 0.18, 0);
       }
       charlie.anim = null;
       await wait(0.4);
       focusCam(charlie.x + 120, 1);
-      await caption("불타는 건물, 뒤집힌 차, 깨진 유리. 하룻밤 사이에 거리가 무너졌다.");
+      await caption("불타는 건물, 깨진 유리, 텅 빈 인도. 하룻밤 사이에 거리가 무너졌다.");
       focusCam(null, 1);
       await say(charlie, "샘을 찾으러 가야겠어. 그 전에... 샘이 좋아하는 츄르부터 구하자.");
       await chapterCard("제1장", "무너진 거리");

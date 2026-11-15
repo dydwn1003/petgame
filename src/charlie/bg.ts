@@ -150,26 +150,61 @@ function fireEscape(g: G, x: number, w: number, top: number, floors: number, gap
   }
 }
 
-function poster(g: G, x: number, y: number, w: number, h: number, paper: string, ink: string, lines: string[], r: () => number): void {
-  rect(g, x + 1, y + 1, w, h, "#00000055");
-  rect(g, x, y, w, h, paper);
-  for (let i = 0; i < 3; i++) rect(g, x + Math.floor(r() * w), y + h - 1 - Math.floor(r() * 3), 2, 2, "#00000033");
-  lines.forEach((l, i) => smallText(g, l, x + w / 2, y + 8 + i * 10, ink));
-  rect(g, x + w / 2 - 1, y + 1, 2, 2, "#c0c0c0");
+/** 스프레이 낙서: 표면 안쪽에만, 반투명으로 칠해 바탕 결이 비친다 (흘러내린 자국 포함) */
+function graffiti(g: G, x: number, y: number, w: number, r: () => number, h = 16): void {
+  if (w < 16) return;
+  const cols = ["#d84a8a", "#4ac0d8", "#e8d04a", "#8a4ad8", "#4ad86a", "#e86a3a"];
+  const words = ["NYC", "MEOW", "KAT", "ZAP", "LUV", "BX", "YO"];
+  const word = words[Math.floor(r() * words.length)];
+  const col = cols[Math.floor(r() * cols.length)];
+  g.save();
+  g.beginPath();
+  g.rect(x, y, w, h);
+  g.clip();
+  const size = Math.max(7, Math.min(h - 3, 12));
+  g.font = `bold ${size}px Galmuri11`;
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  const cx = x + w / 2 + (r() - 0.5) * Math.max(0, w - word.length * size * 0.7) * 0.6;
+  const cy = y + h / 2;
+  g.translate(cx, cy);
+  g.rotate((r() - 0.5) * 0.18);
+  // 뿌연 스프레이 테두리 → 굵은 외곽 → 글자 색
+  g.globalAlpha = 0.18;
+  g.fillStyle = col;
+  g.fillRect(-word.length * size * 0.4 - 2, -size / 2 - 1, word.length * size * 0.8 + 4, size + 2);
+  g.globalAlpha = 0.75;
+  g.lineWidth = 1.5;
+  g.strokeStyle = "#141018";
+  g.strokeText(word, 0, 0);
+  g.fillStyle = col;
+  g.fillText(word, 0, 0);
+  // 흘러내린 페인트
+  g.globalAlpha = 0.55;
+  for (let i = 0; i < 3; i++) {
+    const dx = (r() - 0.5) * word.length * size * 0.7;
+    g.fillRect(dx, size / 2 - 1, 0.5, 2 + r() * 4);
+  }
+  g.restore();
 }
 
-function graffiti(g: G, x: number, y: number, w: number, r: () => number): void {
-  const cols = ["#d84a8a", "#4ac0d8", "#e8d04a", "#8a4ad8", "#4ad86a", "#e86a3a"];
-  for (let i = 0; i < 5; i++) {
-    g.strokeStyle = cols[Math.floor(r() * cols.length)];
-    g.lineWidth = 2;
-    g.beginPath();
-    const sx = x + r() * w;
-    const sy = y + r() * 14;
-    g.moveTo(sx, sy);
-    for (let k = 0; k < 4; k++) g.lineTo(sx + (r() - 0.3) * 26, sy + (r() - 0.5) * 14);
-    g.stroke();
-  }
+/** 벽에 붙은 대자보: 테이프 네 귀퉁이, 살짝 들뜬 모서리와 그림자 */
+function poster(g: G, x: number, y: number, w: number, h: number, paper: string, ink: string, lines: string[], r: () => number): void {
+  rect(g, x + 1, y + 1, w, h, "rgba(0,0,0,0.35)");
+  rect(g, x, y, w, h, paper);
+  vgrad(g, x, y, w, y + h, [[0, "rgba(255,255,255,0.10)"], [1, "rgba(0,0,0,0.12)"]]);
+  // 구김과 얼룩
+  for (let i = 0; i < 3; i++) rect(g, x + 2 + Math.floor(r() * (w - 4)), y + 2 + Math.floor(r() * (h - 4)), 0.5, 3 + r() * 5, "rgba(0,0,0,0.08)");
+  // 들뜬 귀퉁이 하나
+  g.fillStyle = mix(paper, -0.2);
+  g.beginPath();
+  g.moveTo(x + w, y + h - 4);
+  g.lineTo(x + w, y + h);
+  g.lineTo(x + w - 4, y + h);
+  g.fill();
+  lines.forEach((l, i) => smallText(g, l, x + w / 2, y + 7 + i * 9, ink, 7));
+  // 투명 테이프
+  for (const [tx, ty] of [[x - 1, y - 1], [x + w - 4, y - 1], [x - 1, y + h - 2], [x + w - 4, y + h - 2]]) rect(g, tx, ty, 5, 3, "rgba(240,236,210,0.55)");
 }
 
 // ── 거리 ────────────────────────────────────────────────
@@ -190,6 +225,9 @@ const POSTERS: Array<[string[], string, string, string]> = [
   [["세상", "종말론", "회개하라"], "#f0e0c8", "#1a1a1a", "세상 종말론 — 회개하라"],
   [["채식이", "인류를", "구한다"], "#d8f0d0", "#2a6a2a", "채식이 인류를 구한다"],
 ];
+
+/** 거리 건물 줄을 인도 뒤로 물린 높이 (인도가 그만큼 넓어진다) */
+export const STREET_SHIFT = 24;
 
 export function buildStreet(width: number, after: boolean, seed: number, home = true): StreetInfo {
   const c = makeDense(width, H, BG_SCALE);
@@ -226,48 +264,70 @@ export function buildStreet(width: number, after: boolean, seed: number, home = 
     }
   }
 
-  // 건물 줄
-  const facades: Array<"brick" | "shop" | "blue" | "brown"> = [];
+  // 건물 줄: 찰리(키 54)보다 뒤에 있으므로 조금 작게, 인도 깊숙이 물러나 있다
+  const D = STREET_SHIFT;
+  const wallBase = 200 - D;
+  g.save();
+  g.translate(0, -D);
+  const firesBefore = info.fires.length;
   let x = 0;
   const apt = { x: 30, w: 260 };
-  // 찰리의 아파트 (브라운스톤)
   if (home) {
     drawBrownstone(g, apt.x, apt.w, after, r);
     info.door = apt.x + apt.w / 2;
     x = apt.x + apt.w + 6;
-  } else {
-    x = 0;
   }
   let posterIdx = 0;
   let k = 0;
   while (x < width - 40) {
     const kind = k === 1 ? "shop" : (["brick", "shop", "blue", "brick", "brown"] as const)[Math.floor(r() * 5)];
-    facades.push(kind);
     const w = kind === "shop" ? 150 : 130 + Math.floor(r() * 60);
     const top = 30 + Math.floor(r() * 40);
     const isBodega = k === 1;
-    drawFacade(g, x, w, top, kind, after, r, info, isBodega);
-    // 포스터
+    let spec: PosterSpec | null = null;
     if (posterIdx < POSTERS.length && kind !== "shop") {
-      const [lines, paper, ink, label] = POSTERS[posterIdx++];
-      const px = x + 20 + Math.floor(r() * (w - 80));
-      poster(g, px, 156, 44, 36, paper, ink, lines, r);
-      info.posters.push({ x: px + 22, text: label });
+      const [lines, paper, ink, label] = POSTERS[posterIdx];
+      spec = { lines, paper, ink, label };
     }
+    drawFacade(g, x, w, top, kind, after, r, info, isBodega, spec);
+    if (spec?.used) posterIdx++;
     x += w + 6;
     k++;
   }
+  g.restore();
+  for (let i = firesBefore; i < info.fires.length; i++) info.fires[i].y -= D;
 
-  // 인도 · 도로
-  rect(g, 0, 200, width, 22, after ? "#5a4a48" : "#6a6670");
-  for (let sx = 0; sx < width; sx += 24) rect(g, sx, 200, 1, 22, after ? "#4a3a38" : "#58545e");
-  rect(g, 0, 210, width, 1, after ? "#4a3a38" : "#5a5662");
-  rect(g, 0, 222, width, 4, after ? "#8a7a74" : "#9a96a0");
-  rect(g, 0, 226, width, H - 226, after ? "#2a2224" : "#2c2c34");
-  for (let sx = 0; sx < width; sx += 40) rect(g, sx, 250, 20, 2, after ? "#8a6a30" : "#c8a83a");
-  for (let i = 0; i < width / 30; i++) rect(g, Math.floor(r() * width), 228 + Math.floor(r() * 40), 3, 1, "#1e1e24");
+  // 인도: 건물 밑에서 연석까지 깊게 (멀수록 좁은 보도블록)
+  const sw = after ? "#5a4a48" : "#6a6670";
+  const joint = after ? "#4a3a38" : "#58545e";
+  rect(g, 0, wallBase, width, 232 - wallBase, sw);
+  rect(g, 0, wallBase, width, 2, "rgba(0,0,0,0.35)");
+  const rows: Array<[number, number, number]> = [[wallBase, 186, 22], [186, 198, 26], [198, 214, 30], [214, 232, 36]];
+  rows.forEach(([y0, y1, step], ri) => {
+    rect(g, 0, y1 - 0.5, width, 0.5, joint);
+    rect(g, 0, y0 + 0.5, width, 0.5, mix(sw, 0.06));
+    for (let sx = (ri % 2) * (step / 2); sx < width; sx += step) rect(g, sx, y0, 0.5, y1 - y0, joint);
+  });
+  for (let i = 0; i < width / 20; i++) rect(g, Math.floor(r() * width), wallBase + 4 + Math.floor(r() * 50), 2 + r() * 3, 1, mix(sw, (r() - 0.5) * 0.2));
+  // 연석
+  rect(g, 0, 232, width, 3, after ? "#8a7a74" : "#9a96a0");
+  rect(g, 0, 232, width, 1, after ? "#a89890" : "#b8b4c0");
+  rect(g, 0, 235, width, 1, "#1e1e24");
+  // 도로: 한 차선만 보인다 (중앙선 없음)
+  rect(g, 0, 236, width, H - 236, after ? "#2a2224" : "#2c2c34");
+  rect(g, 0, 236, width, 3, after ? "#221c1e" : "#24242c");
+  for (let i = 0; i < width / 26; i++) rect(g, Math.floor(r() * width), 242 + Math.floor(r() * 26), 3, 1, "#1e1e24");
+  for (let mx = 180 + Math.floor(r() * 200); mx < width; mx += 420 + Math.floor(r() * 200)) {
+    g.fillStyle = "#1a1a20";
+    g.beginPath();
+    g.ellipse(mx, 254, 14, 4, 0, 0, Math.PI * 2);
+    g.fill();
+    rect(g, mx - 10, 253, 20, 0.5, "#3a3a44");
+  }
 
-  // 소품: 가로등, 소화전, 볼라드, 쓰레기통, 대형 쓰레기통
+  if (home) drawStoop(g, info.door, 176 - D, 212);
+
+  // 소품: 가로등 · 소화전 · 볼라드 (연석 쪽), 쓰레기통 · 대형 쓰레기통 (벽 쪽)
   for (let lx = 330; lx < width - 20; lx += 260 + Math.floor(r() * 60)) {
     info.lamps.push(lx);
     rect(g, lx, 120, 3, 92, "#1a1a20");
@@ -283,61 +343,56 @@ export function buildStreet(width: number, after: boolean, seed: number, home = 
     rect(g, bx, 196, 5, 16, "#2a3a8a");
     rect(g, bx, 198, 5, 2, "#d8d8e8");
   }
+  const DB = wallBase + 10; // 벽에 붙여 둔 대형 쓰레기통 바닥
   for (let dx = 620; dx < width - 120; dx += 380 + Math.floor(r() * 120)) {
     info.dumpsters.push(dx + 20);
-    rect(g, dx, 186, 40, 26, after ? "#2a4a34" : "#2e5a3c");
-    rect(g, dx - 2, 183, 44, 4, after ? "#1e3426" : "#22442e");
-    rect(g, dx + 4, 192, 32, 1, "#1e3426");
-    rect(g, dx + 2, 210, 4, 3, "#111");
-    rect(g, dx + 34, 210, 4, 3, "#111");
-    graffiti(g, dx + 4, 194, 30, r);
+    const body = after ? "#2a4a34" : "#2e5a3c";
+    rect(g, dx, DB - 26, 40, 26, body);
+    rect(g, dx, DB - 26, 40, 1, mix(body, 0.2));
+    rect(g, dx - 2, DB - 29, 44, 4, after ? "#1e3426" : "#22442e");
+    rect(g, dx + 4, DB - 20, 32, 1, "#1e3426");
+    for (let k2 = 6; k2 < 40; k2 += 8) rect(g, dx + k2, DB - 18, 0.5, 16, mix(body, -0.15));
+    rect(g, dx + 2, DB, 4, 2, "#111");
+    rect(g, dx + 34, DB, 4, 2, "#111");
+    graffiti(g, dx + 2, DB - 19, 36, r, 16);
+    rect(g, dx - 2, DB + 1, 46, 2, "rgba(0,0,0,0.35)");
   }
-  for (let i = 0; i < width / 140; i++) {
-    const tx = Math.floor(r() * width);
-    rect(g, tx, 204, 9, 8, "#1e1e22");
-    rect(g, tx + 2, 202, 6, 3, "#2a2a30");
+  // 철제 쓰레기통 (주름진 몸통 + 뚜껑 + 손잡이)
+  for (let i = 0; i < width / 160; i++) {
+    const tx = Math.floor(r() * (width - 20));
+    if (home && Math.abs(tx - info.door) < 50) continue;
+    const metal = after ? "#5a5a5e" : "#8a8c94";
+    rect(g, tx - 1, DB + 1, 12, 1.5, "rgba(0,0,0,0.35)");
+    rect(g, tx, DB - 12, 10, 12, metal);
+    for (let k2 = 1; k2 < 10; k2 += 2) rect(g, tx + k2, DB - 11, 0.5, 10, mix(metal, -0.18));
+    rect(g, tx, DB - 12, 2, 12, mix(metal, 0.15));
+    rect(g, tx, DB - 8, 10, 0.5, mix(metal, -0.25));
+    rect(g, tx, DB - 4, 10, 0.5, mix(metal, -0.25));
+    rect(g, tx - 1, DB - 14, 12, 2, mix(metal, 0.1));
+    rect(g, tx + 3.5, DB - 15.5, 3, 1.5, mix(metal, -0.2));
+    if (r() < 0.5) rect(g, tx + 2, DB - 16, 4, 2, ["#e8e0c8", "#6a8a4a", "#c84a3a"][Math.floor(r() * 3)]);
   }
 
   if (after) {
-    // 잔해, 균열, 부서진 차
-    for (let i = 0; i < width / 25; i++) rect(g, Math.floor(r() * width), 205 + Math.floor(r() * 18), 2 + Math.floor(r() * 4), 2, r() < 0.5 ? "#6a5a50" : "#3a3030");
+    // 잔해와 도로 균열
+    for (let i = 0; i < width / 25; i++) rect(g, Math.floor(r() * width), wallBase + 6 + Math.floor(r() * 50), 2 + Math.floor(r() * 4), 2, r() < 0.5 ? "#6a5a50" : "#3a3030");
     for (let i = 0; i < width / 120; i++) {
       g.strokeStyle = "#1a1416";
       g.lineWidth = 1;
       g.beginPath();
       let cx = r() * width;
-      let cy = 228 + r() * 30;
+      let cy = 242 + r() * 22;
       g.moveTo(cx, cy);
-      for (let s = 0; s < 5; s++) {
+      for (let s2 = 0; s2 < 5; s2++) {
         cx += (r() - 0.3) * 14;
         cy += (r() - 0.5) * 6;
         g.lineTo(cx, cy);
       }
       g.stroke();
     }
-    const carX = 820;
-    drawCar(g, carX, 228, true);
-    info.fires.push({ x: carX + 14, y: 220, w: 22, h: 12 });
-  } else {
-    drawCar(g, 700, 230, false);
   }
   info.canvas = pixelize(c, width, H, { opaque: true });
   return info;
-}
-
-function drawCar(g: G, x: number, y: number, wrecked: boolean): void {
-  const body = wrecked ? "#3a2a2a" : "#5a6a8a";
-  rect(g, x, y + 8, 70, 14, body);
-  rect(g, x + 12, y, 40, 10, body);
-  rect(g, x + 15, y + 2, 15, 7, wrecked ? "#101014" : "#8aa8c8");
-  rect(g, x + 33, y + 2, 15, 7, wrecked ? "#101014" : "#8aa8c8");
-  rect(g, x + 8, y + 20, 12, 10, "#111");
-  rect(g, x + 50, y + 20, 12, 10, "#111");
-  rect(g, x + 66, y + 10, 4, 4, wrecked ? "#3a2a2a" : "#ffe8a0");
-  if (wrecked) {
-    rect(g, x + 20, y + 8, 16, 3, "#1a1414");
-    rect(g, x + 40, y + 12, 10, 2, "#1a1414");
-  }
 }
 
 function drawBrownstone(g: G, x: number, w: number, after: boolean, r: () => number): void {
@@ -388,24 +443,33 @@ function drawBrownstone(g: G, x: number, w: number, after: boolean, r: () => num
   rect(g, dx - 6, 146, 2, 3, "#d8b048");
   rect(g, dx + 4, 146, 2, 3, "#d8b048");
   smallText(g, "31", dx, 102, "#3a2418");
-  for (let s = 0; s < 6; s++) {
-    const sy = 176 + s * 6;
-    rect(g, dx - 26 - s * 2, sy, 52 + s * 4, 6, s % 2 ? "#a89880" : "#b8a890");
-    rect(g, dx - 26 - s * 2, sy, 52 + s * 4, 1, "#d8c8a8");
+}
+
+/** 브라운스톤 현관 계단: 문 아래(doorY)에서 인도(groundY)까지, 앞으로 갈수록 넓어진다 */
+function drawStoop(g: G, dx: number, doorY: number, groundY: number): void {
+  const n = Math.round((groundY - doorY) / 6);
+  for (let s = 0; s < n; s++) {
+    const sy = doorY + s * 6;
+    rect(g, dx - 26 - s * 1.6, sy, 52 + s * 3.2, 6, s % 2 ? "#a89880" : "#b8a890");
+    rect(g, dx - 26 - s * 1.6, sy, 52 + s * 3.2, 1, "#d8c8a8");
+    rect(g, dx - 26 - s * 1.6, sy + 5, 52 + s * 3.2, 1, "#8a7a64");
   }
   // 난간
   g.strokeStyle = "#14141a";
   g.lineWidth = 2;
+  const end = n * 1.6;
   for (const side of [-1, 1]) {
     g.beginPath();
-    g.moveTo(dx + side * 26, 166);
-    g.lineTo(dx + side * 40, 202);
+    g.moveTo(dx + side * 26, doorY - 10);
+    g.lineTo(dx + side * (28 + end), groundY - 4);
     g.stroke();
-    for (let k = 0; k < 5; k++) rect(g, dx + side * (27 + k * 3), 168 + k * 7, 1, 10, "#14141a");
+    for (let k = 0; k < n; k++) rect(g, dx + side * (27 + k * 1.6) - 0.5, doorY - 8 + k * 6, 1, 10, "#14141a");
+    rect(g, dx + side * (28 + end) - 2, groundY - 8, 4, 8, "#14141a");
   }
 }
 
-function drawFacade(g: G, x: number, w: number, top: number, kind: "brick" | "shop" | "blue" | "brown", after: boolean, r: () => number, info: StreetInfo, bodega: boolean): void {
+interface PosterSpec { lines: string[]; paper: string; ink: string; label: string; used?: boolean }
+function drawFacade(g: G, x: number, w: number, top: number, kind: "brick" | "shop" | "blue" | "brown", after: boolean, r: () => number, info: StreetInfo, bodega: boolean, spec: PosterSpec | null = null): void {
   const colors = {
     brick: ["#8a3a2a", "#6a2a1e", ["#9a4430", "#7a3224"]],
     shop: ["#7a3424", "#5e281c", ["#8a3c2a", "#6a2e20"]],
@@ -489,8 +553,8 @@ function drawFacade(g: G, x: number, w: number, top: number, kind: "brick" | "sh
         rect(g, sx, 158, 1, 42, after ? "#5a5a60" : "#84848e");
       }
       rect(g, x + 8, 196, w - 16, 4, after ? "#3a3a40" : "#54545c");
-      graffiti(g, x + 10, 168, w - 20, r);
-      graffiti(g, x + 30, 178, w - 60, r);
+      graffiti(g, x + 10, 164, w / 2 - 14, r, 18);
+      if (r() < 0.6) graffiti(g, x + w / 2 + 4, 172, w / 2 - 14, r, 16);
       const names = ["PIZZA", "LAUNDRY", "VINYL", "REPAIR", "NAILS"];
       rect(g, x + 4, 150, w - 8, 7, after ? "#2a2a30" : "#e8d8a0");
       rect(g, x + 4, 150, w - 8, 1, after ? "#3a3a40" : "#fff0c0");
@@ -508,7 +572,18 @@ function drawFacade(g: G, x: number, w: number, top: number, kind: "brick" | "sh
     rect(g, dx + 12, 182, 8, 15, dim("#3a2a3a"));
     rect(g, dx + 18, 180, 2, 3, "#c8a83a");
     rect(g, dx - 4, 198, 30, 2, mix(stone, -0.15));
-    if (r() < 0.6) graffiti(g, dx + 30, 170, Math.min(70, w - (dx - x) - 40), r);
+    // 문 양옆의 빈 벽: 넓은 쪽엔 대자보, 다른 쪽엔 낙서
+    const left: [number, number] = [x + 6, dx - 8];
+    const right: [number, number] = [dx + 30, x + w - 12];
+    const spans = [left, right].sort((a, b) => b[1] - b[0] - (a[1] - a[0]));
+    const [big, small] = spans;
+    if (spec && big[1] - big[0] >= 44) {
+      const px = Math.round((big[0] + big[1]) / 2 - 18);
+      poster(g, px, 160, 36, 32, spec.paper, spec.ink, spec.lines, r);
+      info.posters.push({ x: px + 18, text: spec.label });
+      spec.used = true;
+      if (r() < 0.7) graffiti(g, small[0], 172, small[1] - small[0], r, 16);
+    } else if (r() < 0.7) graffiti(g, big[0], 170, big[1] - big[0], r, 18);
   }
 }
 
