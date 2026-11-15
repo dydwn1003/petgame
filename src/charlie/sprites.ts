@@ -40,7 +40,7 @@ export interface Look {
   hair: string;
   hairShade: string;
   hairLight: string;
-  hairStyle: "pomp" | "messy" | "skull" | "frog" | "hood" | "bun" | "pony" | "beanie" | "mask" | "comb";
+  hairStyle: "pomp" | "messy" | "skull" | "frog" | "hood" | "bun" | "pony" | "beanie" | "mask" | "comb" | "cap" | "curly";
   /** 몸통 무늬 (lx, ly = 몸통 안 좌표, 도트 단위) */
   shirt: (lx: number, ly: number, w: number, h: number) => string;
   sleeve: string;
@@ -277,6 +277,24 @@ function paintHair(p: Px, L: Look, hx: number, ft: number): void {
     ellipse(p, hx - 14, ft + 4, 6, 7, H);
     for (let k = 0; k < 5; k++) curve(p, hx - 16, ft + 2 - k * 1.2, hx - 2, ft - 8 - k * 0.6, hx + 12, ft - 4 + k * 0.4, k % 2 ? Li : H, 1);
     ellipse(p, hx + 2, ft - 4, 6, 2, "rgba(255,255,255,0.35)");
+  } else if (L.hairStyle === "cap") {
+    // 배달 모자 (챙이 앞으로)
+    p(hx - 19, ft + 3, 7, 14, H);
+    ellipse(p, hx - 1, ft - 4, 21, 11, "#c83a32");
+    ellipse(p, hx - 5, ft - 8, 10, 4, "#e85a4a");
+    p(hx + 4, ft - 1, 24, 4, "#a82a24");
+    p(hx + 4, ft - 1, 24, 1, "#e85a4a");
+    p(hx - 6, ft - 9, 8, 5, "#f4f0e8");
+    p(hx - 4, ft - 8, 4, 3, "#c83a32");
+  } else if (L.hairStyle === "curly") {
+    // 곱슬 단발
+    for (let i = 0; i < 14; i++) {
+      const a = -Math.PI * 0.95 + (i / 13) * Math.PI * 1.15;
+      ellipse(p, hx - 2 + Math.cos(a) * 18, ft + 4 + Math.sin(a) * 14, 5.5, 5.5, i % 2 ? H : S);
+    }
+    ellipse(p, hx - 2, ft - 2, 17, 10, H);
+    for (let i = 0; i < 6; i++) ellipse(p, hx - 18 + (i % 2) * 3, ft + 8 + i * 4, 4.5, 4, i % 2 ? S : H);
+    curve(p, hx - 8, ft - 8, hx, ft - 11, hx + 8, ft - 7, Li);
   } else if (L.hairStyle === "beanie") {
     // 짧은 옆머리 + 털모자
     p(hx - 19, ft + 2, 7, 14, H);
@@ -1235,6 +1253,43 @@ export const BOSS: Look = {
   mouth: "#8a4a3a",
   brow: "#5e5a56",
   mustache: "#6e6a66",
+};
+
+/** 토니: 2B호 피자 배달부 (면역자) */
+export const TONY: Look = {
+  skin: "#d8a47a", skinShade: "#b07e58", skinLight: "#ecc09a",
+  hair: "#2a1a12", hairShade: "#1a0e08", hairLight: "#4a3424", hairStyle: "cap",
+  shirt: (lx, ly, w) => (ly > 6 && ly < 12 ? "#f4f0e8" : Math.abs(lx - w / 2) < 3 && ly < 6 ? "#f4f0e8" : (lx + ly) % 9 === 0 ? "#a82a24" : "#c83a32"),
+  sleeve: "#c83a32", sleeveShade: "#a82a24", cuff: "#f4f0e8",
+  pants: "#2a2a34", pantsShade: "#1a1a22", shoes: "#e8e4dc",
+  eye: "#3a2a1a", mouth: "#8a4a3a", brow: "#1a0e08",
+};
+/** 가르시아 부인: 4B호 이웃, 카나리아 '피코'의 주인 */
+export const GARCIA: Look = {
+  skin: "#e2b48c", skinShade: "#c08e6a", skinLight: "#f2cca8",
+  hair: "#4a3024", hairShade: "#2e1c14", hairLight: "#6a4a38", hairStyle: "curly",
+  shirt: (lx, ly, w) => (lx < 6 || lx > w - 7 ? ((lx + ly) % 4 === 0 ? "#6a3a7a" : "#7a4a8a") : ly % 5 === 0 ? "#e8d8a8" : "#f4e8c0"),
+  sleeve: "#7a4a8a", sleeveShade: "#5a2e6a", cuff: "#6a3a7a",
+  pants: "#3a3040", pantsShade: "#2a2030", shoes: "#5a3a2a",
+  eye: "#4a3020", mouth: "#b85a5a", brow: "#2e1c14", hunch: 1,
+};
+/** 민지: 블랙컴퍼니 인턴. 커피 한 잔에 정신이 돌아왔다 */
+export const MINJI: Look = {
+  skin: "#f4d4b8", skinShade: "#d8b090", skinLight: "#ffe6d0",
+  hair: "#1a1418", hairShade: "#0e0a0c", hairLight: "#3a3038", hairStyle: "pony",
+  shirt: (lx, ly, w) => (Math.abs(lx - w / 2) < 5 && ly < 8 ? "#ffffff" : (lx + ly) % 8 === 0 ? "#d8dce8" : "#e8ecf4"),
+  sleeve: "#e8ecf4", sleeveShade: "#c8ccd8", cuff: "#ffffff",
+  pants: "#2a2e3a", pantsShade: "#1e222c", shoes: "#1a1a1a",
+  eye: "#2a1e18", mouth: "#c86a6a", brow: "#0e0a0c",
+};
+/** 미스터 리: 종말에도 장사하는 핫도그 아저씨 */
+export const MRLEE: Look = {
+  skin: "#eac6a0", skinShade: "#c8a07c", skinLight: "#f8dcbc",
+  hair: "#2a2a2a", hairShade: "#1a1a1a", hairLight: "#5a5a5a", hairStyle: "comb",
+  shirt: (lx, ly, w) => (lx > 5 && lx < w - 6 && ly > 5 ? (ly % 6 === 0 ? "#e8e0c8" : "#f8f4e8") : (lx + ly) % 7 === 0 ? "#2a6a4a" : "#3a7a5a"),
+  sleeve: "#3a7a5a", sleeveShade: "#2a5a3a",
+  pants: "#4a4038", pantsShade: "#342c26", shoes: "#2a1e18",
+  eye: "#2a1e14", mouth: "#8a5a4a", brow: "#1a1a1a", mustache: "#3a3a3a", hunch: 1,
 };
 
 /** 면역자를 찾는 방호복 요원 */

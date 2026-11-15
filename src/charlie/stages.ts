@@ -3,9 +3,9 @@
 //  · 제2장: 지하철 점검 통로 (사물함 비밀번호, 쇠지렛대, 밸브 퍼즐)
 //  · 제3장: 교회 지하 납골당 (악보와 종 퍼즐, 릴리의 약)
 //  · 제4장: 격리 센터 보안실 · 기록 보관실 · 격리 구역
-import { GROUND, W, clock, fadeTo, flash, g, sfx, shake, sneaking, text, wait } from "./core";
-import { buildInterior, buildStreet, type DoorDef, type Theme } from "./bg";
-import { SKELETON, STRANGERS, ZOMBIES } from "./sprites";
+import { GROUND, W, chapterCard, clock, fadeTo, flash, g, keys, sfx, shake, sneaking, text, wait } from "./core";
+import { ROOFS, buildInterior, buildRoofs, buildStreet, type DoorDef, type Theme } from "./bg";
+import { FROGMAN, MINJI, SKELETON, STRANGERS, TONY, ZOMBIES } from "./sprites";
 import {
   ITEMS,
   S,
@@ -16,6 +16,9 @@ import {
   descend,
   canSpot,
   credits,
+  patrol,
+  setPlayer,
+  tween,
   emote,
   gameOver,
   hideAt,
@@ -593,6 +596,7 @@ room({
   },
 });
 
+const tonyHere: Actor[] = [];
 room({
   id: "staff2",
   label: "역무원 휴게실",
@@ -600,6 +604,18 @@ room({
   width: 540,
   seed: 502,
   startX: 70,
+  actors: () => {
+    tonyHere.length = 0;
+    tonyHere.push(mkActor("person", 500, -1, { look: TONY, lookId: "tony", pose: "stand" }));
+    return tonyHere;
+  },
+  enter: async () => {
+    emote(tonyHere[0], "!");
+    await say(tonyHere[0], "으악! ...아, 사람이네. 4층 찰리 형?");
+    await say(charlie, "토니? 2B호 피자 배달하는 토니?");
+    await say(tonyHere[0], "배달 가다가 하늘에서 뭐가 떨어져서 여기 숨었어요. 개구리들이 제 스쿠터 키까지 훔쳐 갔어요.");
+    await say(tonyHere[0], "철창 너머로 가려면 쇠지렛대가 필요해요. 사물함에 있을 텐데... 비번은 근무표 어딘가에 있대요.");
+  },
   doors: [{ x: 50, kind: "steel", label: "통로", to: "tun1", toX: 300, dir: "in" }],
   hotspots: () => [canSpot("c7", 400, 176, "냉장고 위"), 
     look(170, 120, ["야간 근무표: 「월 2번 · 화 0번 · 수 1번 · 목 9번」", "아래에 볼펜 낙서: 「사물함 비번 = 근무표 순서대로 (외우기 싫음)」"], "근무표"),
@@ -617,6 +633,18 @@ room({
       },
     },
     photoSpot("p3", 450, 160, "책상 위"),
+    {
+      x: 500,
+      iconY: 140,
+      label: "토니",
+      range: 24,
+      enabled: () => true,
+      use: async () => {
+        if (has("crowbar")) {
+          await say(tonyHere[0], "형, 저는 교회 쪽으로 가 볼게요. 거기 생존자들이 모여 있대요. 나중에 봐요!");
+        } else await say(tonyHere[0], "근무표 낙서 봤어요? '근무표 순서대로'래요. 월, 화, 수, 목...");
+      },
+    },
     look(240, 160, ["라디오에서 치지직 소리만 난다.", "「...지하철 운행 전면 중단...」"], "라디오"),
   ],
 });
@@ -825,9 +853,22 @@ const CAMS = [
   ["CAM 3 · 실험실 문 앞", "요원이 비밀번호를 누른다. 7... 3... 9... 마지막 숫자는 손에 가려 안 보인다."],
   ["CAM 4 · 옥상", "헬기장. 초록빛이 구름 사이에서 맴돈다."],
 ];
+const minjiSec: Actor[] = [];
 room({
   id: "sec4",
   label: "보안실",
+  actors: () => {
+    minjiSec.length = 0;
+    if (F().internUp) minjiSec.push(mkActor("person", 430, -1, { look: MINJI, lookId: "minji", pose: "stand" }));
+    return minjiSec;
+  },
+  enter: async () => {
+    if (!minjiSec.length) return;
+    emote(minjiSec[0], "!");
+    await say(minjiSec[0], "선배! 진짜 왔네요. 저 여기 보안실 인턴으로 끌려왔어요.");
+    await say(minjiSec[0], "실험실 비밀번호요? 끝자리는 매주 제가 바꿔요. 이번 주는... 5예요. 앞자리는 카메라를 보면 알 수 있어요.");
+    F().minjiHint = 1;
+  },
   theme: "security",
   width: 520,
   seed: 701,
@@ -885,6 +926,19 @@ room({
   doors: [{ x: 50, kind: "steel", label: "복도", to: "center", toX: 300, dir: "in" }],
   hotspots: () => [canSpot("c20", 560, 176, "빈 침대 밑"), 
     look(180, 130, ["정비 메모: 「비상 해제: 레버를 '셋 → 하나 → 둘' 순서로 내릴 것. 틀리면 처음부터.」"], "정비 메모"),
+    {
+      x: 515,
+      iconY: 160,
+      label: "나비 안아 주기",
+      enabled: () => !!F().freed && !F().nabi,
+      use: async () => {
+        F().nabi = 1;
+        sfx.purr();
+        emote(charlie, "♥");
+        await caption("나비가 찰리 품으로 쏙 안겼다. 블랙컴퍼니가 '미끼'로 쓰려고 잡아 둔 고양이였다.");
+        await say(charlie, "릴리가 엄청 보고 싶어 했어. 같이 가자, 나비.");
+      },
+    },
     ...[300, 380, 460].map(
       (x, i): Hotspot => ({
         x,
@@ -908,12 +962,15 @@ room({
             await caption("철컹, 철컹, 철컹! 격리실 문이 전부 열렸다.");
             await caption("갇혀 있던 면역자들이 조용히 손을 흔들며 비상구로 빠져나간다.");
             await say(charlie, "다들 무사히 나가세요!");
+            await caption("...맨 끝 우리 안에서 작은 울음소리. 주황색 고양이 한 마리가 웅크리고 있다.");
+            await caption("목걸이 이름표: 「나비 — 릴리네 고양이」");
           } else await caption(`${i + 1}번 레버를 내렸다. (${F().lever}/3)`);
         },
       }),
     ),
   ],
   back: (camX) => {
+    if (F().freed && !F().nabi) smoothDraw(tintedCat(`sitT${Math.floor(clock.t * 5) % 8}`, -1, "#f0a050"), half(515 - camX - 15), GROUND - 22, 32, 24);
     [300, 380, 460].forEach((x, i) => {
       const down = F().freed || (F().lever ?? 0) > [2, 0, 1].indexOf(i);
       g.fillStyle = "#3a3e44";
@@ -1070,6 +1127,8 @@ room({
   actors: () => {
     intern.length = 0;
     const a = zoned(F().internUp ? 150 : 300, 2, F().internUp ? ["커피 맛있다...", "선배, 고마워요."] : ["커피... 커피...", "복사... 복사..."]);
+    a.look = MINJI;
+    a.lookId = "minji";
     intern.push(a);
     return intern;
   },
@@ -1091,10 +1150,13 @@ room({
         F().internUp = 1;
         await caption("커피를 건네자, 인턴이 두 손으로 컵을 받아 한 모금 마셨다.");
         emote(intern[0], "!");
-        intern[0].bubble = "...어? 선배? 저 여기서 뭐 하고 있었죠?";
+        intern[0].bubble = "...어? 찰리 선배? 저 여기서 뭐 하고 있었죠?";
         await wait(1.8);
         intern[0].bubble = null;
         await walkTo(intern[0], 150, 40);
+        intern[0].home = 150;
+        await say(intern[0], "인턴 민지예요. 기억 안 나시죠... 저 선배 옆자리였는데.");
+        await say(intern[0], "부장님이 격리 센터 보안실로 발령 낸다고 했었어요. 혹시 거기 가시면... 제가 도울게요.");
         intern[0].home = 150;
         intern[0].pose = "stand";
         await say(charlie, "커피 한 잔에 정신이 돌아오다니... 역시 직장인이야.");
@@ -1426,6 +1488,13 @@ SCENES.march5 = () => {
         F().seenMarch = 1;
         sfx.chant();
         await caption("브로드웨이가 해골이 된 채식 시위대로 가득 찼다. 「고기를 버려라! 우리처럼 가벼워져라!」");
+        const kale = mkActor("person", 240, -1, { look: SKELETON, lookId: "sk" });
+        marchers.unshift(kale);
+        kale.bubble = null;
+        await say(kale, "형제여! 나는 케일 목사다! 고기를 버리고 우리처럼 가벼워져라!");
+        await say(charlie, "...목사님, 저 고기 안 먹은 지 사흘 됐어요. 야근 때문에.");
+        await say(kale, "오오! 이미 반쯤 해탈했구나! 그럼 남은 반도 함께 버리자꾸나! 이리 와서 손을 잡거라!");
+        await say(charlie, "손... 은 사양할게요. 닿으면 해골 되잖아요.");
         await say(charlie, "저 사람들... 운석 가루를 마시고 정말로 뼈만 남았어.");
         await caption("닿으면 찰리도 해골이 된다! 행렬이 다가오면 문틈에 [Space]로 숨고, 지나가면 달려(Shift) 다음 문틈으로!");
       }
@@ -1548,6 +1617,229 @@ SCENES.epiC = () => {
       await say(charlie, "...그래. 잘 지내라, 샘. 나도 열심히... 아니, 적당히 살게.");
       await fadeTo(1, 2);
       await credits("— 병맛 엔딩: 고양이는 귀엽다 —");
+    },
+  };
+  return sc;
+};
+
+
+// ═════════════════════════════════════════════════════════
+// 막간 「샘의 밤」 — 샘으로 플레이: 창밖으로 나간 뒤 무슨 일이 있었나
+//  초록빛에 홀려 지붕을 건너던 샘을, 자루를 든 개구리들이 쫓는다.
+//  (개구리들은 고양이를 잡아 블랙컴퍼니에 판다)
+// ═════════════════════════════════════════════════════════
+function catJumpGaps(gaps: Array<[number, number]>, state: { jumping: boolean; hinted: boolean }): void {
+  if (state.jumping || S.hidden || !S.control) return;
+  const ax = (keysDown("ArrowRight") || keysDown("KeyD") ? 1 : 0) - (keysDown("ArrowLeft") || keysDown("KeyA") ? 1 : 0);
+  for (const [a, b] of gaps) {
+    let to = 0;
+    if (ax > 0 && charlie.x > a - 5 && charlie.x < a + 12) {
+      charlie.x = a - 5;
+      to = b + 12;
+    } else if (ax < 0 && charlie.x < b + 5 && charlie.x > b - 12) {
+      charlie.x = b + 5;
+      to = a - 12;
+    }
+    if (!to) continue;
+    if (keysDown("ShiftLeft") || keysDown("ShiftRight")) {
+      state.jumping = true;
+      S.control = false;
+      charlie.pose = "jump";
+      sfx.step();
+      void tween(charlie, to, GROUND, 0.5, 22).then(() => {
+        charlie.pose = null;
+        state.jumping = false;
+        S.control = true;
+      });
+    } else if (!state.hinted) {
+      state.hinted = true;
+      void caption("너무 멀다냥. Shift를 누르고 달려서 뛰어넘자.");
+    }
+  }
+}
+function keysDown(k: string): boolean {
+  return keys.has(k);
+}
+
+SCENES.night1 = (checkpoint) => {
+  const st = { jumping: false, hinted: false };
+  const kit = patrol({
+    look: FROGMAN,
+    lookId: "frog",
+    range: 90,
+    quiet: () => true,
+    shout: "고양이다! 잡아라, 개굴!",
+    onCaught: () => gameOver("GAME OVER", "샘이 개구리 자루에 담기고 말았다... 「흰 고양이 확보, 개굴!」", charlie.x > 960 ? 980 : 0),
+  });
+  kit.add(700, 520, 860, -1);
+  kit.add(1160, 1000, 1340);
+  kit.add(1600, 1480, 1720, -1);
+  const sc: Scene = {
+    id: "night1",
+    label: "막간 · 샘의 밤",
+    width: ROOFS.width,
+    bg: buildRoofs(),
+    ambient: 0.5,
+    tint: "rgba(40,120,80,0.10)",
+    lights: () => [...kit.lights(), { x: charlie.x, y: charlie.y - 10, r: 30, a: 0.4 }, { x: 1900, y: 60, r: 120, a: 0.4, warm: "rgba(120,255,170,0.10)" }],
+    minX: 30,
+    maxX: ROOFS.width - 30,
+    get actors() {
+      return kit.guards;
+    },
+    hotspots: ROOFS.cover.map((cv) => hideAt(cv.x, cv.kind === "tank" ? "물탱크 밑으로 쏙" : "그늘에 웅크리기", 150)),
+    zones: [
+      {
+        x: 1880,
+        dir: 1,
+        run: async () => {
+          kit.freeze();
+          await caption("초록빛이 구름 뒤로 사라지자, 샘은 정신을 차렸다. 배가 고프다. 그리고... 생선 냄새.");
+          await goScene("night2", 0);
+        },
+      },
+    ],
+    update: (dt) => {
+      kit.update(dt);
+      catJumpGaps(ROOFS.gaps, st);
+    },
+    start: async () => {
+      setPlayer(mkActor("sam", checkpoint || 60, 1));
+      charlie.y = GROUND;
+      writeSave("night1", checkpoint);
+      await fadeTo(0, 1);
+      if (!checkpoint) {
+        await chapterCard("막간", "샘의 밤");
+        await caption("같은 밤. 깨진 창밖으로 뛰어나간 샘은, 초록빛이 부르는 소리를 따라 지붕을 건넜다.");
+        await caption("그런데 지붕 위에는 자루를 든 개구리 인간들이 어슬렁거리고 있었다.");
+        await caption("(샘으로 플레이) 개구리 눈에 띄지 않게 물탱크·굴뚝 아래로 [Space] 숨자. 틈은 Shift+방향키로 뛰어넘자. 샘은 발소리가 나지 않는다.");
+      }
+      S.control = true;
+    },
+  };
+  return sc;
+};
+
+const STALLS = [260, 520, 740];
+SCENES.night2 = () => {
+  const info = buildStreet(940, true, 77, false);
+  const lureT = [0, 0];
+  const kit = patrol({
+    look: FROGMAN,
+    lookId: "frog",
+    range: 90,
+    quiet: () => true,
+    shout: "고양이다! 개굴!",
+    onCaught: () => gameOver("GAME OVER", "샘이 개구리 자루에 담기고 말았다...", 0),
+  });
+  const f1 = kit.add(380, 300, 470, -1);
+  const f2 = kit.add(640, 580, 800);
+  const home: Array<[number, number]> = [[300, 470], [580, 800]];
+  const sc: Scene = {
+    id: "night2",
+    label: "막간 · 생선 시장",
+    width: 940,
+    bg: info.canvas,
+    ambient: 0.5,
+    tint: "rgba(20,40,80,0.12)",
+    lights: () => [...kit.lights(), ...STALLS.map((x): Light => ({ x, y: 160, r: 40, a: 0.5, warm: "rgba(255,200,120,0.08)" })), { x: charlie.x, y: charlie.y - 10, r: 30, a: 0.4 }],
+    minX: 30,
+    maxX: 920,
+    get actors() {
+      return kit.guards;
+    },
+    hotspots: [
+      ...STALLS.map(
+        (x): Hotspot => ({
+          x,
+          iconY: 150,
+          label: "생선 떨어뜨리기",
+          range: 20,
+          enabled: () => true,
+          use: async () => {
+            charlie.pose = "jump";
+            await tween(charlie, x, 186, 0.3, 10);
+            sfx.can();
+            await tween(charlie, x + 10, GROUND, 0.3, 6);
+            charlie.pose = null;
+            await caption("철퍼덕! 생선이 바닥에 우수수 떨어졌다.");
+            [f1, f2].forEach((f, i) => {
+              if (Math.abs(f.x - x) < 300) {
+                f.a = f.b = x - 14;
+                f.pause = 0;
+                f.bubble = "개굴! 생선이다!";
+                lureT[i] = 6;
+              }
+            });
+          },
+        }),
+      ),
+      hideAt(390, "상자 사이로 쏙", 170),
+      hideAt(680, "수조 뒤로 쏙", 170),
+    ],
+    zones: [
+      {
+        x: 890,
+        dir: 1,
+        run: async () => {
+          kit.freeze();
+          await caption("샘은 지하철 환기구 틈으로 몸을 밀어 넣었다. 아래에서 개구리 울음소리와 물건 부딪히는 소리.");
+          await caption("환기구 아래 개구리 소굴. 벽에 붙은 전단: 「흰 고양이 생포 시 츄르 100봉지 — 블랙컴퍼니 특별대응단」");
+          sfx.croak();
+          shake(0.4);
+          await caption("덥석! 어둠 속에서 자루가 덮쳤다.");
+          sfx.meow();
+          await caption("...샘은 자루 속에 갇히고 말았다. (찰리, 빨리 와 줘냥...)");
+          await fadeTo(1, 1);
+          await chapterCard("막간 끝", "");
+          await goScene("drug1", 0, false);
+        },
+      },
+    ],
+    update: (dt) => {
+      [f1, f2].forEach((f, i) => {
+        if (lureT[i] > 0) {
+          lureT[i] -= dt;
+          if (lureT[i] <= 0) {
+            f.a = home[i][0];
+            f.b = home[i][1];
+            f.bubble = null;
+          }
+        }
+      });
+      kit.update(dt);
+    },
+    back: (camX) => {
+      for (const x of STALLS) {
+        const sx = x - camX;
+        g.fillStyle = "#5a3a24";
+        g.fillRect(half(sx - 26), 186, 52, 28);
+        g.fillStyle = "#8a6a4a";
+        g.fillRect(half(sx - 28), 184, 56, 3);
+        g.fillStyle = "#2a5a8a";
+        for (let i = 0; i < 4; i++) g.fillRect(half(sx - 30 + i * 15), 150, 15, 8);
+        g.fillStyle = "#e8e4dc";
+        for (let i = 0; i < 4; i++) g.fillRect(half(sx - 22 + i * 15), 150, 7, 8);
+        for (let i = 0; i < 5; i++) {
+          g.fillStyle = i % 2 ? "#9ab0c0" : "#c8d8e0";
+          g.beginPath();
+          g.ellipse(sx - 18 + i * 9, 182, 4, 1.8, 0, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+      text("풀턴 생선 시장", 470 - camX, 120, "#e8d8a8", "center");
+    },
+    start: async () => {
+      setPlayer(mkActor("sam", 60, 1));
+      charlie.y = GROUND;
+      writeSave("night2", 0);
+      await fadeTo(0, 0.8);
+      if (!F().seenNight2) {
+        F().seenNight2 = 1;
+        await caption("새벽의 생선 시장. 개구리들이 생선 상자를 뒤지고 있다.");
+        await caption("(샘) 좌판 위로 뛰어올라 [Space] 생선을 떨어뜨리면 개구리들이 몰려간다. 그 틈에 지나가자!");
+      }
+      S.control = true;
     },
   };
   return sc;

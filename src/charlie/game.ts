@@ -57,6 +57,10 @@ import {
   BUILD_3,
   BUILD_KID,
   BOSS,
+  GARCIA,
+  MINJI,
+  MRLEE,
+  TONY,
   STRANGERS,
   CHARLIE,
   HAZMAT,
@@ -189,6 +193,8 @@ export const S = {
   /** 연출용 카메라: 초점 x, 확대 */
   cam: { focus: null as number | null, zoom: 1, zoomTarget: 1 },
   bars: 0,
+  /** 찰리의 수첩 열림 */
+  diary: false,
   /** 손전등을 켜고 끈 시각 (드는/내리는 동작용) */
   lightT: -9,
 };
@@ -1083,6 +1089,8 @@ SCENES.chapter1 = (checkpoint) => {
   const info = buildStreet(1900, true, 11);
   const PET = 1380;
   const NEWS = 760;
+  const LEE = 1000;
+  const lee = mkActor("person", LEE + 16, -1, { look: MRLEE, lookId: "mrlee", pose: "stand" });
   // 넋이 나간 사람들: 배경처럼 흔들리고 중얼거릴 뿐, 찰리에게 관심이 없다
   type Stranger = Actor & { mode: "sway" | "wander" | "sit" | "sky"; a: number; b: number; lines: string[]; talkT: number };
   const mkStranger = (x: number, look: Look, id: string, mode: Stranger["mode"], lines: string[], a = x, b = x): Stranger =>
@@ -1116,7 +1124,7 @@ SCENES.chapter1 = (checkpoint) => {
     minX: 60,
     maxX: 1880,
     get actors() {
-      return [...strangers, ...(frog ? [frog] : [])];
+      return [...strangers, lee, ...(frog ? [frog] : [])];
     },
     hotspots: [
       {
@@ -1147,6 +1155,31 @@ SCENES.chapter1 = (checkpoint) => {
           await say(charlie, i === 0 ? "...설마. 그냥 운석이 떨어진 것뿐이야." : "회개는 나중에 하고, 샘부터 찾자.");
         },
       })),
+      {
+        x: LEE,
+        iconY: 140,
+        label: "핫도그 아저씨",
+        range: 28,
+        enabled: () => true,
+        use: async () => {
+          charlie.facing = 1;
+          if (!F.metLee) {
+            F.metLee = 1;
+            await say(lee, "어서 와! 종말 기념 핫도그, 오늘은 공짜다!");
+            await say(charlie, "...아저씨는 멀쩡하세요? 다들 이상해졌는데.");
+            await say(lee, "나? 40년 동안 이 자리에서 핫도그만 팔았지. 붙들고 있는 게 핫도그뿐이라 그런가, 멀쩡해.");
+            await say(lee, "고양이 찾는 거면 조심해. 요즘 개구리 같은 놈들이 고양이를 자루에 담아 가더라. 어디 '회사'에 판다나.");
+            emote(charlie, "!");
+            await say(charlie, "고양이를... 판다고요?");
+            await say(lee, "펫숍에 츄르 남은 게 있을 거다. 고양이는 츄르 소리엔 못 버티거든. 힘내라, 청년!");
+            sfx.item();
+            await caption("미스터 리가 핫도그를 건넸다. 사흘 만에 먹는 따뜻한 음식이다.");
+          } else {
+            const lines = ["핫도그는 케첩이지. 머스터드파는 해골이 됐어.", "개구리 놈들, 내 소시지도 훔쳐 갔어. 지하철로 들어가더라.", "청년, 고양이 찾으면 꼭 데리고 와. 소시지 하나 줄게."];
+            await say(lee, lines[(F.leeTalk = (F.leeTalk ?? 0) + 1) % lines.length]);
+          }
+        },
+      },
       {
         x: NEWS,
         iconY: 168,
@@ -1394,6 +1427,30 @@ SCENES.chapter1 = (checkpoint) => {
         g.fillStyle = "rgba(232,228,216,0.7)";
         g.fillRect(nx + 10 + k * 60, 200 - Math.sin(k * 6 + i) * 8 - k * 20, 4, 3);
       }
+      // 미스터 리의 핫도그 수레
+      const lx2 = LEE - camX;
+      if (lx2 > -60 && lx2 < W + 60) {
+        g.fillStyle = "#c8c8d0";
+        g.fillRect(lx2 - 26, 186, 40, 22);
+        g.fillStyle = "#e8e8f0";
+        g.fillRect(lx2 - 26, 186, 40, 2);
+        g.fillStyle = "#e8a83a";
+        g.fillRect(lx2 - 24, 192, 36, 8);
+        g.fillStyle = "#c83a32";
+        for (let i = 0; i < 4; i++) g.fillRect(lx2 - 26 + i * 10, 166, 10, 6);
+        g.fillStyle = "#f4f0e8";
+        for (let i = 0; i < 4; i++) g.fillRect(lx2 - 21 + i * 10, 166, 5, 6);
+        g.fillStyle = "#5a5a62";
+        g.fillRect(lx2 - 25, 172, 1, 14);
+        g.fillRect(lx2 + 12, 172, 1, 14);
+        g.fillStyle = "#2a2a2a";
+        g.beginPath();
+        g.arc(lx2 - 18, 210, 3, 0, Math.PI * 2);
+        g.arc(lx2 + 6, 210, 3, 0, Math.PI * 2);
+        g.fill();
+        smokePuffs(lx2 - 6, 182, 3, 20, 3, 7, 0.25);
+        text("HOT DOG", lx2 - 6, 162, "#ffd36a", "center", "");
+      }
       // 멀리 길 건너편을 지나가는 해골 시위대
       for (const m of march) {
         const sx = m.x - camX;
@@ -1522,7 +1579,7 @@ SCENES.alley = () => {
           emote(charlie, "💧");
           await say(charlie, "건전지가 다 됐어... 길 건너 24시 약국에 건전지가 있을 거야.");
           await chapterCard("제1장 끝", "");
-          await goScene("drug1", 0, false);
+          await goScene("night1", 0, false);
         },
       },
     ],
@@ -1785,6 +1842,10 @@ SCENES.subway = (checkpoint) => {
           F.treats = 1;
           sfx.item();
           await caption("훔친 물건 더미 속에서 샘의 츄르를 찾았다!");
+          await caption("그 옆, 묶여 있는 자루 하나가 꿈틀거린다. 자루에 붙은 쪽지: 「흰 고양이 1마리 — 블랙컴퍼니 납품용」");
+          sfx.meow();
+          emote(charlie, "!");
+          await say(charlie, "이 울음소리... 샘?!");
           await wait(0.4);
           king.state = "awake";
           king.pose = null;
@@ -1795,6 +1856,9 @@ SCENES.subway = (checkpoint) => {
           emote(charlie, "💧");
           await say(charlie, "...깼다.");
           king.bubble = null;
+          shake(0.3);
+          await caption("개구리 왕이 펄쩍 뛰는 순간 자루가 찢어지고, 하얀 그림자가 출구 쪽으로 쏜살같이 달아났다!");
+          await say(charlie, "샘! 기다려!");
           writeSave("subway", 1360);
           await caption("도망쳐! (Shift 달리기) 출구는 오른쪽 개찰구 너머다.");
           chase = true;
@@ -2044,6 +2108,7 @@ SCENES.rooftop = () => {
       sam.visible = false;
       await fadeTo(0, 1);
       await say(charlie, "하아... 하아... 따돌렸나.");
+      await say(charlie, "샘이 먼저 이쪽으로 올라왔을 거야. 개구리 녀석들, 샘을 블랙컴퍼니에 팔아넘기려고...");
       await say(charlie, "(츄르 봉지를 흔든다) 샘~ 츄르 있다~");
       sfx.meow();
       await wait(0.6);
@@ -2403,6 +2468,8 @@ SCENES.roofs = (checkpoint) => {
 SCENES.church = (checkpoint) => {
   const F = S.flags;
   const tomas = mkActor("person", CHURCH.tomas, 1, { look: TOMAS, lookId: "tomas", pose: "stand" });
+  const tony = mkActor("person", 400, 1, { look: TONY, lookId: "tony", pose: "stand" });
+  const garcia = mkActor("person", 500, -1, { look: GARCIA, lookId: "garcia", pose: "stand" });
   const ruth = mkActor("person", CHURCH.ruth, 1, { look: RUTH, lookId: "ruth", pose: "stand" });
   const lily = mkActor("person", CHURCH.lily, -1, { look: LILY, lookId: "lily", pose: "stand", build: BUILD_KID });
   type Agent = Actor & { a: number; b: number; pause: number; alert: number };
@@ -2610,7 +2677,7 @@ SCENES.church = (checkpoint) => {
     minX: 40,
     maxX: CHURCH.width - 40,
     get actors() {
-      return [tomas, ruth, lily, ...agents];
+      return [tomas, ruth, lily, ...(raid || ending ? [] : [tony, garcia]), ...agents];
     },
     hotspots: [
       talk(ruth, "루스와 이야기", async () => {
@@ -2669,6 +2736,36 @@ SCENES.church = (checkpoint) => {
         await say(charlie, "아... 그, 그게... 돈은 나중에 꼭...");
         charlie.pose = null;
         await say(tomas, "됐어. 세상이 망했는데 돈이 무슨 소용이야. 저 녀석이 맛있게 먹었으면 됐지.");
+      }),
+      talk(tony, "토니와 이야기", async () => {
+        if (!F.c3tony) {
+          F.c3tony = 1;
+          await say(tony, "어? 4층 찰리 형! 형도 면역자였어요?");
+          await say(charlie, "토니? 2B호 토니? 네 금고... 아, 아니야.");
+          await say(tony, "지하철 통로에 숨어 있다가 여기로 왔어요. 개구리들이 제 배달 스쿠터 키까지 훔쳐 갔거든요.");
+          await say(tony, "그거 알아요? 개구리 녀석들, 고양이를 잡아서 블랙컴퍼니에 갖다 바쳐요. 고양이 한 마리에 츄르 백 봉지래요.");
+          emote(charlie, "💢");
+          await say(charlie, "...그래서 샘이 자루에 들어 있었구나.");
+        } else {
+          await say(tony, ["형, 다 끝나면 피자 쏠게요. 페퍼로니로.", "가르시아 아줌마가 형 걱정 많이 했어요.", "제 생일 4월 12일인 거 어떻게 알았어요...?"][(F.tonyTalk = (F.tonyTalk ?? 0) + 1) % 3]);
+        }
+      }),
+      talk(garcia, "가르시아 부인", async () => {
+        if (!F.c3garcia) {
+          F.c3garcia = 1;
+          emote(garcia, "♥");
+          await say(garcia, "찰리! 무사했구나! 우리 '작은 구름'도 찾았네!");
+          await caption("가르시아 부인의 손에는 빈 새장이 들려 있다.");
+          await say(garcia, "피코가... 초록빛을 보더니 창밖으로 날아가 버렸어. 새들도 그 빛을 따라가더라.");
+          if (F.gotExt) {
+            await say(charlie, "부인 집 소화기 덕분에 불을 끄고 빠져나왔어요. 허락도 없이 죄송해요.");
+            await say(garcia, "어머, 잘했다! 그러라고 둔 거야. 넌 착한 아이야, 찰리.");
+          }
+          await say(garcia, "넌 모르겠지만, 네가 야근하는 동안 내가 샘한테 간식 몰래 줬단다. 호호.");
+          await say(charlie, "...어쩐지 샘이 살이 쪘더라.");
+        } else {
+          await say(garcia, ["피코는 노래를 잘했어. 언젠가 돌아오겠지.", "찰리, 밥은 먹고 다니니? 얼굴이 반쪽이야.", "샘은 날 보면 배를 보여 준단다. 너한텐 안 보여 주지? 호호."][(F.garTalk = (F.garTalk ?? 0) + 1) % 3]);
+        }
       }),
       talk(lily, "릴리와 샘", async () => {
         if (F.c3lily) {
@@ -3470,6 +3567,15 @@ SCENES.helipad = (checkpoint) => {
     focusCam((boss.x + charlie.x) / 2, 1.3);
     await say(boss, "늦었네, 찰리 군. 정시 퇴근은 꿈도 꾸지 말라고 했지?");
     await say(charlie, "샘을 돌려주세요, 부장님!");
+    if (F.bossSafe) {
+      await say(charlie, "부장님... 이거, 부장님 금고에서 봤어요.");
+      await caption("찰리가 낡은 사진을 내밀었다. 고양이를 안고 웃는 어린 소년.");
+      emote(boss, "…");
+      await say(boss, "...나비. 그걸 어디서.");
+      await say(charlie, "부장님도 알잖아요. 고양이를 잃어버리는 게 어떤 기분인지.");
+      await say(boss, "...알아. 그래서 다시는 아무것도 잃지 않으려고, 전부 가지려고 했지.");
+      await say(boss, "하지만 이미 늦었네, 찰리 군. 저 빛은 이미 여기 와 있어.");
+    }
     await say(boss, "이건 회사 자산이야. 자, 초록빛이여! 고양이를 바치마! 그 대신 기술을 내놔라!");
     beamX = boss.x;
     ufoX = boss.x - 20;
@@ -3484,7 +3590,8 @@ SCENES.helipad = (checkpoint) => {
     boss.visible = false;
     await caption("「욕심으로 가득 찬 마음... 표본으로 가져가겠다.」");
     focusCam(null, 1);
-    await say(charlie, "...부장님, 드디어 퇴근하셨네요.");
+    if (F.bossSafe) await say(charlie, "...부장님. 저 별에서 나비를 만나시길.");
+    else await say(charlie, "...부장님, 드디어 퇴근하셨네요.");
     for (const f of kit.guards) {
       f.bubble = "으, 으악!";
       f.facing = -1;
@@ -3596,7 +3703,14 @@ async function credits(title: string): Promise<void> {
   await fadeTo(0, 0.8);
 }
 
+let nabiShow = false;
 SCENES.epiA = () => {
+  nabiShow = !!S.flags.nabi;
+  const friends: Actor[] = [];
+  if (S.flags.c3tony) friends.push(mkActor("person", 440, -1, { look: TONY, lookId: "tony", pose: "stand" }));
+  if (S.flags.c3garcia) friends.push(mkActor("person", 470, -1, { look: GARCIA, lookId: "garcia", pose: "stand" }));
+  if (S.flags.internUp) friends.push(mkActor("person", 500, -1, { look: MINJI, lookId: "minji", pose: "stand" }));
+  if (S.flags.metLee) friends.push(mkActor("person", 530, -1, { look: MRLEE, lookId: "mrlee", pose: "stand" }));
   const info = buildStreet(800, false, 11, true);
   const ruth = mkActor("person", 360, -1, { look: RUTH, lookId: "ruth", pose: "stand" });
   const tomas = mkActor("person", 400, -1, { look: TOMAS, lookId: "tomas", pose: "stand" });
@@ -3611,7 +3725,10 @@ SCENES.epiA = () => {
     minX: 40,
     maxX: 760,
     get actors() {
-      return [ruth, tomas, lily];
+      return [ruth, tomas, lily, ...friends];
+    },
+    back: (camX) => {
+      if (nabiShow) smoothDraw(tintedCat(`sitT${Math.floor(clock.t * 5) % 8}`, -1, "#f0a050"), half(312 - camX - 15), GROUND - 22, 32, 24);
     },
     hotspots: [],
     zones: [],
@@ -3631,8 +3748,18 @@ SCENES.epiA = () => {
       await say(tomas, "가게 다시 열었어. 츄르는 평생 공짜야. 샘 한정으로.");
       await say(ruth, "좀비였던 사람들은 재활 센터에 다니고, 해골 시위대는 다시 살이 붙더니... 고기 한 점 두고 싸우더군.");
       emote(lily, "♪");
-      await say(lily, "나비도 돌아왔어요! 초록빛이 고양이들을 다 돌려보내 줬대요!");
+      if (S.flags.nabi) {
+        await say(lily, "찰리 아저씨가 격리 센터에서 나비를 찾아 줬잖아요! 나비가 아저씨 좋대요!");
+        nabiShow = true;
+        sfx.meow();
+      } else await say(lily, "나비도 돌아왔어요! 초록빛이 고양이들을 다 돌려보내 줬대요!");
       if (S.flags.freed) await say(ruth, "격리 센터에서 풀려난 사람들이 자네한테 고맙다고 전해 달라더군. 레버 당긴 사람이 누군지 다 알아.");
+      for (const f of friends) {
+        if (f.lookId === "tony") await say(f, "형! 약속대로 피자 쐈어요. 페퍼로니로!");
+        if (f.lookId === "garcia") await say(f, "피코가 돌아왔단다! 오늘 아침 창가에서 노래하더구나.");
+        if (f.lookId === "minji") await say(f, "선배! 저 회사 때려치우고 고양이 카페 차렸어요. 1호 단골 해 주세요!");
+        if (f.lookId === "mrlee") await say(f, "약속한 소시지다, 청년! 고양이 것도 하나.");
+      }
       await caption("휴대폰 알림: 「블랙컴퍼니(주) 파산. 그림스 부장 행방불명.」");
       emote(charlie, "♪");
       await say(charlie, "...출근은 안 해도 되겠네.");
@@ -4227,6 +4354,15 @@ export function update(dt: number): void {
     S.cam.focus = null;
     S.cam.zoomTarget = 1;
   }
+  if (S.diary) {
+    if (took("KeyJ", "Escape", "Space", "Enter", "click")) S.diary = false;
+    return;
+  }
+  if (S.mode === "play" && S.scene && !S.scene.noPlayer && S.control && !S.talk && took("KeyJ")) {
+    S.diary = true;
+    sfx.blip();
+    return;
+  }
   if (S.movie) {
     const m = S.movie;
     m.t += dt;
@@ -4707,6 +4843,65 @@ export function drawPlay(): void {
     text("[Space] 다시 하기     [Esc] 타이틀로", W / 2, 176, "#b8b0c8", "center");
   }
   drawMovie();
+  if (S.diary) drawDiary(sc);
+  else if (S.control && !sc.noPlayer) text("J 수첩", W - 8, H - 8, "rgba(220,214,232,0.45)", "right", "");
+}
+
+/** 지금 할 일 */
+function objective(id: string): string {
+  const F = S.flags;
+  if (id.startsWith("apt") || id.startsWith("flat") || id === "office1") return "불타는 아파트를 빠져나가자. 1층 현관 비밀번호는 관리실에.";
+  if (id === "chapter1") return !F.supplies ? "편의점에서 쓸 만한 걸 챙기자." : !F.treats ? "냥이네 펫숍에서 샘의 츄르를 찾자." : "샘을 찾아 거리 끝까지.";
+  if (id === "catMeet") return "동네 고양이들을 모두 쓰다듬어 보자.";
+  if (id === "alley") return "어둠 속 그림자를 손전등으로 비추자.";
+  if (id.startsWith("night")) return "(샘) 개구리들을 피해 도망치자!";
+  if (id.startsWith("drug")) return "약국에서 건전지 찾기. 선반을 쳐서 사람들을 유인하자.";
+  if (id === "subwayGate") return "물갈퀴 자국을 따라 지하철로.";
+  if (id.startsWith("tun") || id === "staff2" || id === "pump2") return !F.grateOpen ? "철창을 열 도구를 찾자." : !F.drained ? "펌프실에서 물을 빼자." : "승강장으로!";
+  if (id === "subway") return !F.gotTreats ? "개구리 소굴에서 츄르를 되찾자." : "개찰구 너머로 도망쳐!";
+  if (id === "rooftop" || id === "roofs") return "샘을 쫓아 지붕을 건너자. 초록빛을 피해서.";
+  if (id === "church" || id.startsWith("crypt") || id === "vault3")
+    return !F.c3ruth ? "생존자들과 이야기하자." : !F.medGiven ? "지하 성물실에서 릴리의 약을 찾아 루스에게." : F.raid ? "고해실에 숨자!" : "모두와 이야기하자. 라디오도.";
+  if (id.startsWith("bc")) return "7층 내 책상 서랍에서 사원증을 찾자.";
+  if (id === "march5") return "시위대에 닿지 않게 부두까지.";
+  if (id === "pier") return "하역장 환기구까지 잠입하자.";
+  if (id === "center" || id === "sec4" || id === "arch4" || id === "cells4") return charlie.kind === "sam" ? "(샘) 카드키를 물어 와 셔터를 열자." : !F.labCode ? "실험실 비밀번호를 알아내자. (보안실 · 기록 보관실)" : "실험실로!";
+  if (id === "helipad") return "헬기장의 샘에게!";
+  return "샘을 찾자.";
+}
+const STORY_NOTES: Array<[string, string]> = [
+  ["slept", "운석이 떨어진 밤, 샘이 깨진 창으로 뛰어나갔다."],
+  ["frontOpen", "불타는 아파트를 빠져나왔다. 가르시아 부인과 토니의 집은 비어 있었다."],
+  ["metLee", "핫도그 아저씨: 개구리들이 고양이를 자루에 담아 '회사'에 판단다."],
+  ["robbed", "개구리 인간이 샘의 츄르를 훔쳐 달아났다."],
+  ["ch1", "골목에서 샘을 봤지만 놓쳤다. 개구리 울음소리..."],
+  ["battery", "약국에서 건전지를 구했다. 약을 찾는 사람들은... 좀비 같았다."],
+  ["drained", "토니를 만났다. 터널의 물을 빼고 승강장으로."],
+  ["gotTreats", "개구리 소굴의 자루 속에 샘이 있었다! 「블랙컴퍼니 납품용」"],
+  ["ch2", "옥상에서 샘을 만났지만, 초록빛이 나타나 샘이 또 달아났다."],
+  ["c3ruth", "교회의 생존자들. 루스: 사람은 붙들고 있던 것을 따라 변한다."],
+  ["c3lily", "릴리: 초록빛이 오면 고양이들이 그쪽으로 걸어간다. 나비도 사라졌다."],
+  ["ch3", "루스가 나 대신 격리 센터로 끌려갔다."],
+  ["internUp", "인턴 민지가 커피 한 잔에 정신을 차렸다."],
+  ["bossSafe", "부장의 금고 속 사진: 어린 그림스와 고양이 '나비'."],
+  ["freed", "격리된 면역자들을 풀어 주었다."],
+  ["nabi", "릴리의 고양이 나비를 찾았다!"],
+  ["ch4", "그림스 부장이 샘을 옥상으로 데려갔다. 고양이로 외계 기술을 사려고."],
+];
+function drawDiary(sc: Scene): void {
+  g.fillStyle = "rgba(6,5,10,0.6)";
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = "#e8dcc0";
+  g.fillRect(40, 18, W - 80, H - 36);
+  g.fillStyle = "#c8b890";
+  g.fillRect(40, 18, W - 80, 2);
+  g.fillStyle = "#b8a878";
+  for (let y = 56; y < H - 24; y += 14) g.fillRect(52, y, W - 104, 0.5);
+  text("찰리의 수첩", W / 2, 32, "#3a2a1a", "center", "");
+  text(`지금 할 일 · ${objective(sc.id)}`, 56, 48, "#a82a24", "left", "");
+  const notes = STORY_NOTES.filter(([f]) => S.flags[f]).map(([, t]) => t);
+  notes.slice(-12).forEach((t, i) => text(`· ${t}`, 56, 63 + i * 14, "#2a1e14", "left", ""));
+  text(`추억 사진 ${photosFound().length}/${PHOTOS.length} · 참치캔 ${cansFound().length}/${CANS_TOTAL}`, W / 2, H - 30, "#6a5a40", "center", "");
 }
 
 /** 애니메이션 컷: 시네마 비율 화면 + 자막 */
@@ -5013,5 +5208,10 @@ export function bakeIdle(deadline: number): void {
 }
 
 // stages.ts (추가 스테이지) 에서 쓰는 도구들
-export { SCENES, mkActor, flashCone, canSpot, tintedCat, credits, walkTo, tween, writeSave, emote, focusCam, gameOver, hideAt, patrolKit, choose, unlock, flameTongues, smokePuffs, half, smoothDraw, playMovie, has, give, take, openKeypad, playSimon, photoSpot, findPhoto, descend, ascend, charlie, sam, drawFires };
+export { SCENES, mkActor, flashCone, canSpot, tintedCat, credits, patrolKit as patrol, walkTo, tween, writeSave, emote, focusCam, gameOver, hideAt, patrolKit, choose, unlock, flameTongues, smokePuffs, half, smoothDraw, playMovie, has, give, take, openKeypad, playSimon, photoSpot, findPhoto, descend, ascend, charlie, sam, drawFires };
 export type { Scene, Hotspot, Light, Zone };
+
+/** 플레이어를 바꾼다 (샘으로 플레이하는 장면) */
+export function setPlayer(a: Actor): void {
+  charlie = a;
+}
