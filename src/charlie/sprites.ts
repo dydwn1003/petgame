@@ -1292,6 +1292,16 @@ export const MRLEE: Look = {
   eye: "#2a1e14", mouth: "#8a5a4a", brow: "#1a1a1a", mustache: "#3a3a3a", hunch: 1,
 };
 
+/** 에이다 박사: 자연사 박물관 천문학자. 하얀 가운, 은빛 곱슬머리, 동그란 안경 */
+export const ADA: Look = {
+  skin: "#c8946a", skinShade: "#a07050", skinLight: "#e0b08a",
+  hair: "#d8d8e0", hairShade: "#a8a8b4", hairLight: "#f4f4f8", hairStyle: "curly",
+  shirt: (lx, ly, w) => (Math.abs(lx - w / 2) < 4 && ly < 18 ? (ly % 5 === 0 ? "#2a5a8a" : "#3a6a9a") : lx === Math.floor(w / 2) + 7 && ly % 9 === 3 ? "#c8c8d0" : (lx + ly) % 11 === 0 ? "#e0e0e8" : "#f4f4f8"),
+  sleeve: "#f4f4f8", sleeveShade: "#d0d0d8", cuff: "#e0e0e8",
+  pants: "#3a3a4a", pantsShade: "#2a2a38", shoes: "#5a3a2a",
+  glasses: true, eye: "#3a2a1a", mouth: "#9a5a4a", brow: "#a8a8b4",
+};
+
 /** 면역자를 찾는 방호복 요원 */
 export const HAZMAT: Look = {
   skin: "#2e3036",

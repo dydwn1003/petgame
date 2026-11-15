@@ -2127,6 +2127,7 @@ SCENES.rooftop = () => {
       await say(charlie, "하아... 하아... 따돌렸나.");
       await say(charlie, "샘이 먼저 이쪽으로 올라왔을 거야. 개구리 녀석들, 샘을 블랙컴퍼니에 팔아넘기려고...");
       await say(charlie, "(츄르 봉지를 흔든다) 샘~ 츄르 있다~");
+      S.flags.samFed = 1;
       sfx.meow();
       await wait(0.6);
       sam.visible = true;
@@ -2639,8 +2640,10 @@ SCENES.church = (checkpoint) => {
     await fadeTo(1, 1.6);
     await say(tomas, "그런데 찰리, 격리 센터는 블랙컴퍼니 사원증 없이는 근처에도 못 가.");
     await say(charlie, "...내 사원증. 회사 책상 서랍에 두고 왔어요. 회사가 여기서 멀지 않아요.");
+    await say(lily, "아저씨, 아까 라디오에서 박물관 박사님이 초록빛 얘기를 했어요. '그건 고양이를 부르는 신호'래요.");
+    await say(charlie, "...샘을 부르는 그 빛이 뭔지 알아야 해. 가는 길에 박물관부터 들르자.");
     await chapterCard("제3장 끝", "");
-    await goScene("bcLobby", 70, false);
+    await goScene("mLobby", 70, false);
   };
 
   const hideSpot = (x: number): Hotspot => ({
@@ -2794,6 +2797,7 @@ SCENES.church = (checkpoint) => {
         }
         F.c3lily = 1;
         await say(lily, "샘이 내 무릎에서 잤어요. 엄청 따뜻해요.");
+        await say(lily, "아저씨도 샘 많이 쓰다듬어 주세요. (C) 고양이는 그런 걸 다 기억한대요.");
         sfx.purr();
         await say(lily, "있잖아요, 하늘에 초록빛 봤어요? 그 빛이 오면 고양이들이 막 그쪽으로 걸어가요.");
         await say(lily, "우리 동네 고양이들 다 그렇게 없어졌어요. 우리 나비도요.");
@@ -3644,11 +3648,42 @@ SCENES.helipad = (checkpoint) => {
     await playMovie(memoryShots());
     await say(charlie, "...그날 비 오는 골목. 상자 속에서 떨던 게 너였구나.");
     await caption("샘이 빛 속에서 찰리를 돌아본다.");
+    const sc3 = scores();
     const opts = ["샘, 가지 마! 내 곁에 있어 줘.", "...가고 싶으면, 가도 돼."];
+    const ids = ["stay", "go"];
     // 비밀 집회소의 대장 고양이가 알려 준 질문
-    if (secretOn("charlie_cat_secret")) opts.push("(대장 고양이의 말이 떠올랐다) ...사람은요?");
-    const pick = await choose(opts);
-    markEnding(["A", "B", "C"][pick]);
+    if (secretOn("charlie_cat_secret")) {
+      opts.push("(대장 고양이의 말이 떠올랐다) ...사람은요?");
+      ids.push("people");
+    }
+    // 진 엔딩: 별 조각 다섯 개 + 부장의 사진 + 샘과의 깊은 유대
+    const trueOpen = (F.shards ?? 0) >= 5 && !!F.bossSafe && sc3.bond >= BOND_OK;
+    if (trueOpen) {
+      opts.unshift("(별 조각 다섯 개가 빛난다) 샘의 별에게, 샘과 함께 말을 건다.");
+      ids.unshift("true");
+    }
+    const id = ids[await choose(opts)];
+    const pick = id === "stay" ? (sc3.bond >= BOND_OK ? 0 : 3) : id === "go" ? 1 : id === "people" ? 2 : 4;
+    markEnding(["A", "B", "C", "D", "T"][pick]);
+    if (pick === 4) {
+      await trueFinale();
+      return;
+    }
+    if (pick === 3) {
+      // 배드 엔딩: 샘과 충분히 가까워지지 못했다
+      await say(charlie, "샘, 가지 마! 내 곁에 있어 줘!");
+      await caption("샘이 빛 속에서 찰리를 내려다본다. 하지만... 그 눈빛엔 망설임이 없었다.");
+      await caption("「이 아이는 이 별에 붙들 것이 없구나.」");
+      emote(charlie, "💧");
+      await say(charlie, "...내가, 너무 바빴나. 사흘씩 집에 안 들어가고. 밥도, 놀아 주는 것도...");
+      await tween(sam, sam.x, 20, 2, 0);
+      sam.visible = false;
+      await caption("「먼지는... 너희가 감당하라.」 초록빛이 구름 속으로 사라졌다. 거리를 뒤덮은 가루를 그대로 남긴 채.");
+      F.endD = 1;
+      await fadeTo(1, 1.6);
+      await goScene("epiD", 0, false);
+      return;
+    }
     if (pick === 2) {
       await say(charlie, "...저기요. 고양이 말고, 사람은요? 사람은 어떻게 되는 거죠?");
       await caption("빛이 잠시 멈췄다. 그리고—");
@@ -3712,6 +3747,39 @@ SCENES.helipad = (checkpoint) => {
   return sc;
 };
 
+
+/** 진 엔딩: 별 조각으로 빛과 대화한다 */
+async function trueFinale(): Promise<void> {
+  const F = S.flags;
+  F.endT = 1;
+  await caption("찰리의 주머니에서 별 조각 다섯 개가 떠올라, 샘을 감싼 빛줄기 속으로 날아갔다.");
+  flash("#ccffdd", 0.9);
+  sfx.beam();
+  await caption("빛이 멈췄다. 그리고 처음으로, 목소리가 찰리에게 말을 걸었다.");
+  await caption("「...별의 조각을 모은 지구인. 너는 우리 아이를 붙잡으러 왔느냐, 보내러 왔느냐.」");
+  await say(charlie, "둘 다 아니에요. 샘한테 물어보러 왔어요.");
+  await say(charlie, "샘. 넌 저 별에서 왔대. 엄마가 너를 찾고 있었대. 가고 싶으면 가도 돼. 남고 싶으면... 우리 집에 소파 아직 있어.");
+  sfx.meow();
+  await caption("샘이 빛 속에서 한참 찰리를 보더니, 천천히 고개를 들어 하늘에 대고 길게 울었다.");
+  await caption("「...그렇구나. 이 아이는 이미 여기서 '집'을 찾았구나.」");
+  await caption("「좋다. 아이는 남는다. 그리고 우리의 숨결, 이 별에 흩뿌린 먼지는 모두 거두어 가마.」");
+  await caption("「덤으로, 빛에 실려 간 이 별의 고양이들도 돌려보내마. 그리고... 한 사람도.」");
+  sam.pose = "jump";
+  await tween(sam, charlie.x + 8, GROUND, 0.6, 20);
+  sam.pose = "butt";
+  sfx.purr();
+  emote(sam, "♥");
+  emote(charlie, "♥");
+  await caption("빛기둥이 한 번 더 내려왔다. 그 속에서 천천히 내려오는 사람 그림자— 그림스 부장이다.");
+  await say(charlie, "부장님?!");
+  await caption("부장은 아무 말 없이, 품에 안은 주황색 고양이 한 마리를 내려다보며 울고 있었다.");
+  await caption("「그도 오래전에 고양이를 잃었더구나. 저 별에서, 나비는 그를 기억하고 있었다.」");
+  await say(charlie, "...부장님의 나비구나.");
+  await caption("「고맙다, 지구의 친구여. 언젠가 하늘을 올려다보면, 초록 별이 두 번 깜빡일 거다. 안부 인사다.」");
+  await playMovie(farewellShots(true));
+  await fadeTo(1, 1.4);
+  await goScene("epiT", 0, false);
+}
 /** 엔딩 크레디트 */
 async function credits(title: string): Promise<void> {
   await chapterCard("찰리와 고양이", title, 3.2);
@@ -4144,7 +4212,7 @@ function markEnding(e: string): void {
 }
 
 // ── 참치캔 (수집 → 샘 꾸미기 해금) ─────────────────────────────
-export const CANS_TOTAL = 24;
+export const CANS_TOTAL = 25;
 const CAN_KEY = "charlie_cat_cans";
 export function cansFound(): string[] {
   try {
@@ -4320,6 +4388,7 @@ function canPet(): boolean {
   return !!sc && !sc.noPlayer && S.control && !S.talk && !S.hidden && sam.visible && charlie.kind === "charlie" && Math.abs(sam.x - charlie.x) < 34 && Math.abs(sam.y - charlie.y) < 20;
 }
 function petSam(): void {
+  S.flags.pets = (S.flags.pets ?? 0) + 1;
   const n = petCount() + 1;
   try {
     localStorage.setItem("charlie_cat_pets", String(n));
@@ -5046,6 +5115,18 @@ export function drawPlay(): void {
   else if (S.control && !sc.noPlayer) text("J 수첩", W - 8, H - 8, "rgba(220,214,232,0.45)", "right", "");
 }
 
+/** 엔딩을 가르는 세 가지 점수 */
+export function scores(): { bond: number; friends: number; truth: number } {
+  const F = S.flags;
+  const photos = PHOTOS.filter((p2) => F[`ph_${p2.id}`]).length;
+  const bond = Math.min(12, F.pets ?? 0) + photos + (F.samFed ? 2 : 0);
+  const friends = ["metLee", "c3tony", "c3garcia", "internUp", "medGiven", "freed", "nabi", "metAda", "c3lily", "minjiHint"].filter((k) => F[k]).length;
+  const truth = (F.shards ?? 0) + (F.bossSafe ? 1 : 0) + (F.meetAll ? 1 : 0) + (F.adaDone ? 1 : 0);
+  return { bond, friends, truth };
+}
+const BOND_OK = 10;
+const hearts = (n: number, max: number) => "♥".repeat(Math.min(5, Math.round((n / max) * 5))).padEnd(5, "♡");
+
 /** 지금 할 일 */
 function objective(id: string): string {
   const F = S.flags;
@@ -5100,7 +5181,9 @@ function drawDiary(sc: Scene): void {
   text(`지금 할 일 · ${objective(sc.id)}`, 56, 48, "#a82a24", "left", "");
   const notes = STORY_NOTES.filter(([f]) => S.flags[f]).map(([, t]) => t);
   notes.slice(-12).forEach((t, i) => text(`· ${t}`, 56, 63 + i * 14, "#2a1e14", "left", ""));
-  text(`추억 사진 ${photosFound().length}/${PHOTOS.length} · 참치캔 ${cansFound().length}/${CANS_TOTAL}`, W / 2, H - 30, "#6a5a40", "center", "");
+  const sc2 = scores();
+  text(`샘과의 유대 ${hearts(sc2.bond, 16)}  ·  인연 ${hearts(sc2.friends, 10)}  ·  별의 진실 ${hearts(sc2.truth, 8)}`, W / 2, H - 44, "#8a3a5a", "center", "");
+  text(`추억 사진 ${photosFound().length}/${PHOTOS.length} · 참치캔 ${cansFound().length}/${CANS_TOTAL} · 별 조각 ${S.flags.shards ?? 0}/5`, W / 2, H - 30, "#6a5a40", "center", "");
 }
 
 /** 애니메이션 컷: 시네마 비율 화면 + 자막 */
@@ -5324,7 +5407,10 @@ export function drawTitle(): void {
   });
   text("↑↓ 선택 · Space 결정", W / 2, H - 10, "rgba(220,214,232,0.6)", "center");
   const ends = endingsSeen();
-  if (ends.length) text(`엔딩 ${["A", "B", "C"].map((e) => (ends.includes(e) ? `${e}✓` : e === "C" ? "?" : `${e}·`)).join(" ")}`, W - 8, 12, "#ffd36a", "right");
+  if (ends.length) {
+    const names: Array<[string, string]> = [["T", "진"], ["A", "해피"], ["D", "배드"], ["B", "애매1"], ["C", "애매2"]];
+    text(`엔딩 ${names.map(([k, n]) => (ends.includes(k) ? `${n}✓` : "??")).join(" ")}  (${ends.length}/5)`, W - 8, 12, "#ffd36a", "right");
+  }
   if (S.album > 0) drawAlbum();
   if (clock.t < konamiMsg) {
     g.fillStyle = "rgba(6,5,10,0.85)";

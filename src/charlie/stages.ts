@@ -4,8 +4,8 @@
 //  · 제3장: 교회 지하 납골당 (악보와 종 퍼즐, 릴리의 약)
 //  · 제4장: 격리 센터 보안실 · 기록 보관실 · 격리 구역
 import { GROUND, W, chapterCard, clock, fadeTo, flash, g, keys, sfx, shake, sneaking, text, wait } from "./core";
-import { ROOFS, buildInterior, buildRoofs, buildStreet, type DoorDef, type PropKind, type Theme } from "./bg";
-import { FROGMAN, MINJI, SKELETON, STRANGERS, TONY, ZOMBIES } from "./sprites";
+import { ROOFS, ROOM, buildInterior, buildRoofs, buildRoom, buildStreet, type DoorDef, type PropKind, type Theme } from "./bg";
+import { ADA, BOSS, BUILD_3, BUILD_KID, FROGMAN, GARCIA, LILY, MINJI, MRLEE, RUTH, SKELETON, STRANGERS, TOMAS, TONY, ZOMBIES, human } from "./sprites";
 import {
   ITEMS,
   S,
@@ -13,6 +13,7 @@ import {
   caption,
   charlie,
   canSpot,
+  sam,
   doorTransition,
   credits,
   patrol,
@@ -1887,6 +1888,502 @@ SCENES.night2 = () => {
         await caption("(샘) 좌판 위로 뛰어올라 [Space] 생선을 떨어뜨리면 개구리들이 몰려간다. 그 틈에 지나가자!");
       }
       S.control = true;
+    },
+  };
+  return sc;
+};
+
+
+// ═════════════════════════════════════════════════════════
+// 제3.5장: 자연사 박물관 — 초록빛의 정체를 찾아서
+//  에이다 박사, 별 조각 다섯 개, 이집트 벽화 · 별자리 · 보석 도둑 개구리
+// ═════════════════════════════════════════════════════════
+const SHARD_LORE = [
+  "운석관의 파편: 만지자 따뜻하다. 귓가에 아주 먼 곳의 골골송이 들린다.",
+  "이집트관의 파편: 고대인들은 이것을 '바스테트 여신의 눈물'이라 불렀다.",
+  "천체투영관의 파편: 돔에 비추자 별 하나가 초록색으로 깜빡였다. 고양이자리의 꼬리 끝.",
+  "보석관의 파편: 개구리들이 보석인 줄 알고 훔쳐 둔 것. 보석보다 훨씬 오래된 빛이다.",
+  "에이다 박사가 해독한 마지막 조각: 「돌아오렴, 작은 별의 아이야. 그러나 네가 원할 때만.」",
+];
+async function getShard(n: number): Promise<void> {
+  if (F()[`shard${n}`]) return;
+  F()[`shard${n}`] = 1;
+  F().shards = (F().shards ?? 0) + 1;
+  sfx.item();
+  flash("#aaffcc", 0.4);
+  await caption(`초록 별 조각을 손에 넣었다! (${F().shards}/5)`);
+  await caption(SHARD_LORE[n - 1]);
+}
+const shardSpot = (n: number, x: number, label: string, when: () => boolean = () => true): Hotspot => ({
+  x,
+  iconY: 150,
+  label,
+  enabled: () => !F()[`shard${n}`] && when(),
+  use: () => getShard(n),
+});
+
+const preachers: Actor[] = [];
+room({
+  id: "mLobby",
+  label: "자연사 박물관 · 로비",
+  theme: "museum",
+  width: 940,
+  seed: 1101,
+  startX: 70,
+  props: [["ticket", 170], ["rope", 330], ["dino", 470], ["rope", 640], ["tallplant", 80], ["bench", 560], ["clock", 470]],
+  doors: [
+    {
+      x: 40,
+      kind: "steel",
+      label: "정문",
+      lock: () => (F().metAda ? null : "에이다 박사부터 찾자. 초록빛이 뭔지 알아야 샘을 지킬 수 있어."),
+      use: async () => {
+        await doorTransition(40, "in", { top: 144, w: 30, col: "#6a7480" });
+        await goScene("times", 0);
+      },
+    },
+    { x: 730, kind: "door", label: "운석관", to: "mMeteor", toX: 70, dir: "in" },
+    { x: 610, kind: "arch", to: "mEgypt", toX: 60, dir: "in" },
+    { x: 880, kind: "stairs", label: "천체 ↑", to: "mPlanet", toX: 60, dir: "up" },
+    { x: 250, kind: "stairs", label: "보석관 ↓", to: "mGem", toX: 60, dir: "down" },
+  ],
+  hotspots: () => [
+    look(170, 140, ["매표소 유리창에 쪽지: 「운석 특별전 무기한 연장 — 이유: 운석이 진짜로 떨어짐」"], "매표소"),
+    look(470, 120, ["거대한 공룡 뼈 위에서 해골 시위대 둘이 설교 중이다.", "「보라! 공룡도 풀만 먹었다! 그래서 이렇게 가볍게 뼈만 남았다!」", "찰리:...공룡은 운석 때문에 멸종했는데."], "공룡 뼈"),
+    look(610, 130, ["안내판: 「이집트관 — 고양이 미라 특별 전시」"], "안내판"),
+  ],
+  actors: () => {
+    preachers.length = 0;
+    return preachers;
+  },
+  back: (camX) => {
+    // 공룡 뼈 위의 해골 설교자들 (배경)
+    for (const [dx, i] of [[-30, 0], [26, 1]] as Array<[number, number]>) {
+      const sx = 470 + dx - camX;
+      g.globalAlpha = 0.9;
+      smoothDraw(human(SKELETON, "sk", `stand${Math.floor(clock.t * 2 + i) % 4}`, BUILD_3, i ? -1 : 1), half(sx - 13), 214 - 92, 27, 40);
+      g.globalAlpha = 1;
+    }
+  },
+  enter: async () => {
+    await caption("미국 자연사 박물관. 깨진 천장 유리 사이로 초록빛이 스며든다.");
+    await say(charlie, "라디오에서 말한 박사님은 '운석관'에 있다고 했지.");
+  },
+});
+
+const adaHere: Actor[] = [];
+room({
+  id: "mMeteor",
+  label: "운석관",
+  theme: "museum",
+  width: 620,
+  seed: 1102,
+  startX: 70,
+  props: [["meteorcase", 300], ["telescope", 480], ["rope", 200], ["notice", 130]],
+  doors: [{ x: 40, kind: "door", label: "로비", to: "mLobby", toX: 730, dir: "in" }],
+  actors: () => {
+    adaHere.length = 0;
+    adaHere.push(mkActor("person", 420, -1, { look: ADA, lookId: "ada", pose: "stand" }));
+    return adaHere;
+  },
+  hotspots: () => [
+    shardSpot(1, 300, "운석 파편 진열장"),
+    {
+      x: 420,
+      iconY: 136,
+      label: "에이다 박사",
+      range: 26,
+      enabled: () => true,
+      use: async () => {
+        const ada = adaHere[0];
+        const n = F().shards ?? 0;
+        if (!F().metAda) {
+          F().metAda = 1;
+          emote(ada, "!");
+          await say(ada, "오, 사람이네! 면역자? 좋아, 좋아. 나는 에이다. 천문학자고, 이 박물관 운석 담당이지.");
+          await say(charlie, "초록빛이 제 고양이를 계속 데려가려고 해요. 그게 뭔지 아세요?");
+          await say(ada, "흥미롭군! 그 빛은 무작위가 아니야. 고양이에게만 반응하는 신호지. 해독하려면 '초록 별 조각'이 필요해.");
+          await say(ada, "운석이 깨지면서 박물관 곳곳으로 튀었어. 운석관 진열장, 이집트관, 2층 천체투영관, 지하 보석관.");
+          await say(ada, "네 개를 모아 오면 내가 신호를 풀어 볼게. 아, 보석관엔 개구리 도둑들이 있으니 조심하고.");
+          emote(charlie, "💧");
+          await say(charlie, "...개구리는 이제 지긋지긋한데.");
+          return;
+        }
+        if (F().adaDone) {
+          await say(ada, ["그 빛은 엄마의 목소리야. 겁먹지 마.", "네 고양이에게 선택권을 줘. 그게 진짜 사랑이지.", "별 조각 다섯 개면, 빛에게 직접 말을 걸 수 있을 거야."][(F().adaTalk = (F().adaTalk ?? 0) + 1) % 3]);
+          return;
+        }
+        if (n < 4) {
+          await say(ada, `조각은 지금 ${n}개. 네 개가 필요해! 이집트관, 천체투영관, 보석관을 뒤져 봐.`);
+          return;
+        }
+        F().adaDone = 1;
+        await say(ada, "네 개 모두! 좋아, 운석 파편과 겹쳐서... 신호를 비춰 보자.");
+        flash("#aaffcc", 0.8);
+        sfx.beam();
+        await caption("조각들이 공중에 떠올라 원을 그리며 돌더니, 초록 글자가 허공에 새겨졌다.");
+        await say(ada, "...이건 침략 신호가 아니야. 「돌아오렴, 작은 별의 아이야.」 엄마가 아이를 부르는 소리야.");
+        await say(ada, "운석 가루는 그들의 '숨결'이야. 고양이에겐 길잡이지만, 사람에게는... 지금 거리의 모습 그대로지.");
+        await say(charlie, "그럼 샘이...");
+        await say(ada, "네 고양이, 아마 그 별에서 길을 잃고 떨어진 아이일 거야. 오래전에.");
+        await say(ada, "마지막 조각은 해독하면서 생겨났어. 이걸 가져가. 다섯 개가 모이면 빛과 직접 이야기할 수 있을 거야.");
+        await getShard(5);
+        await say(ada, "그리고 하나만 기억해. 붙잡지도, 내쫓지도 말고... 그 아이가 고르게 해 줘.");
+      },
+    },
+    look(130, 120, ["전시 설명: 「운석 GX-7: 7일 전 맨해튼에 낙하. 성분 미상. 초록빛을 냄.」", "그 아래 매직으로: 「만지지 마시오. 고양이가 모여듦.」"], "설명판"),
+  ],
+});
+
+room({
+  id: "mEgypt",
+  label: "이집트관",
+  theme: "egypt",
+  width: 760,
+  seed: 1103,
+  startX: 60,
+  props: [["sarco", 220], ["mummy", 340], ["mural", 470], ["statue", 620], ["rope", 470]],
+  doors: [{ x: 40, kind: "arch", to: "mLobby", toX: 610, dir: "in" }],
+  hotspots: () => [
+    look(340, 140, ["고양이 미라. 이름표: 「바스테트의 사자(使者), 기원전 1200년」", "찰리:...샘도 미라처럼 자는데."], "고양이 미라"),
+    look(470, 100, ["벽화: 하늘의 초록 별에서 빛줄기가 내려오고, 고양이 세 마리가 그 아래 앉아 있다.", "그 아래 상형문자: 해 → 별 → 고양이 → 달 ... 그다음은 지워졌다."], "벽화"),
+    {
+      x: 620,
+      iconY: 130,
+      label: "바스테트 석상",
+      enabled: () => !F().shard2,
+      use: async () => {
+        await caption("석상 받침대에 버튼 네 개: 해 · 달 · 별 · 고양이. 벽화의 순서를 따라 눌러야 할 것 같다.");
+        const ok = await playSimon("석상의 수수께끼", [0, 2, 3, 1, 2, 3], ["해", "달", "별", "고양이"]);
+        if (!ok) {
+          await caption("석상의 눈이 잠깐 빛나다 꺼졌다. 순서가 틀렸다.");
+          return;
+        }
+        shake(0.3);
+        await caption("그르릉— 석상의 받침이 열리고, 초록빛이 새어 나왔다.");
+        await getShard(2);
+      },
+    },
+    canSpot("c24", 700, 176, "항아리 속"),
+  ],
+  enter: async () => {
+    await caption("이집트관. 벽마다 고양이 그림이 가득하다.");
+  },
+});
+
+room({
+  id: "mPlanet",
+  label: "천체투영관",
+  theme: "planet",
+  width: 640,
+  seed: 1104,
+  startX: 60,
+  ambient: 0.3,
+  props: [["projector", 320], ["telescope", 520], ["bench", 180], ["bench", 450]],
+  doors: [{ x: 40, kind: "stairs", label: "로비 ↓", to: "mLobby", toX: 880, dir: "down" }],
+  hotspots: () => [
+    {
+      x: 320,
+      iconY: 140,
+      label: "투영기 작동",
+      enabled: () => !F().shard3,
+      use: async () => {
+        sfx.fridge();
+        await caption("투영기가 웅웅 돌며 돔에 별자리를 비춘다. 별 네 개가 차례로 깜빡인다.");
+        const ok = await playSimon("별자리 순서 기억", [2, 0, 3, 1, 3, 2, 0], ["큰곰", "오리온", "고양이", "초록별"]);
+        if (!ok) {
+          await caption("별빛이 흩어졌다. 다시 해 보자.");
+          return;
+        }
+        flash("#aaffcc", 0.5);
+        await caption("마지막 별, '고양이자리'의 꼬리 끝이 초록색으로 빛났다. 투영기 렌즈 안에서 무언가 떨어졌다.");
+        await getShard(3);
+        await say(charlie, "고양이자리 꼬리 끝... 샘이 온 곳이 저기인가.");
+      },
+    },
+    look(520, 130, ["망원경을 들여다보니 구름 사이로 초록빛 비행접시가 보인다.", "...뭔가를 찾는 듯 맨해튼 위를 맴돈다."], "망원경"),
+  ],
+  back: (camX) => {
+    // 천천히 도는 별빛
+    for (let i = 0; i < 30; i++) {
+      const a = clock.t * 0.05 + i * 0.7;
+      const x = 320 - camX + Math.cos(a) * (60 + (i % 5) * 40);
+      const y = 120 + Math.sin(a) * (30 + (i % 4) * 15);
+      g.fillStyle = i % 7 === 0 ? "rgba(140,255,170,0.9)" : "rgba(255,244,200,0.7)";
+      g.fillRect(half(x), half(y), 1, 1);
+    }
+  },
+});
+
+room({
+  id: "mGem",
+  label: "보석관",
+  theme: "gem",
+  width: 820,
+  seed: 1105,
+  startX: 60,
+  dark: true,
+  props: [["gemcase", 180], ["gemcase", 320], ["gemcase", 470], ["gemcase", 600], ["boxes", 740]],
+  doors: [{ x: 40, kind: "stairs", label: "로비 ↑", to: "mLobby", toX: 250, dir: "up" }],
+  actors: () => {
+    gemKit.guards.length = 0;
+    gemKit.add(380, 250, 520);
+    gemKit.add(640, 560, 700, -1);
+    return gemKit.guards;
+  },
+  hotspots: () => [
+    ...[180, 470, 600].map((x) => hideAt(x + 22, "진열장 그늘에 웅크리기", 160)),
+    shardSpot(4, 740, "개구리들의 장물 더미"),
+    look(320, 140, ["깨진 진열장. 「호프 다이아몬드」 자리가 비어 있다.", "찰리:...개구리 녀석들, 취향 한번 고급이네."], "빈 진열장"),
+  ],
+  update: (dt) => gemKit.update(dt),
+  lights: () => gemKit.lights(),
+  enter: async () => {
+    await caption("지하 보석관. 어둠 속에서 개구리들이 진열장을 털고 있다.");
+    await caption("녀석들의 장물 더미는 맨 안쪽. 시선에 걸리지 않게 진열장 그늘에 숨어 가자.");
+  },
+});
+const gemKit = patrol({
+  look: FROGMAN,
+  lookId: "frog",
+  range: 90,
+  shout: "개굴! 도둑이다!",
+  onCaught: () => gameOver("GAME OVER", "개구리들에게 주머니를 탈탈 털렸다... (도둑이 도둑이라니)", 60),
+});
+
+// ── 타임스퀘어: 광고판과 넋 나간 군중 ───────────────────────────
+const crowd: Actor[] = [];
+SCENES.times = () => {
+  const info = buildStreet(1100, true, 91, false);
+  crowd.length = 0;
+  const lines = [["광고... 광고를 봐야 해...", "할인... 할인..."], ["셀카... 셀카 찍어야 해...", "좋아요... 좋아요..."], ["출근... 출근..."], ["뉴스... 뉴스 속보...", "..."]];
+  for (let i = 0; i < 7; i++) crowd.push(zoned(160 + i * 130, i, lines[i % lines.length], i % 3 === 0 ? "back" : "stand"));
+  const ADS = [
+    { x: 160, col: "#1a1a2a", t1: "블랙컴퍼니", t2: "야근은 열정이다", c: "#e8c84a" },
+    { x: 430, col: "#c83a5a", t1: "실종 고양이를", t2: "찾습니다 · 수천 장", c: "#ffffff" },
+    { x: 700, col: "#2a6a4a", t1: "운석 낙하 7일째", t2: "외출 자제 바람", c: "#e8f0e8" },
+    { x: 960, col: "#3a2a7a", t1: "츄르 1+1", t2: "세상이 망해도 간식은", c: "#ffd6e6" },
+  ];
+  const sc: Scene = {
+    id: "times",
+    label: "타임스퀘어",
+    width: 1100,
+    bg: info.canvas,
+    ambient: 0.35,
+    tint: "rgba(60,20,80,0.10)",
+    lights: () => [...ADS.map((a): Light => ({ x: a.x, y: 70, r: 110, a: 0.7, warm: "rgba(255,120,200,0.07)" })), { x: charlie.x, y: charlie.y - 24, r: 40, a: 0.4 }],
+    minX: 30,
+    maxX: 1080,
+    actors: crowd,
+    hotspots: [
+      canSpot("c22b", 600, 176, "버려진 쇼핑백"),
+      {
+        x: 430,
+        iconY: 150,
+        label: "실종 전단 벽",
+        enabled: () => true,
+        use: async () => {
+          await caption("벽 한 면이 고양이 실종 전단으로 덮여 있다. 수백 장. 전부 같은 날 사라졌다.");
+          await say(charlie, "...초록빛이 온 날이야. 다들 고양이를 잃었구나.");
+          if (!F().timesNote) {
+            F().timesNote = 1;
+            await caption("전단 사이에 낯익은 사진. 「찾습니다: 흰 고양이 '샘' — 연락처: 가르시아」");
+            emote(charlie, "♥");
+            await say(charlie, "가르시아 부인... 샘 전단을 붙여 줬구나.");
+          }
+        },
+      },
+    ],
+    zones: [
+      {
+        x: 1060,
+        dir: 1,
+        run: async () => {
+          await say(charlie, "블랙컴퍼니 본사가 이 근처야. 사원증을 찾으러 가자.");
+          await goScene("bcLobby", 70);
+        },
+      },
+    ],
+    update: tickAll(crowd),
+    back: (camX) => {
+      // 거대한 전광판들 (깜빡이며 흐르는 글자)
+      for (const a of ADS) {
+        const sx = a.x - camX;
+        if (sx < -120 || sx > W + 120) continue;
+        const on = Math.sin(clock.t * 3 + a.x) > -0.85;
+        g.fillStyle = "#0a0a0e";
+        g.fillRect(half(sx - 62), 26, 124, 64);
+        g.fillStyle = on ? a.col : "#1a1a22";
+        g.fillRect(half(sx - 58), 30, 116, 56);
+        if (on) {
+          text(a.t1, sx, 48, a.c, "center", "");
+          text(a.t2, sx, 68, a.c, "center", "");
+        }
+        g.fillStyle = "#2a2a30";
+        g.fillRect(half(sx - 2), 90, 4, 20);
+      }
+      // 아래쪽 뉴스 띠
+      g.fillStyle = "#c83a32";
+      g.fillRect(0, 112, W, 10);
+      const news = "속보 · 초록빛 비행물체 맨해튼 상공 7일째 · 블랙컴퍼니 '면역자 보호' 사업 독점 수주 · 고양이 실종 신고 3만 건 돌파 · ";
+      const off = (clock.t * 40) % 600;
+      text(news + news, W - off, 117, "#ffffff", "left", "");
+    },
+    start: async () => {
+      charlie.x = 60;
+      charlie.y = GROUND;
+      charlie.facing = 1;
+      writeSave("times", 0);
+      await fadeTo(0, 0.8);
+      if (!F().seenTimes) {
+        F().seenTimes = 1;
+        await caption("타임스퀘어. 전광판은 여전히 번쩍이고, 사람들은 넋이 나간 채 화면만 올려다본다.");
+      }
+      S.control = true;
+    },
+  };
+  return sc;
+};
+
+
+// ═════════════════════════════════════════════════════════
+// 배드 엔딩: 붙들 것이 없는 별
+// ═════════════════════════════════════════════════════════
+SCENES.epiD = () => {
+  const sc: Scene = {
+    id: "epiD",
+    width: ROOM.width,
+    bg: buildRoom(),
+    ambient: 0.6,
+    tint: "rgba(40,80,50,0.18)",
+    lights: () => [{ x: 210, y: 92, r: 90, a: 0.6, warm: "rgba(120,255,170,0.10)" }],
+    minX: 30,
+    maxX: ROOM.width - 30,
+    actors: [],
+    hotspots: [],
+    zones: [],
+    overlay: () => {
+      for (let i = 0; i < 40; i++) {
+        g.fillStyle = "rgba(140,220,160,0.25)";
+        g.fillRect(half((i * 73 + clock.t * 8) % W), half((i * 37 + clock.t * 12) % 270), 1, 1);
+      }
+    },
+    start: async () => {
+      charlie.x = ROOM.windowExit + 6;
+      charlie.y = GROUND;
+      charlie.facing = -1;
+      charlie.pose = "back";
+      S.camX = 0;
+      await fadeTo(0, 1.4);
+      await caption("한 달 뒤. 초록 가루는 아직도 도시 위를 떠다닌다.");
+      await caption("샘의 밥그릇엔 먼지가 쌓였다. 찰리는 매일 밤 창가에 서 있다.");
+      await say(charlie, "...초록... 초록빛...");
+      await wait(1);
+      await say(charlie, "출근... 출근해야 하는데...");
+      await caption("찰리의 눈빛이, 거리의 사람들과 조금씩 닮아 가고 있었다.");
+      await caption("(샘과 더 많은 시간을 보냈다면... 쓰다듬어 주고, 추억을 모았다면, 결말이 달라졌을지도 모른다.)");
+      await fadeTo(1, 2);
+      await credits("— 배드 엔딩: 붙들 것이 없는 별 —");
+    },
+  };
+  return sc;
+};
+
+// ═════════════════════════════════════════════════════════
+// 진 엔딩: 집으로
+// ═════════════════════════════════════════════════════════
+SCENES.epiT = () => {
+  const info = buildStreet(820, false, 11, true);
+  const cast: Actor[] = [];
+  const add = (x: number, look: typeof RUTH, id: string, build = BUILD_3) => {
+    const a = mkActor("person", x, -1, { look, lookId: id, pose: "stand", build });
+    cast.push(a);
+    return a;
+  };
+  const boss = add(360, BOSS, "boss");
+  const ruth = add(400, RUTH, "ruth");
+  const lily = add(430, LILY, "lily", BUILD_KID);
+  const ada = add(470, ADA, "ada");
+  const tomas = add(510, TOMAS, "tomas");
+  const tony = add(545, TONY, "tony");
+  const garcia = add(580, GARCIA, "garcia");
+  const minji = add(615, MINJI, "minji");
+  const lee = add(650, MRLEE, "mrlee");
+  let blink = -1;
+  const sc: Scene = {
+    id: "epiT",
+    width: 820,
+    bg: info.canvas,
+    ambient: 0,
+    tint: "rgba(255,200,150,0.18)",
+    lights: () => [],
+    minX: 40,
+    maxX: 780,
+    actors: cast,
+    hotspots: [],
+    zones: [],
+    back: (camX) => {
+      // 새 간판: 고양이 쉼터 '샘의 집'
+      const sx = info.door + 120 - camX;
+      g.fillStyle = "#f4e8c8";
+      g.fillRect(half(sx - 50), 132, 100, 18);
+      g.fillStyle = "#c8466a";
+      g.fillRect(half(sx - 50), 132, 100, 3);
+      text("고양이 쉼터 · 샘의 집", sx, 142, "#5a2a3a", "center", "");
+      // 동네 고양이들
+      const cols = ["#f0a050", "#3a3a44", "#c8a878", "#e8e0d0", "#8a8aa0"];
+      cols.forEach((c, i) => smoothDraw(tintedCat(`sitT${Math.floor(clock.t * 5 + i * 2) % 8}`, i % 2 ? 1 : -1, c), half(sx - 60 + i * 26 - camX * 0 - 15), 192, 32, 24));
+      // 초록 별 두 번 깜빡
+      if (blink >= 0) {
+        const on = Math.floor(blink * 3) % 2 === 0 && blink < 1.4;
+        if (on) {
+          const gr = g.createRadialGradient(400, 30, 0, 400, 30, 14);
+          gr.addColorStop(0, "rgba(200,255,220,1)");
+          gr.addColorStop(1, "rgba(120,255,170,0)");
+          g.fillStyle = gr;
+          g.fillRect(386, 16, 28, 28);
+        }
+      }
+    },
+    update: (dt) => {
+      if (blink >= 0) blink += dt;
+    },
+    start: async () => {
+      charlie.x = info.door;
+      charlie.y = GROUND;
+      charlie.facing = 1;
+      sam.visible = true;
+      sam.x = info.door + 20;
+      sam.y = GROUND;
+      sam.facing = 1;
+      await fadeTo(0, 1.4);
+      await caption("석 달 뒤. 초록 가루는 사라졌고, 사람들은 하나둘 제정신으로 돌아왔다.");
+      await caption("그리고 찰리네 아파트 1층에, 작은 가게가 문을 열었다.");
+      await walkTo(charlie, 320, 40);
+      await say(boss, "...찰리 군. 아니, 찰리 '점장'. 오늘 사료 입고는 내가 정리해 두겠네.");
+      await say(charlie, "부장님, 아니 그림스 씨. 정시 퇴근하세요. 그게 우리 가게 사훈이에요.");
+      emote(boss, "♥");
+      await say(boss, "...정시 퇴근. 좋은 말이군. 나비랑 저녁 먹어야지.");
+      await say(ruth, "네 고양이 덕분에 다들 돌아왔어. 붙들고 있던 게 하나씩 있었던 덕분이지.");
+      await say(lily, "아저씨! 나비가 샘이랑 같이 낮잠 잤어요!");
+      await say(ada, "그 별에서 매주 신호가 와. 해독해 보니까... '츄르 레시피 좀 보내 달라'더라.");
+      await say(tomas, "가게 츄르는 내가 평생 대 주지.");
+      await say(tony, "피자 배달 경로에 쉼터 추가했어요, 형!");
+      await say(garcia, "피코가 쉼터 고양이들한테 노래를 불러 준단다.");
+      await say(minji, "저는 여기 매니저로 이직했어요! 연봉은 츄르로 받아요.");
+      await say(lee, "개업 기념 핫도그다! 고양이용 소시지도 있지!");
+      await caption("그날 밤, 찰리와 샘은 옥상에서 하늘을 올려다보았다.");
+      blink = 0;
+      sfx.item();
+      await wait(1.8);
+      sfx.meow();
+      await say(charlie, "...봤어, 샘? 두 번. 안부 인사래.");
+      sam.pose = "butt";
+      sfx.purr();
+      emote(sam, "♥");
+      await say(charlie, "우리 집에 와 줘서 고마워.");
+      await fadeTo(1, 2.2);
+      await credits("— 진 엔딩: 집으로 —");
     },
   };
   return sc;

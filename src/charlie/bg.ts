@@ -2037,7 +2037,7 @@ export function buildHelipad(): HTMLCanvasElement {
 }
 
 // ── 실내 미로 공용 배경 ──────────────────────────────────────
-export type Theme = "hall" | "flat" | "lobby" | "tunnel" | "pump" | "staff" | "crypt" | "vault" | "security" | "archive" | "cells";
+export type Theme = "hall" | "flat" | "lobby" | "tunnel" | "pump" | "staff" | "crypt" | "vault" | "security" | "archive" | "cells" | "museum" | "egypt" | "planet" | "gem";
 export interface DoorDef {
   x: number;
   kind: "door" | "stairs" | "elevator" | "grate" | "arch" | "window" | "steel";
@@ -2066,7 +2066,8 @@ export type PropKind =
   | "books" | "medbox" | "glass" | "monitors" | "logbook" | "filecab" | "memo" | "workdesk" | "cups" | "coffee" | "copier" | "boxes"
   | "trophy" | "diary" | "golfbag" | "pharmshelf" | "counter" | "batteries" | "poster" | "display" | "tv"
   | "cooler" | "vending" | "clock" | "motto" | "chair" | "bin" | "sofa" | "blinds" | "printer" | "cubicle" | "microwave"
-  | "tallplant" | "sink2" | "notice" | "bench" | "rack" | "flag" | "aquarium" | "papers";
+  | "tallplant" | "sink2" | "notice" | "bench" | "rack" | "flag" | "aquarium" | "papers"
+  | "dino" | "meteorcase" | "mummy" | "sarco" | "mural" | "telescope" | "projector" | "gemcase" | "ticket" | "rope" | "statue" | "billboard";
 
 /** 조사 지점에 놓이는 소품 (바닥 y=214 기준) */
 function drawProp(g: G, kind: PropKind, x: number, r: () => number): void {
@@ -2561,6 +2562,168 @@ function drawProp(g: G, kind: PropKind, x: number, r: () => number): void {
       for (let i = 0; i < 3; i++) rect(g, x - 12 + i * 10, F - 44 + (i % 2) * 6, 4, 2, ["#f0a050", "#e85a6a", "#e8c84a"][i]);
       rect(g, x - 14, F - 34, 2, 4, "#3a8a4a");
       break;
+    case "dino": {
+      // 공룡 뼈 (긴 목 · 꼬리 · 갈비뼈)
+      g.strokeStyle = "#e8e0c8";
+      g.lineCap = "round";
+      g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(x - 90, F - 50);
+      g.quadraticCurveTo(x - 40, F - 70, x, F - 74);
+      g.quadraticCurveTo(x + 50, F - 80, x + 70, F - 130);
+      g.stroke();
+      g.lineWidth = 1.4;
+      for (let i = 0; i < 9; i++) {
+        g.beginPath();
+        g.arc(x - 20 + i * 6, F - 74, 14 - Math.abs(i - 4) * 1.5, 0.2, Math.PI - 0.2);
+        g.stroke();
+      }
+      g.lineWidth = 2.4;
+      for (const lx of [-24, -12, 20, 30]) {
+        g.beginPath();
+        g.moveTo(x + lx, F - 70);
+        g.lineTo(x + lx + 3, F - 38);
+        g.lineTo(x + lx, F - 6);
+        g.stroke();
+      }
+      g.fillStyle = "#e8e0c8";
+      g.beginPath();
+      g.ellipse(x + 74, F - 134, 8, 5, -0.3, 0, Math.PI * 2);
+      g.fill();
+      rect(g, x - 60, F - 6, 130, 6, "#5a4a38");
+      break;
+    }
+    case "meteorcase": {
+      rect(g, x - 22, F - 30, 44, 30, "#3a3028");
+      rect(g, x - 20, F - 66, 40, 36, "rgba(170,220,230,0.25)");
+      rect(g, x - 20, F - 66, 40, 1, "#e8f0f4");
+      const mg = g.createRadialGradient(x, F - 44, 0, x, F - 44, 14);
+      mg.addColorStop(0, "#c8ffd8");
+      mg.addColorStop(0.4, "#4ac87a");
+      mg.addColorStop(1, "rgba(40,120,70,0)");
+      g.fillStyle = mg;
+      g.fillRect(x - 18, F - 62, 36, 32);
+      g.fillStyle = "#3a4a3a";
+      g.beginPath();
+      g.ellipse(x, F - 40, 9, 6, 0.3, 0, Math.PI * 2);
+      g.fill();
+      smallText(g, "운석 GX-7", x, F - 22, "#e8d8a8", 6);
+      break;
+    }
+    case "mummy":
+      rect(g, x - 10, F - 56, 20, 56, "#3a2a1a");
+      rect(g, x - 8, F - 54, 16, 52, "rgba(170,210,220,0.2)");
+      g.fillStyle = "#c8b080";
+      g.beginPath();
+      g.ellipse(x, F - 24, 5, 16, 0, 0, Math.PI * 2);
+      g.ellipse(x, F - 44, 4.5, 5, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillRect(x - 3, F - 52, 1.5, 4);
+      g.fillRect(x + 2, F - 52, 1.5, 4);
+      for (let y = F - 38; y < F - 10; y += 3) rect(g, x - 4, y, 8, 0.6, "#8a7050");
+      smallText(g, "고양이 미라", x, F - 60, "#e8d8a8", 5);
+      break;
+    case "sarco":
+      rect(g, x - 30, F - 22, 60, 22, "#c8962a");
+      rect(g, x - 28, F - 20, 56, 4, "#2a4a8a");
+      rect(g, x - 30, F - 26, 60, 4, "#e8c84a");
+      for (let i = 0; i < 6; i++) rect(g, x - 24 + i * 9, F - 12, 5, 6, i % 2 ? "#8a2a1a" : "#2a6a4a");
+      break;
+    case "mural":
+      rect(g, x - 34, 70, 68, 60, "#d8b478");
+      rect(g, x - 34, 70, 68, 2, "#8a5a24");
+      g.fillStyle = "#4ac87a";
+      g.beginPath();
+      g.arc(x, 82, 6, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = "rgba(74,200,122,0.7)";
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(x, 88);
+      g.lineTo(x - 14, 118);
+      g.moveTo(x, 88);
+      g.lineTo(x + 14, 118);
+      g.stroke();
+      g.fillStyle = "#1a1a1a";
+      for (const dx of [-12, 0, 12]) {
+        g.beginPath();
+        g.ellipse(x + dx, 122, 3, 4, 0, 0, Math.PI * 2);
+        g.ellipse(x + dx + 1, 116, 2, 2, 0, 0, Math.PI * 2);
+        g.fill();
+      }
+      break;
+    case "telescope":
+      rect(g, x - 1, F - 40, 2, 40, "#3a3a44");
+      rect(g, x - 10, F - 2, 20, 2, "#3a3a44");
+      g.save();
+      g.translate(x, F - 40);
+      g.rotate(-0.6);
+      rect(g, -4, -3, 26, 6, "#8a8a9a");
+      rect(g, 20, -4, 4, 8, "#5a5a6a");
+      g.restore();
+      break;
+    case "projector":
+      g.fillStyle = "#2a2a3a";
+      g.beginPath();
+      g.arc(x, F - 34, 12, 0, Math.PI * 2);
+      g.fill();
+      for (let i = 0; i < 8; i++) {
+        g.fillStyle = "#e8e8a0";
+        g.beginPath();
+        g.arc(x + Math.cos(i * 0.8) * 9, F - 34 + Math.sin(i * 0.8) * 9, 1, 0, Math.PI * 2);
+        g.fill();
+      }
+      rect(g, x - 2, F - 22, 4, 22, "#3a3a44");
+      rect(g, x - 12, F - 3, 24, 3, "#3a3a44");
+      break;
+    case "gemcase": {
+      rect(g, x - 16, F - 28, 32, 28, "#1a1420");
+      rect(g, x - 14, F - 52, 28, 24, "rgba(170,200,255,0.18)");
+      rect(g, x - 14, F - 52, 28, 1, "#c8d8ff");
+      const col = ["#e84a8a", "#4ac8e8", "#e8c84a", "#8a4ae8"][Math.floor(r() * 4)];
+      g.fillStyle = col;
+      g.beginPath();
+      g.moveTo(x, F - 46);
+      g.lineTo(x + 6, F - 40);
+      g.lineTo(x, F - 32);
+      g.lineTo(x - 6, F - 40);
+      g.fill();
+      rect(g, x - 2, F - 44, 1.5, 3, "rgba(255,255,255,0.8)");
+      break;
+    }
+    case "ticket":
+      rect(g, x - 26, F - 34, 52, 34, "#8a1e22");
+      rect(g, x - 28, F - 36, 56, 3, "#c8a83a");
+      rect(g, x - 20, F - 58, 40, 22, "rgba(200,220,230,0.25)");
+      rect(g, x - 20, F - 58, 40, 1, "#e8f0f4");
+      smallText(g, "TICKETS", x, F - 26, "#e8c84a", 6);
+      break;
+    case "rope":
+      for (const dx of [-24, 24]) {
+        rect(g, x + dx - 1.5, F - 22, 3, 22, "#c8a83a");
+        rect(g, x + dx - 3, F - 2, 6, 2, "#c8a83a");
+      }
+      g.strokeStyle = "#8a1e22";
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(x - 24, F - 18);
+      g.quadraticCurveTo(x, F - 10, x + 24, F - 18);
+      g.stroke();
+      break;
+    case "statue":
+      rect(g, x - 12, F - 20, 24, 20, "#d8d0c0");
+      g.fillStyle = "#1a1a1a";
+      g.beginPath();
+      g.ellipse(x, F - 36, 7, 14, 0, 0, Math.PI * 2);
+      g.ellipse(x + 2, F - 54, 5, 5, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillRect(x - 2, F - 62, 1.5, 5);
+      g.fillRect(x + 4, F - 62, 1.5, 5);
+      rect(g, x + 1, F - 50, 2, 1, "#e8c84a");
+      smallText(g, "바스테트", x, F - 10, "#5a4a38", 5);
+      break;
+    case "billboard":
+      break;
     case "papers":
       for (let i = 0; i < 4; i++) rect(g, x - 10 + i * 2, F - 6 - i * 3, 18, 3, i % 2 ? "#f4f0e0" : "#e8e4d4");
       break;
@@ -2583,6 +2746,10 @@ export function buildInterior(theme: Theme, width: number, seed: number, doors: 
     security: { wall: "#3a4450", wall2: "#323a44", floor: "#2a3036", trim: "#1a1e24" },
     archive: { wall: "#5a5448", wall2: "#4e483e", floor: "#3a3630", trim: "#2a241e" },
     cells: { wall: "#b8bcc0", wall2: "#a8acb0", floor: "#7a8086", trim: "#5a6066" },
+    museum: { wall: "#c8bca4", wall2: "#b0a48c", floor: "#8a7a64", trim: "#5a4a38" },
+    egypt: { wall: "#c8a468", wall2: "#a8844c", floor: "#7a6040", trim: "#4a3a24" },
+    planet: { wall: "#0a0c1a", wall2: "#10142a", floor: "#1a1a2a", trim: "#0a0a14" },
+    gem: { wall: "#2a2238", wall2: "#221a2e", floor: "#1e1a26", trim: "#120e18" },
   };
   const pal = P[theme];
   // 천장
@@ -2661,8 +2828,77 @@ export function buildInterior(theme: Theme, width: number, seed: number, doors: 
       for (let x = 0; x < width; x += 20) rect(g, x, 160, 0.5, 54, "rgba(0,0,0,0.1)");
     }
   }
+  if (theme === "museum") {
+    // 대리석 기둥과 아치, 붉은 휘장
+    for (let x = 30; x < width; x += 150) {
+      rect(g, x, 30, 16, 184, "#e0d6c0");
+      rect(g, x, 30, 3, 184, "#f4ecd8");
+      rect(g, x + 13, 30, 3, 184, "#a89a80");
+      rect(g, x - 4, 26, 24, 6, "#e8e0cc");
+      rect(g, x - 4, 206, 24, 8, "#e8e0cc");
+    }
+    rect(g, 0, 22, width, 8, "#8a1e22");
+    for (let x = 0; x < width; x += 10) rect(g, x, 30, 6, 4 + (x % 20 === 0 ? 3 : 0), "#8a1e22");
+    for (let y = 40; y < 200; y += 24) rect(g, 0, y, width, 0.5, "rgba(120,100,80,0.25)");
+  } else if (theme === "egypt") {
+    // 상형문자 벽화 띠
+    for (const by of [50, 100, 150]) {
+      rect(g, 0, by, width, 30, "#d8b478");
+      rect(g, 0, by, width, 2, "#8a5a24");
+      rect(g, 0, by + 28, width, 2, "#8a5a24");
+      for (let x = 8; x < width; x += 16) {
+        const k = Math.floor(r() * 5);
+        g.fillStyle = ["#2a4a8a", "#8a2a1a", "#1a1a1a", "#2a6a4a", "#c8862a"][k];
+        if (k === 0) {
+          g.beginPath();
+          g.ellipse(x, by + 15, 3, 5, 0, 0, Math.PI * 2);
+          g.fill();
+        } else if (k === 1) g.fillRect(x - 3, by + 8, 6, 14);
+        else if (k === 2) {
+          // 고양이 상형문자
+          g.beginPath();
+          g.ellipse(x, by + 18, 3, 4, 0, 0, Math.PI * 2);
+          g.ellipse(x + 1, by + 11, 2, 2, 0, 0, Math.PI * 2);
+          g.fill();
+          g.fillRect(x - 1, by + 7, 1, 2);
+          g.fillRect(x + 2, by + 7, 1, 2);
+        } else if (k === 3) {
+          g.beginPath();
+          g.moveTo(x - 4, by + 22);
+          g.lineTo(x, by + 8);
+          g.lineTo(x + 4, by + 22);
+          g.fill();
+        } else g.fillRect(x - 4, by + 13, 8, 3);
+      }
+    }
+  } else if (theme === "planet") {
+    // 별이 가득한 돔
+    for (let i = 0; i < width / 2; i++) {
+      const b2 = r();
+      rect(g, r() * width, 22 + r() * 170, b2 < 0.1 ? 1 : 0.5, b2 < 0.1 ? 1 : 0.5, b2 < 0.3 ? "#fff4c8" : "#9aa8d8");
+    }
+    g.strokeStyle = "rgba(120,140,220,0.25)";
+    g.lineWidth = 0.4;
+    for (let x = -100; x < width + 100; x += 60) {
+      g.beginPath();
+      g.arc(x, 260, 200, Math.PI * 1.1, Math.PI * 1.9);
+      g.stroke();
+    }
+  } else if (theme === "gem") {
+    // 어두운 전시실, 벽의 보석 진열 조명 자국
+    for (let x = 60; x < width; x += 120) {
+      const gr = g.createRadialGradient(x, 90, 0, x, 90, 50);
+      gr.addColorStop(0, "rgba(160,140,255,0.18)");
+      gr.addColorStop(1, "rgba(160,140,255,0)");
+      g.fillStyle = gr;
+      g.fillRect(x - 50, 40, 100, 100);
+    }
+  }
   // 바닥
   rect(g, 0, 214, width, H - 214, pal.floor);
+  if (theme === "museum" || theme === "egypt") {
+    for (let x = 0; x < width; x += 24) for (let y = 214; y < H; y += 12) rect(g, x + ((y / 12) % 2) * 12, y, 23.5, 11.5, mix(pal.floor, ((x + y) / 12) % 3 === 0 ? 0.06 : -0.04));
+  }
   if (theme === "hall") {
     rect(g, 0, 218, width, 30, "#7a2a2a");
     for (let x = 0; x < width; x += 12) rect(g, x + 2, 224, 8, 0.75, "#c8a03a");
