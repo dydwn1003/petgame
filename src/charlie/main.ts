@@ -60,6 +60,18 @@ function drawOverlays(): void {
     g.fillRect(0, 0, W, H);
     g.globalAlpha = 1;
   }
+  if (S.loading) drawLoading();
+}
+
+/** 장면을 만드는 동안 오른쪽 아래에 "로딩 중" */
+function drawLoading(): void {
+  g.fillStyle = "rgba(0,0,0,0.7)";
+  g.fillRect(W - 78, H - 22, 74, 18);
+  g.font = FONT;
+  g.textAlign = "right";
+  g.textBaseline = "middle";
+  g.fillStyle = "#ebc24a";
+  g.fillText("로딩 중" + ".".repeat(1 + (Math.floor(clock.t * 3) % 3)), W - 10, H - 13);
 }
 
 let last = performance.now();
@@ -134,14 +146,23 @@ resize();
 fx.fade = 0;
 fx.fadeTarget = 0;
 void document.fonts.load(FONT).finally(() => {
+  // 첫 화면 "로딩 중" 이 그려질 틈을 준 뒤 굽기 시작
+  g.setTransform(render.scale, 0, 0, render.scale, 0, 0);
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, W, H);
+  drawLoading();
+  requestAnimationFrame(() => setTimeout(boot, 0));
+});
+function boot(): void {
   const t0 = performance.now();
   // 캐릭터 도트 밀도: 기본 6배, 더 촘촘한 화면이면 그만큼 (최대 8배)
-  setSpriteDensity(6);
+  setSpriteDensity(4);
   prewarm();
   console.info(`sprites ready in ${Math.round(performance.now() - t0)}ms`);
+  document.getElementById("loading")?.remove();
   last = performance.now();
   requestAnimationFrame(frame);
-});
+}
 
 // 테스트용
 (window as unknown as { __game: unknown }).__game = { S, debug, goScene, cost };

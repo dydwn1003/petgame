@@ -98,3 +98,16 @@ body {
     display: block;
   }
 }
+
+/* 처음 불러오는 동안 (스크립트가 뜨기 전에도 보이게) */
+#loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 16px "Galmuri11", system-ui, sans-serif;
+  color: #ebc24a;
+  background: #000;
+  z-index: 10;
+}

@@ -185,6 +185,7 @@ export const S = {
   flags: {} as Record<string, number>,
   camX: 0,
   gen: 0,
+  loading: false,
   talk: null as null | { actor: Actor | null; text: string; typed: number; caption: boolean },
   over: null as null | { title: string; msg: string; checkpoint: number; scene: string },
   help: 0,
@@ -345,6 +346,10 @@ export async function goScene(id: string, checkpoint = 0, fade = true): Promise<
   S.control = false;
   if (fade && fx.fade < 1) await fadeTo(1, 0.6);
   if (myGen !== S.gen) return;
+  // 한 프레임 동안 "로딩 중" 을 띄운 다음 장면을 만든다
+  S.loading = true;
+  await wait(0);
+  if (myGen !== S.gen) return;
   dropScripts();
   walkers.length = 0;
   tweens.length = 0;
@@ -360,6 +365,7 @@ export async function goScene(id: string, checkpoint = 0, fade = true): Promise<
   charlie = mkActor("charlie", 0);
   sam = mkActor("sam", 0, 1, { visible: false });
   const sc = SCENES[id](checkpoint);
+  S.loading = false;
   S.scene = sc;
   S.camX = 0;
   void sc.start();
@@ -1728,7 +1734,6 @@ SCENES.subwayGate = () => {
       charlie.x = 60;
       charlie.facing = 1;
       await fadeTo(0, 1);
-      await chapterCard("제2장", "개구리 굴");
       await say(charlie, "샘은 분명 이쪽으로 갔어. 그리고 그 개구리 녀석도...");
       await say(charlie, "츄르를 되찾아야 해. 샘을 부를 수 있는 건 그것뿐이야.");
       S.help = 6;
@@ -3275,7 +3280,7 @@ SCENES.pier = (checkpoint) => {
       charlie.x = 60;
       charlie.facing = 1;
       await fadeTo(0, 1);
-      await chapterCard("제4장", "격리 센터");
+      await chapterCard("제5장", "격리 센터");
       await caption("철조망 쪽문에 사원증을 대자, 「삑— 블랙컴퍼니 직원 확인」. 문이 열렸다.");
       await say(charlie, "허드슨 강변의 컨벤션 센터... 루스 할머니는 저 안에 있어.");
       await caption("샘은 찰리의 가방 속에서 숨을 죽이고 있다.");
@@ -3562,9 +3567,9 @@ SCENES.lab = () => {
       await say(ruth, "가, 찰리! 옥상이야. 난 갇힌 사람들을 풀어 줄게.");
       await say(charlie, "...기다려, 샘. 금방 갈게.");
       F.ch4 = 1;
-      unlock(5);
+      unlock(6);
       await fadeTo(1, 1.4);
-      await chapterCard("제4장 끝", "");
+      await chapterCard("제5장 끝", "");
       await goScene("helipad", 0, false);
     },
   };
@@ -3911,7 +3916,7 @@ SCENES.epiA = () => {
     hotspots: [],
     zones: [],
     start: async () => {
-      unlock(6);
+      unlock(7);
       charlie.x = info.door;
       charlie.facing = 1;
       sam.visible = true;
@@ -3971,7 +3976,7 @@ SCENES.epiB = () => {
     hotspots: [],
     zones: [],
     start: async () => {
-      unlock(6);
+      unlock(7);
       charlie.x = ROOM.armchair + 2;
       charlie.y = 200;
       charlie.facing = 1;
@@ -5405,7 +5410,8 @@ export function titleItems(): string[] {
   if (un >= 2) items.push("제2장부터");
   if (un >= 3) items.push("제3장부터");
   if (un >= 4) items.push("제4장부터");
-  if (un >= 5) items.push("최종장부터");
+  if (un >= 5) items.push("제5장부터");
+  if (un >= 6) items.push("최종장부터");
   items.push(`추억 앨범 ${photosFound().length}/${PHOTOS.length}`);
   items.push(`샘 꾸미기: ${COSTUMES.find((c) => c.id === costume())?.name ?? "없음"} (참치캔 ${cansFound().length}/${CANS_TOTAL})`);
   items.push(`체형: ${S.build === BUILD_3 ? "3등신" : "2.5등신"}`);
@@ -5465,7 +5471,10 @@ export function updateTitle(): void {
     void goScene("roofs", 0, false);
   } else if (label === "제4장부터") {
     S.flags = { supplies: 1, ch1: 1, ch2: 1, ch3: 1, treats: 1 };
-    void goScene("bcLobby", 70, false);
+    void goScene("mLobby", 70, false);
+  } else if (label === "제5장부터") {
+    S.flags = { supplies: 1, ch1: 1, ch2: 1, ch3: 1, ch4a: 1, treats: 1 };
+    void goScene("pier", 0, false);
   } else if (label === "최종장부터") {
     S.flags = { supplies: 1, ch1: 1, ch2: 1, ch3: 1, ch4: 1, treats: 1 };
     void goScene("helipad", 0, false);
@@ -5579,11 +5588,16 @@ export function prewarm(): void {
   for (let i = 0; i < 8; i++) poses.push(`climb${i}`, `stair${i}`, `front${i}`, `crouch${i}L`);
   for (let i = 0; i < 16; i++) poses.push(`walk${i}L`);
   for (let i = 0; i < 4; i++) poses.push(`raise${i}`);
-  for (const p of poses) for (const f of [1, -1] as const) human(CHARLIE, "charlie", p, S.build, f);
+  // 처음 화면에 꼭 필요한 것만 바로 굽고, 나머지는 게임 중 남는 시간에
+  const now = new Set(poses.slice(0, 28));
+  for (const p of poses) for (const f of [1, -1] as const) {
+    if (now.has(p) && f === 1) human(CHARLIE, "charlie", p, S.build, f);
+    else bakeQueue.push(() => human(CHARLIE, "charlie", p, S.build, f));
+  }
   const catPoses: string[] = ["blink", "startle", "loaf", "butt", "jump"];
   for (let i = 0; i < 16; i++) catPoses.push(`walk${i}`);
   for (let i = 0; i < 8; i++) catPoses.push(`sitT${i}`);
-  for (const p of catPoses) for (const f of [1, -1] as const) cat(p, f);
+  for (const p of catPoses) for (const f of [1, -1] as const) bakeQueue.push(() => cat(p, f));
   // 다른 등장인물은 게임 중 남는 시간에 조금씩 굽는다
   const others: Array<[Look, string]> = [[ADDICT, "addict"], [STRANGERS[0], "st0"], [STRANGERS[1], "st1"], [STRANGERS[2], "st2"], [SKELETON, "sk"], [FROGMAN, "frog"], [FROG_KING, "frogking"], [RUTH, "ruth"], [TOMAS, "tomas"], [HAZMAT, "hazmat"], [BOSS, "boss"]];
   for (const [look, id] of others) {

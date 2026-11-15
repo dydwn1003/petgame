@@ -43,6 +43,7 @@ import {
   type Hotspot,
   type Light,
   type Scene,
+  unlock,
 } from "./game";
 
 Object.assign(ITEMS, {
@@ -1390,6 +1391,7 @@ room({
     }
   },
   enter: async () => {
+    await chapterCard("제2장", "개구리 굴");
     await caption("24시 약국. 셔터는 반쯤 부서졌고, 안에서 약통 흔드는 소리가 들린다.");
     await say(charlie, "건전지만 찾으면 돼. 계산대 너머 진열대에 있을 거야.");
     await caption("약을 찾아 서성이는 사람들이 있다. 가까이 가면 달려든다. ↓(살금살금)로 걷거나...");
@@ -1449,6 +1451,9 @@ SCENES.march5 = () => {
         dir: 1,
         run: async () => {
           await say(charlie, "하아... 겨우 빠져나왔다. 부두는 이쪽이야.");
+          F().ch4a = 1;
+          unlock(5);
+          await chapterCard("제4장 끝", "");
           await goScene("pier", 0);
         },
       },
@@ -1966,6 +1971,7 @@ room({
     }
   },
   enter: async () => {
+    await chapterCard("제4장", "별의 조각");
     await caption("미국 자연사 박물관. 깨진 천장 유리 사이로 초록빛이 스며든다.");
     await say(charlie, "라디오에서 말한 박사님은 '운석관'에 있다고 했지.");
   },

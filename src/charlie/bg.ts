@@ -3,7 +3,7 @@ import { FONT, GROUND, H } from "./core";
 import { makeDense, mix, pixelize, rng } from "./pixel";
 
 /** 배경은 논리 좌표의 4배 밀도로 칠한다 (1/4 칸 = 1도트) */
-export const BG_SCALE = 4;
+export const BG_SCALE = 2;
 
 type G = CanvasRenderingContext2D;
 
@@ -3022,7 +3022,22 @@ function drawProp(g: G, kind: PropKind, x: number, r: () => number): void {
   }
 }
 
+// 최근에 지은 방 몇 개는 다시 짓지 않는다 (문으로 오갈 때 빠르게)
+const roomCache = new Map<string, HTMLCanvasElement>();
 export function buildInterior(theme: Theme, width: number, seed: number, doors: DoorDef[], props: Array<[PropKind, number]> = []): HTMLCanvasElement {
+  const key = JSON.stringify([theme, width, seed, doors, props]);
+  const hit = roomCache.get(key);
+  if (hit) {
+    roomCache.delete(key);
+    roomCache.set(key, hit);
+    return hit;
+  }
+  const c = buildInteriorRaw(theme, width, seed, doors, props);
+  roomCache.set(key, c);
+  if (roomCache.size > 6) roomCache.delete(roomCache.keys().next().value as string);
+  return c;
+}
+function buildInteriorRaw(theme: Theme, width: number, seed: number, doors: DoorDef[], props: Array<[PropKind, number]>): HTMLCanvasElement {
   const c = makeDense(width, H, BG_SCALE);
   const g = c.getContext("2d")!;
   const r = rng(seed);
