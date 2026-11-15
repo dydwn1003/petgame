@@ -975,19 +975,36 @@ export const FRIDGE_SPOTS = {
   sausage: { x: 168, y: 214 },
 };
 
+/** 원통 명암 (왼쪽 빛 → 오른쪽 그늘) */
+function cylFill(g: G, x: number, y: number, w: number, h: number, base: string): void {
+  const gr = g.createLinearGradient(x, 0, x + w, 0);
+  gr.addColorStop(0, mix(base, 0.05));
+  gr.addColorStop(0.22, mix(base, 0.38));
+  gr.addColorStop(0.45, base);
+  gr.addColorStop(0.85, mix(base, -0.3));
+  gr.addColorStop(1, mix(base, -0.45));
+  g.fillStyle = gr;
+  g.fillRect(x, y, w, h);
+}
 function can(g: G, x: number, y: number, w: number, h: number, body: string, label: string, mark: string): void {
-  rect(g, x, y + 2, w, h - 3, body);
-  rect(g, x + 1, y + 2, 1, h - 3, mix(body, 0.35));
-  rect(g, x + 2, y + 2, 1, h - 3, mix(body, 0.15));
-  rect(g, x + w - 2, y + 2, 2, h - 3, mix(body, -0.35));
-  rect(g, x + 1, y, w - 2, 2, "#c8c8d0");
-  rect(g, x + 2, y, w - 4, 1, "#e8e8f0");
-  rect(g, x + 1, y + h - 1, w - 2, 1, "#9a9aa4");
+  // 바닥 그림자
+  g.fillStyle = "rgba(40,60,70,0.25)";
+  g.beginPath();
+  g.ellipse(x + w / 2 + 1, y + h, w / 2 + 1, 1.6, 0, 0, Math.PI * 2);
+  g.fill();
+  cylFill(g, x, y + 2, w, h - 3, body);
   if (label) {
-    rect(g, x, y + Math.floor(h * 0.35), w, Math.floor(h * 0.3), label);
-    rect(g, x + w - 2, y + Math.floor(h * 0.35), 2, Math.floor(h * 0.3), mix(label, -0.3));
+    cylFill(g, x, y + Math.floor(h * 0.35), w, Math.floor(h * 0.3), label);
     rect(g, x + Math.floor(w / 2) - 1, y + Math.floor(h * 0.42), 3, 3, mark);
   }
+  // 윗면 테두리 (타원) + 따는 곳
+  cylFill(g, x + 0.5, y + 0.5, w - 1, 2, "#b8b8c4");
+  g.fillStyle = "#d8d8e2";
+  g.beginPath();
+  g.ellipse(x + w / 2, y + 1, w / 2 - 1, 1.2, 0, 0, Math.PI * 2);
+  g.fill();
+  rect(g, x + w / 2 - 1, y + 0.5, 2, 1, "#8a8a96");
+  cylFill(g, x + 0.5, y + h - 1.5, w - 1, 1.5, "#9a9aa6");
 }
 
 function hangingFish(g: G, x: number, top: number, len: number): void {
@@ -1027,7 +1044,6 @@ function hangingFish(g: G, x: number, top: number, len: number): void {
 export function buildFridge(): HTMLCanvasElement {
   const c = makeDense(480, H, BG_SCALE);
   const g = c.getContext("2d")!;
-  const r = rng(99);
   // 부엌 벽 (타일)
   rect(g, 0, 0, 480, H, "#3a2e30");
   for (let ty = 0; ty < H; ty += 10) for (let tx = (ty / 10) % 2 ? 5 : 0; tx < 480; tx += 10) {
@@ -1043,12 +1059,27 @@ export function buildFridge(): HTMLCanvasElement {
   const iw = 352;
   const ih = 246;
   vgrad(g, ix, iy, iw, iy + ih, [[0, "#f4fafc"], [0.5, "#dbe8ee"], [1, "#b4c8d2"]]);
-  // 양옆 벽 (원근)
-  for (let i = 0; i < 12; i++) {
-    rect(g, ix + i, iy + i, 1, ih - i * 2, mix("#c4d4dc", -i * 0.012));
-    rect(g, ix + iw - 1 - i, iy + i, 1, ih - i * 2, mix("#b8c8d2", -i * 0.012));
-  }
-  rect(g, ix, iy, iw, 2, "#a8bcc8");
+  // 안쪽 상자: 뒷벽 · 옆벽 · 천장을 원근으로 (깊이감)
+  const D = 26; // 안쪽으로 들어간 깊이
+  const poly = (pts: Array<[number, number]>, fill: string | CanvasGradient) => {
+    g.fillStyle = fill;
+    g.beginPath();
+    pts.forEach(([px, py], k) => (k ? g.lineTo(px, py) : g.moveTo(px, py)));
+    g.closePath();
+    g.fill();
+  };
+  const lw = g.createLinearGradient(ix, 0, ix + D, 0);
+  lw.addColorStop(0, "#b4c6d0");
+  lw.addColorStop(1, "#d8e6ec");
+  poly([[ix, iy], [ix + D, iy + D * 0.7], [ix + D, iy + ih - D * 0.7], [ix, iy + ih]], lw);
+  const rw = g.createLinearGradient(ix + iw - D, 0, ix + iw, 0);
+  rw.addColorStop(0, "#c8d8e0");
+  rw.addColorStop(1, "#9ab0bc");
+  poly([[ix + iw, iy], [ix + iw - D, iy + D * 0.7], [ix + iw - D, iy + ih - D * 0.7], [ix + iw, iy + ih]], rw);
+  poly([[ix, iy], [ix + iw, iy], [ix + iw - D, iy + D * 0.7], [ix + D, iy + D * 0.7]], "#e8f0f4");
+  poly([[ix, iy + ih], [ix + iw, iy + ih], [ix + iw - D, iy + ih - D * 0.7], [ix + D, iy + ih - D * 0.7]], "#a8bcc8");
+  // 뒷벽의 결 (세로 홈)
+  for (let x2 = ix + D + 10; x2 < ix + iw - D; x2 += 22) rect(g, x2, iy + D * 0.7, 0.5, ih - D * 1.4, "rgba(120,150,165,0.25)");
   // 전구와 빛
   const glow = g.createRadialGradient(210, 24, 2, 210, 24, 150);
   glow.addColorStop(0, "rgba(255,252,230,0.85)");
@@ -1057,15 +1088,16 @@ export function buildFridge(): HTMLCanvasElement {
   g.fillRect(ix, iy, iw, ih);
   rect(g, 198, 20, 24, 6, "#e8e8e0");
   rect(g, 202, 24, 16, 3, "#fffbe0");
-  // 유리 선반
+  // 유리 선반: 뒤로 갈수록 좁아지는 윗면 + 두께 있는 앞날
   for (const sy of [104, 180]) {
-    rect(g, ix + 4, sy, iw - 8, 4, "rgba(170,210,230,0.55)");
+    poly([[ix + 4, sy], [ix + iw - 4, sy], [ix + iw - D, sy - 12], [ix + D, sy - 12]], "rgba(190,225,240,0.35)");
+    rect(g, ix + D, sy - 12, iw - D * 2, 0.5, "rgba(255,255,255,0.6)");
+    rect(g, ix + 4, sy, iw - 8, 4, "rgba(170,210,230,0.7)");
     rect(g, ix + 4, sy, iw - 8, 1, "#ffffff");
-    rect(g, ix + 4, sy + 3, iw - 8, 2, "#8aa8b8");
-    rect(g, ix + 4, sy + 5, iw - 8, 3, "rgba(60,90,110,0.18)");
+    rect(g, ix + 4, sy + 3, iw - 8, 2, "#7a98a8");
+    rect(g, ix + 4, sy + 5, iw - 8, 4, "rgba(60,90,110,0.16)");
     for (const ex of [ix + 2, ix + iw - 4]) rect(g, ex, sy - 1, 2, 7, "#9ab0bc");
   }
-
   // ── 위 칸: 맥주 · 에너지 드링크 · 매달린 생선
   for (let i = 0; i < 7; i++) can(g, 52 + i * 15, 70, 13, 34, "#c4302a", "#f0e2b0", "#c4302a");
   rect(g, 50, 96, 54, 8, "#a8845a");
@@ -1081,33 +1113,60 @@ export function buildFridge(): HTMLCanvasElement {
 
   // ── 가운데 칸: 고양이 통조림 탑 · 랩 씌운 고기 · 중국집 포장 박스
   const tin = (tx: number, ty: number) => {
-    rect(g, tx, ty, 20, 12, "#e8862a");
-    rect(g, tx, ty, 20, 2, "#d8d8e0");
-    rect(g, tx, ty + 1, 20, 1, "#a8a8b0");
-    rect(g, tx + 1, ty + 2, 1, 10, "#f8a84a");
-    rect(g, tx + 18, ty + 2, 2, 10, "#b8601a");
+    cylFill(g, tx, ty + 1, 20, 11, "#e8862a");
+    // 윗면 뚜껑 (타원 + 링)
+    g.fillStyle = "#c8c8d2";
+    g.beginPath();
+    g.ellipse(tx + 10, ty + 1.5, 10, 2, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#e8e8f0";
+    g.beginPath();
+    g.ellipse(tx + 10, ty + 1.2, 8, 1.3, 0, 0, Math.PI * 2);
+    g.fill();
+    rect(g, tx + 9, ty + 0.6, 2, 1, "#8a8a96");
+    // 고양이 얼굴 라벨
     rect(g, tx + 5, ty + 4, 10, 6, "#fff8f0");
     rect(g, tx + 7, ty + 5, 1, 1, "#7a7a8a");
     rect(g, tx + 12, ty + 5, 1, 1, "#7a7a8a");
     rect(g, tx + 8, ty + 6, 4, 3, "#c3c6d0");
     rect(g, tx + 9, ty + 7, 1, 1, "#2a2a2a");
     rect(g, tx + 11, ty + 7, 1, 1, "#2a2a2a");
+    rect(g, tx, ty + 11.5, 20, 0.5, "rgba(0,0,0,0.3)");
   };
   for (let k = 0; k < 3; k++) tin(52 + k * 22, 168);
   for (let k = 0; k < 2; k++) tin(63 + k * 22, 156);
   tin(74, 144);
-  // 접시
-  rect(g, 228, 172, 100, 4, "#f4f4f0");
-  rect(g, 236, 170, 84, 2, "#ffffff");
-  rect(g, 232, 176, 92, 1, "#b8bcc0");
-  // 고기
-  for (let row = 0; row < 22; row++) {
-    const half = Math.round(Math.sqrt(1 - ((row - 11) / 11.5) ** 2) * 34);
-    const col = row < 4 ? "#7a3a22" : row < 14 ? "#9a4e2e" : "#7a3a22";
-    rect(g, 278 - half, 148 + row, half * 2, 1, col);
-    if (row > 3 && row < 18) rect(g, 278 - half, 148 + row, 3, 1, "#5a2814");
+  // 접시 (타원)
+  g.fillStyle = "rgba(60,90,110,0.25)";
+  g.beginPath();
+  g.ellipse(279, 177, 50, 4, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#e8e8e4";
+  g.beginPath();
+  g.ellipse(278, 173, 50, 5, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#ffffff";
+  g.beginPath();
+  g.ellipse(278, 172, 42, 3.5, 0, 0, Math.PI * 2);
+  g.fill();
+  // 고기 덩어리: 둥근 입체 + 기름 결
+  const mg = g.createRadialGradient(266, 152, 3, 278, 160, 36);
+  mg.addColorStop(0, "#c8704a");
+  mg.addColorStop(0.5, "#9a4e2e");
+  mg.addColorStop(1, "#5a2814");
+  g.fillStyle = mg;
+  g.beginPath();
+  g.ellipse(278, 160, 34, 12, 0, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = "rgba(240,210,180,0.6)";
+  g.lineWidth = 0.75;
+  for (let i = 0; i < 4; i++) {
+    g.beginPath();
+    g.moveTo(254 + i * 12, 152 + (i % 2) * 2);
+    g.quadraticCurveTo(262 + i * 12, 160, 256 + i * 12, 168);
+    g.stroke();
   }
-  for (let i = 0; i < 9; i++) rect(g, 256 + Math.floor(r() * 40), 152 + Math.floor(r() * 12), 3, 1, "#c8724a");
+  // 뼈
   rect(g, 306, 146, 18, 4, "#ece4d0");
   rect(g, 322, 143, 4, 3, "#ece4d0");
   rect(g, 322, 149, 4, 3, "#ece4d0");
@@ -1116,15 +1175,15 @@ export function buildFridge(): HTMLCanvasElement {
   g.fillStyle = "rgba(255,255,255,0.45)";
   for (let i = 0; i < 3; i++) g.fillRect(250 + i * 22, 146 + i, 10, 1);
   g.fillRect(244, 150, 1, 18);
-  // 포장 박스
-  rect(g, 340, 150, 30, 26, "#f4f0e8");
-  rect(g, 340, 150, 30, 1, "#ffffff");
-  rect(g, 368, 150, 2, 26, "#c8c4bc");
-  rect(g, 344, 146, 22, 4, "#e8e4dc");
+  // 포장 박스: 앞면 · 옆면 · 접힌 윗면
+  rect(g, 340, 150, 28, 26, "#f4f0e8");
+  poly([[368, 150], [376, 144], [376, 170], [368, 176]], "#cfc9bc");
+  poly([[340, 150], [368, 150], [376, 144], [348, 144]], "#fffcf4");
+  poly([[344, 144], [354, 138], [366, 138], [360, 144]], "#e8e2d4");
   rect(g, 352, 158, 8, 8, "#c83a2a");
   rect(g, 354, 156, 4, 2, "#c83a2a");
-  rect(g, 354, 140, 1, 8, "#9a9a9a");
-
+  rect(g, 355, 132, 0.75, 9, "#9a9a9a");
+  rect(g, 340, 175, 36, 1, "rgba(0,0,0,0.25)");
   // ── 아래 칸: 매달린 소시지 · 야채 서랍
   rect(g, 52, 186, 236, 1, "#8a8270");
   for (let i = 0; i < 10; i++) {
@@ -1133,21 +1192,26 @@ export function buildFridge(): HTMLCanvasElement {
     rect(g, sx + 4, 187, 1, 3 + drop, "#8a8270");
     for (let link = 0; link < 2; link++) {
       const ly = 190 + drop + link * 17;
-      rect(g, sx + 1, ly, 7, 14, "#9a3a26");
-      rect(g, sx + 2, ly - 1, 5, 1, "#9a3a26");
-      rect(g, sx + 2, ly + 14, 5, 1, "#9a3a26");
-      rect(g, sx + 2, ly + 1, 2, 12, "#c8604a");
-      rect(g, sx + 6, ly + 1, 2, 12, "#6a2416");
-      rect(g, sx + 3, ly + 4, 1, 1, "#e8a080");
+      cylFill(g, sx + 1, ly + 1, 7, 12, "#9a3a26");
+      g.fillStyle = "#8a3220";
+      g.beginPath();
+      g.ellipse(sx + 4.5, ly + 1, 3.2, 1.6, 0, 0, Math.PI * 2);
+      g.ellipse(sx + 4.5, ly + 13, 3.2, 1.6, 0, 0, Math.PI * 2);
+      g.fill();
+      rect(g, sx + 2.5, ly + 3, 1, 6, "rgba(255,210,180,0.55)");
       if (link === 0) rect(g, sx + 3, ly + 15, 3, 2, "#e8d8b0");
     }
   }
   for (const [dx, dw] of [[40, 166], [212, 168]] as const) {
-    rect(g, dx, 228, dw, 34, "rgba(200,225,235,0.55)");
+    // 서랍 윗면(안쪽으로 비스듬히) + 투명 앞판 + 손잡이 홈
+    poly([[dx, 228], [dx + dw, 228], [dx + dw - 8, 220], [dx + 8, 220]], "rgba(210,232,240,0.6)");
+    rect(g, dx, 228, dw, 34, "rgba(200,225,235,0.5)");
     rect(g, dx, 228, dw, 1, "#ffffff");
     rect(g, dx, 228, 1, 34, "#e8f4f8");
     rect(g, dx + dw - 1, 228, 1, 34, "#8aa8b8");
-    rect(g, dx + dw / 2 - 12, 234, 24, 3, "#9ab4c4");
+    rect(g, dx, 260, dw, 2, "rgba(60,90,110,0.3)");
+    rect(g, dx + dw / 2 - 12, 233, 24, 3, "#7a98a8");
+    rect(g, dx + dw / 2 - 12, 233, 24, 1, "#5a7888");
   }
   // 시든 상추
   for (let i = 0; i < 8; i++) {
@@ -1157,36 +1221,72 @@ export function buildFridge(): HTMLCanvasElement {
   rect(g, 240, 246, 30, 10, "#d87a2a");
   rect(g, 244, 244, 6, 3, "#4a8a3a");
 
-  // ── 열린 문 (오른쪽)
-  for (let i = 0; i < 76; i++) {
-    const k = i / 76;
-    rect(g, 402 + i, 8 + Math.round(k * 10), 1, 254 - Math.round(k * 20), mix("#e4e2da", -0.05 - k * 0.12));
-  }
-  rect(g, 402, 8, 4, 254, "#9a9a92");
-  rect(g, 403, 8, 1, 254, "#6a6a64");
-  for (const by of [60, 130, 200]) {
-    rect(g, 410, by, 64, 4, "#c8d8e0");
-    rect(g, 410, by, 64, 1, "#ffffff");
-    rect(g, 410, by + 4, 64, 2, "rgba(0,0,0,0.2)");
-  }
-  // 문 칸 내용물: 케첩 · 머스터드 · 우유 · 계란
-  rect(g, 416, 40, 9, 20, "#c82a22");
-  rect(g, 418, 36, 5, 4, "#e8e8e8");
-  rect(g, 417, 42, 2, 16, "#e85a4a");
-  rect(g, 430, 42, 9, 18, "#e8c82a");
-  rect(g, 432, 38, 5, 4, "#c83a2a");
-  rect(g, 431, 44, 2, 14, "#fff07a");
-  rect(g, 446, 30, 18, 30, "#f4f4f4");
-  rect(g, 446, 26, 18, 4, "#e4e4e4");
-  rect(g, 450, 22, 10, 4, "#4a8ae8");
-  rect(g, 448, 38, 14, 10, "#4a8ae8");
-  rect(g, 446, 30, 2, 30, "#ffffff");
-  rect(g, 462, 30, 2, 30, "#c8c8c8");
+  // ── 열린 문 (오른쪽, 안쪽 면이 보이게 비스듬히)
+  // 문 두께 (경첩 쪽 모서리)
+  poly([[398, 8], [404, 8], [404, 262], [398, 262]], "#b8b6ae");
+  rect(g, 398, 8, 1, 254, "#8a8a84");
+  // 고무 패킹
+  poly([[404, 10], [410, 12], [410, 258], [404, 260]], "#8a8e90");
+  // 문 안쪽 판: 멀어질수록 짧아진다
+  const dl = g.createLinearGradient(410, 0, 478, 0);
+  dl.addColorStop(0, "#f2f4f2");
+  dl.addColorStop(1, "#c8ccc8");
+  poly([[410, 12], [478, 22], [478, 248], [410, 258]], dl);
+  // 문 칸 (트레이): 뒤판 · 바닥 · 반투명 앞날
+  const doorY = (x: number, y: number) => y + ((x - 410) / 68) * ((y - 135) * -0.08);
+  const tray = (ty: number) => {
+    poly([[412, ty - 22], [476, doorY(476, ty - 22)], [476, doorY(476, ty)], [412, ty]], "rgba(225,232,236,0.6)");
+    poly([[412, ty], [476, doorY(476, ty)], [476, doorY(476, ty + 3)], [412, ty + 3]], "#dfe6ea");
+    return () => {
+      poly([[411, ty - 8], [477, doorY(477, ty - 8)], [477, doorY(477, ty + 4)], [411, ty + 4]], "rgba(200,225,235,0.55)");
+      poly([[411, ty - 8], [477, doorY(477, ty - 8)], [477, doorY(477, ty - 7)], [411, ty - 7]], "#ffffff");
+      poly([[411, ty + 3], [477, doorY(477, ty + 3)], [477, doorY(477, ty + 5)], [411, ty + 5]], "rgba(0,0,0,0.22)");
+    };
+  };
+  // 위 칸: 케첩 · 머스터드 · 우유
+  const lip1 = tray(60);
+  const bottle = (bx: number, top: number, w: number, col: string, cap: string) => {
+    cylFill(g, bx, top + 4, w, 60 - top - 4, col);
+    cylFill(g, bx + w / 2 - 2.5, top, 5, 4, cap);
+    rect(g, bx + 1.5, top + 6, 1, 60 - top - 10, "rgba(255,255,255,0.5)");
+  };
+  bottle(416, 36, 9, "#c82a22", "#e8e8e8");
+  bottle(430, 38, 9, "#e8c82a", "#c83a2a");
+  // 우유 팩: 앞면 + 옆면 + 지붕
+  rect(g, 446, 30, 14, 30, "#f4f4f4");
+  poly([[460, 30], [465, 28], [465, 59], [460, 60]], "#d0d2d4");
+  poly([[446, 30], [453, 24], [460, 30]], "#e6e6e6");
+  poly([[453, 24], [458, 22], [465, 28], [460, 30]], "#c8cacc");
+  rect(g, 448, 38, 10, 10, "#4a8ae8");
+  rect(g, 449, 40, 8, 2, "#ffffff");
+  lip1();
+  // 가운데 칸: 계란 (홈에 놓인 달걀)
+  const lip2 = tray(130);
   for (let i = 0; i < 4; i++) {
-    rect(g, 416 + i * 13, 120, 10, 10, "#f0e4cc");
-    rect(g, 418 + i * 13, 120, 4, 2, "#fffaf0");
+    const ex = 420 + i * 14;
+    g.fillStyle = "rgba(120,110,90,0.35)";
+    g.beginPath();
+    g.ellipse(ex, 130, 5, 1.6, 0, 0, Math.PI * 2);
+    g.fill();
+    const eg = g.createRadialGradient(ex - 2, 118, 1, ex, 122, 8);
+    eg.addColorStop(0, "#fffaf0");
+    eg.addColorStop(0.6, "#efe0c4");
+    eg.addColorStop(1, "#c8b494");
+    g.fillStyle = eg;
+    g.beginPath();
+    g.ellipse(ex, 123, 4.6, 6.4, 0, 0, Math.PI * 2);
+    g.fill();
   }
-  rect(g, 414, 128, 56, 2, "#a8a090");
+  lip2();
+  // 아래 칸: 버터 · 잼병
+  const lip3 = tray(200);
+  rect(g, 418, 186, 20, 14, "#f4e8a0");
+  poly([[418, 186], [438, 186], [442, 182], [422, 182]], "#fff6c0");
+  rect(g, 418, 186, 20, 1, "#d8c870");
+  cylFill(g, 446, 180, 14, 20, "#8a2a4a");
+  cylFill(g, 446, 177, 14, 4, "#d8b040");
+  rect(g, 448, 188, 10, 6, "#f4ecd8");
+  lip3();
   // 메모
   rect(g, 412, 150, 50, 36, "#fff6a0");
   rect(g, 412, 150, 50, 2, "#f0e070");

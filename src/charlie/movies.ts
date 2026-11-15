@@ -367,59 +367,114 @@ function drawEarth(x: number, y: number, r: number, t: number): void {
   g.imageSmoothingEnabled = false;
 }
 
-/** 운석: 울퉁불퉁한 바위 + 초록빛 균열, 겹겹의 꼬리와 불꽃 */
+/**
+ * 운석: 조금 찌그러진 자연스러운 구. 겉은 그을린 암석 껍질,
+ * 갈라진 틈과 얇은 껍질 너머로 안에 든 초록 바이러스가 은은히 비친다.
+ * 뒤로는 타면서 흩어지는 가스 꼬리.
+ */
 function meteorRock(x: number, y: number, ang: number, size: number, t: number, len: number): void {
+  const R = size * 2.1;
   const ca = Math.cos(ang), sa = Math.sin(ang);
-  // 꼬리: 넓고 옅은 초록 → 좁고 밝은 속심
-  for (const [w, l, c0] of [[size * 5, len * 1.5, "rgba(80,220,140,0.08)"], [size * 3.4, len * 1.2, "rgba(110,240,160,0.14)"], [size * 2, len, "rgba(150,255,190,0.28)"], [size * 1, len * 0.6, "rgba(240,255,235,0.7)"]] as Array<[number, number, string]>) {
-    const gr = g.createLinearGradient(x, y, x - ca * l, y - sa * l);
-    gr.addColorStop(0, c0);
-    gr.addColorStop(1, "rgba(80,220,140,0)");
+  // 가스 꼬리: 뒤로 갈수록 커지고 옅어지는 둥근 연기 덩어리들
+  for (let i = 26; i >= 1; i--) {
+    const k = i / 26;
+    const wob = Math.sin(t * 3 + i * 1.7) * R * 0.5 * k;
+    const px = x - ca * len * k - sa * wob;
+    const py = y - sa * len * k + ca * wob;
+    const rad = R * (0.9 + k * 2.2);
+    const a = (1 - k) * 0.28;
+    const gr = g.createRadialGradient(px, py, 0, px, py, rad);
+    gr.addColorStop(0, `rgba(${Math.round(180 + 60 * (1 - k))},255,${Math.round(190 + 40 * (1 - k))},${a.toFixed(3)})`);
+    gr.addColorStop(1, "rgba(90,220,140,0)");
     g.fillStyle = gr;
     g.beginPath();
-    g.moveTo(x + sa * w, y - ca * w);
-    g.lineTo(x - ca * l, y - sa * l);
-    g.lineTo(x - sa * w, y + ca * w);
-    g.closePath();
+    g.arc(px, py, rad, 0, Math.PI * 2);
     g.fill();
   }
-  // 둘레의 플라스마 빛
-  const glow = g.createRadialGradient(x, y, 0, x, y, size * 7);
-  glow.addColorStop(0, "rgba(200,255,210,0.75)");
-  glow.addColorStop(0.4, "rgba(110,255,160,0.25)");
+  // 앞쪽 공기 마찰로 빛나는 플라스마 막
+  const glow = g.createRadialGradient(x + ca * R * 0.3, y + sa * R * 0.3, R * 0.6, x, y, R * 3.4);
+  glow.addColorStop(0, "rgba(210,255,220,0.55)");
+  glow.addColorStop(0.5, "rgba(110,255,160,0.18)");
   glow.addColorStop(1, "rgba(110,255,160,0)");
   g.fillStyle = glow;
   g.beginPath();
-  g.arc(x, y, size * 7, 0, Math.PI * 2);
+  g.arc(x, y, R * 3.4, 0, Math.PI * 2);
   g.fill();
-  // 바위
+  // 본체: 살짝 울퉁불퉁한 구 (윤곽에 잔물결)
   g.save();
   g.translate(x, y);
-  g.rotate(t * 1.6);
-  const rr = rng(808);
-  g.fillStyle = "#2a2e2a";
-  g.beginPath();
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2;
-    const d = size * (1.6 + rr() * 0.7);
-    if (i === 0) g.moveTo(Math.cos(a) * d, Math.sin(a) * d);
-    else g.lineTo(Math.cos(a) * d, Math.sin(a) * d);
+  const rot = t * 0.7;
+  const outline = (scale: number) => {
+    g.beginPath();
+    for (let i = 0; i <= 36; i++) {
+      const a = (i / 36) * Math.PI * 2;
+      const bump = 1 + Math.sin(a * 3 + rot) * 0.05 + Math.sin(a * 5 - rot * 1.3) * 0.035 + Math.sin(a * 2 + 1) * 0.04;
+      const px = Math.cos(a) * R * bump * scale;
+      const py = Math.sin(a) * R * bump * 0.94 * scale;
+      if (i === 0) g.moveTo(px, py);
+      else g.lineTo(px, py);
+    }
+    g.closePath();
+  };
+  // 암석 껍질: 앞(진행 방향)은 달아올라 밝고, 뒤는 어둡다
+  const sh = g.createRadialGradient(ca * R * 0.45, sa * R * 0.45 - R * 0.2, R * 0.1, 0, 0, R * 1.1);
+  sh.addColorStop(0, "#7a8a72");
+  sh.addColorStop(0.45, "#3e4a3c");
+  sh.addColorStop(1, "#141a14");
+  outline(1);
+  g.fillStyle = sh;
+  g.fill();
+  g.save();
+  outline(1);
+  g.clip();
+  // 얇아진 껍질 너머 비치는 초록 바이러스 (맥동)
+  const pulse = 0.55 + 0.25 * Math.sin(t * 4);
+  const inner = g.createRadialGradient(-R * 0.15, R * 0.1, 0, 0, 0, R * 0.9);
+  inner.addColorStop(0, `rgba(170,255,190,${(pulse * 0.6).toFixed(2)})`);
+  inner.addColorStop(1, "rgba(80,220,130,0)");
+  g.fillStyle = inner;
+  g.fillRect(-R, -R, R * 2, R * 2);
+  // 바이러스 알갱이 (돌기 달린 작은 구)
+  for (let i = 0; i < 5; i++) {
+    const a = rot * 0.6 + i * 1.3;
+    const vx = Math.cos(a) * R * 0.42;
+    const vy = Math.sin(a * 1.2) * R * 0.36;
+    g.fillStyle = `rgba(150,255,170,${(0.35 + pulse * 0.3).toFixed(2)})`;
+    g.beginPath();
+    g.arc(vx, vy, R * 0.12, 0, Math.PI * 2);
+    g.fill();
   }
-  g.closePath();
-  g.fill();
-  g.strokeStyle = `rgba(150,255,180,${(0.7 + 0.3 * Math.sin(t * 9)).toFixed(2)})`;
-  g.lineWidth = Math.max(0.5, size * 0.3);
+  // 크레이터
+  for (const [cx2, cy2, cr] of [[-0.35, -0.3, 0.2], [0.3, 0.25, 0.16], [-0.1, 0.45, 0.12], [0.45, -0.25, 0.1]] as Array<[number, number, number]>) {
+    const px = Math.cos(rot) * cx2 * R - Math.sin(rot) * cy2 * R;
+    const py = Math.sin(rot) * cx2 * R + Math.cos(rot) * cy2 * R;
+    g.fillStyle = "rgba(10,14,10,0.55)";
+    g.beginPath();
+    g.ellipse(px, py, cr * R, cr * R * 0.8, rot, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "rgba(160,180,150,0.35)";
+    g.beginPath();
+    g.ellipse(px + cr * R * 0.25, py + cr * R * 0.25, cr * R * 0.7, cr * R * 0.4, rot, 0, Math.PI);
+    g.fill();
+  }
+  // 갈라진 틈으로 새어 나오는 초록빛
+  g.strokeStyle = `rgba(170,255,190,${(0.6 + 0.35 * Math.sin(t * 6)).toFixed(2)})`;
+  g.lineWidth = Math.max(0.5, R * 0.07);
+  g.lineCap = "round";
   g.beginPath();
-  g.moveTo(-size, -size * 0.3);
-  g.lineTo(0, size * 0.2);
-  g.lineTo(size * 0.9, -size * 0.6);
-  g.moveTo(0, size * 0.2);
-  g.lineTo(size * 0.2, size * 1.1);
+  g.moveTo(-R * 0.7, -R * 0.1);
+  g.quadraticCurveTo(-R * 0.2, R * 0.05, R * 0.05, -R * 0.15);
+  g.quadraticCurveTo(R * 0.35, -R * 0.4, R * 0.6, -R * 0.55);
+  g.moveTo(R * 0.05, -R * 0.15);
+  g.quadraticCurveTo(R * 0.15, R * 0.3, R * 0.05, R * 0.7);
   g.stroke();
-  g.fillStyle = "rgba(255,255,240,0.6)";
+  g.restore();
+  // 달아오른 앞쪽 가장자리
+  g.strokeStyle = "rgba(230,255,220,0.55)";
+  g.lineWidth = Math.max(0.5, R * 0.1);
   g.beginPath();
-  g.arc(size * 0.7, size * 0.6, size * 0.6, 0, Math.PI * 2);
-  g.fill();
+  g.arc(0, 0, R * 0.98, ang - 1.1, ang + 1.1);
+  g.stroke();
   g.restore();
 }
 

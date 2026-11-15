@@ -373,7 +373,7 @@ export async function goScene(id: string, checkpoint = 0, fade = true): Promise<
   sam = mkActor("sam", 0, 1, { visible: false });
   petBusy = false;
   petFx.length = 0;
-  S.backpack = id === "street1" || (id === "room" && !S.flags.bagDown);
+  S.backpack = id === "street1" || (id === "room" && !S.flags.bagDown) || !!S.flags.bagOn;
   const sc = SCENES[id](checkpoint);
   S.loading = false;
   S.scene = sc;
@@ -915,6 +915,11 @@ SCENES.room = () => {
     await tween(sam, sam.x + 4, GROUND - 12, 0.18, 0);
     await tween(sam, sam.x + 2, GROUND, 0.16, 0);
     emote(charlie, "!");
+    // 놀란 뒤 잠시 굳었다가 제자리에 다시 앉는다
+    void (async () => {
+      await wait(0.7);
+      sam.pose = "sit";
+    })();
     await say(charlie, "씨...!? 뭐, 뭐야!");
     charlie.pose = null;
     focusCam(205, 1.25);
@@ -953,7 +958,19 @@ SCENES.room = () => {
     shake(0.4);
     emote(charlie, "!");
     await say(charlie, "샘! 안 돼!");
-    await wait(0.4);
+    await wait(0.3);
+    // 현관으로 달려가 가방을 다시 메고 문밖으로
+    await walkTo(charlie, ROOM.door + 30, 90);
+    charlie.facing = -1;
+    await wait(0.2);
+    sfx.step();
+    F.bagDown = 0;
+    F.bagOn = 1;
+    S.backpack = true;
+    await say(charlie, "가방... 챙겨야 해. 샘을 찾으러 가자!");
+    await walkTo(charlie, ROOM.door + 4, 60);
+    sfx.step();
+    await wait(0.3);
     await goScene("apt4", 0);
   };
 
@@ -1089,11 +1106,15 @@ SCENES.room = () => {
           paintOutside(meteor, camX);
           // 창밖으로 나간 샘: 비상계단에 내려앉아 불빛 쪽으로 사라진다
           if (catOut >= 0 && x0 === 178) {
+            // 창 바로 밖 비상계단 발판에 내려앉아 난간 뒤로 걸어 나간다
             const c = Math.min(1, catOut / 0.45);
-            const cx = catOut < 0.45 ? 214 + c * 10 : 224 + (catOut - 0.45) * 34;
-            const cy = catOut < 0.45 ? 139 - Math.sin(c * Math.PI) * 14 - c * 26 : 113;
-            const pose = catOut < 0.45 ? "jump" : `walk${Math.floor(catOut * 18) % 16}`;
-            smoothDraw(cat(pose, 1), half(cx - camX - 10), half(cy - 15), 20, 15);
+            const cx = catOut < 0.45 ? 214 + c * 12 : 226 + (catOut - 0.45) * 30;
+            const cy = catOut < 0.45 ? 139 - Math.sin(c * Math.PI) * 12 - c * 5 : 134;
+            const pose = catOut < 0.45 ? "jump" : `walk${Math.floor(catOut * 14) % 16}`;
+            smoothDraw(cat(pose, 1), half(cx - camX - 20), half(cy - 30), 40, 30);
+            g.fillStyle = "#0a0a10";
+            for (let k = 0; k < w; k += 5) g.fillRect(x0 + k - camX, y0 + h - 20, 1, 20);
+            g.fillRect(x0 - camX, y0 + h - 21, w, 2);
           }
           if (meteor >= IMPACT && x0 === 178) {
             // 깨진 유리 가장자리
@@ -4623,11 +4644,20 @@ function bubbleFor(a: Actor, text: string, sec: number): void {
   a.bubble = text;
   timedBubbles.push({ a, until: clock.t + sec });
 }
-function heartBurst(x: number, y: number, n = 6): void {
+/** 작은 글씨 라벨 (외곽선) */
+function smallLabel(str: string, x: number, y: number, col: string): void {
+  g.font = "8px Galmuri11";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillStyle = "#000";
+  for (const [dx, dy] of [[-0.5, 0], [0.5, 0], [0, -0.5], [0, 0.5]]) g.fillText(str, Math.round(x * 2) / 2 + dx, Math.round(y * 2) / 2 + dy);
+  g.fillStyle = col;
+  g.fillText(str, Math.round(x * 2) / 2, Math.round(y * 2) / 2);
+}
+function heartBurst(x: number, y: number, n = 3): void {
+  // 하나씩 차례로 피어올라 흔들리며 날아간다 (타이틀 화면처럼)
   for (let i = 0; i < n; i++) {
-    const ang = -Math.PI / 2 + (i / (n - 1) - 0.5) * 2.2 + (Math.random() - 0.5) * 0.3;
-    const sp = 22 + Math.random() * 18;
-    petFx.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, t: 0, life: 0.8 + Math.random() * 0.35, s: Math.random() < 0.3 ? 0.75 : 1 });
+    petFx.push({ x: x + (Math.random() - 0.5) * 18, y, vx: (Math.random() - 0.5) * 10, vy: -(13 + Math.random() * 6), t: -i * (0.18 + Math.random() * 0.1), life: 1.5 + Math.random() * 0.4, s: Math.random() < 0.35 ? 0.75 : 1 });
   }
 }
 function drawPetFx(camX: number): void {
@@ -4635,27 +4665,24 @@ function drawPetFx(camX: number): void {
   for (let i = petFx.length - 1; i >= 0; i--) {
     const h = petFx[i];
     h.t += dt;
+    if (h.t < 0) continue;
     h.x += h.vx * dt;
     h.y += h.vy * dt;
-    h.vx *= 0.92;
-    h.vy = h.vy * 0.92 - 6 * dt;
     const k = h.t / h.life;
     if (k >= 1) {
       petFx.splice(i, 1);
       continue;
     }
-    // 처음엔 톡 커졌다가 작아지며 사라진다
-    const pop = k < 0.15 ? 0.6 + (k / 0.15) * 0.6 : 1.2 - (k - 0.15) * 0.5;
-    pixelHeart(h.x - camX, h.y, Math.max(0, 1 - Math.max(0, k - 0.5) * 2), Math.max(0.4, pop * h.s));
-    if (k < 0.3 && Math.floor(h.t * 20) % 2 === 0) {
-      g.fillStyle = "#fff4f8";
-      g.fillRect(h.x - camX + 4, h.y - 2, 1, 1);
-    }
+    const a = k < 0.12 ? k / 0.12 : 1 - (k - 0.12) / 0.88;
+    const sway = Math.sin(h.t * 5 + h.vx) * 2.2;
+    pixelHeart(h.x + sway - camX, h.y, Math.max(0, a), (k < 0.1 ? 0.6 + k * 4 : 1) * h.s * 1.3);
   }
+  // 쓰담 안내 (작은 글씨, 인물 배율과 상관없이)
+  if (sam.visible && canPet() && !petBusy && !(petLabel && clock.t < petLabel.until)) smallLabel("[C] 쓰담", sam.x - camX, half(sam.y) - headTop(sam) - 4, "#ffd6e6");
   if (petLabel && clock.t < petLabel.until) {
     const a = Math.min(1, (petLabel.until - clock.t) * 3);
     g.globalAlpha = a;
-    text(petLabel.text, petLabel.x - camX, half(sam.y) - headTop(sam) - 8, "#ffd6e6", "center");
+    smallLabel(petLabel.text, petLabel.x - camX, half(sam.y) - headTop(sam) - 4, "#ffd6e6");
     g.globalAlpha = 1;
   }
   for (let i = timedBubbles.length - 1; i >= 0; i--) {
@@ -4686,7 +4713,7 @@ function petSam(): void {
   }
   sam.facing = charlie.x > sam.x ? 1 : -1;
   const hy = sam.y - headTop(sam) + 4;
-  heartBurst(sam.x + sam.facing * 6, hy, n % 10 === 0 ? 10 : 6);
+  heartBurst(sam.x + sam.facing * 6, hy, n % 10 === 0 ? 6 : 3);
   sfx.sparkle();
   petLabel = { text: n <= PET_GOAL ? `쓰담 ${n}/${PET_GOAL}` : `쓰담 ${n}회 ♥`, x: sam.x, until: clock.t + 1.2 };
   const thought = PET_THOUGHTS[n];
@@ -4722,7 +4749,7 @@ async function petPerform(kind: "purr" | "stretch" | "roll"): Promise<void> {
     sam.anim = { prefix: "roll", frames: 8, fps: 6 };
     sfx.purrSong(3.5);
     bubbleFor(sam, "냐아앙~ ♥", 2.6);
-    heartBurst(sam.x, sam.y - 16, 12);
+    heartBurst(sam.x, sam.y - 16, 8);
     await wait(0.8);
     bubbleFor(charlie, "(배를 보여 줬어! 최고의 신뢰 표시야. 30번 쓰담 달성!)", 3.2);
     await wait(2.6);
@@ -5163,7 +5190,6 @@ function drawActor(a: Actor, camX: number): void {
     const spr = cat(pose, a.facing, !!a.silhouette);
     smoothDraw(spr, sx - 15, half(a.y + bob) - 22, 32, 24);
     if (!a.silhouette && a === sam) drawCostume(sx - 15, half(a.y + bob) - 22, a.facing, pose);
-    if (a === sam && canPet() && !petBusy && !(petLabel && clock.t < petLabel.until)) text("[C] 쓰담쓰담", sx, half(a.y) - headTop0(a) - 6, "#ffd6e6", "center");
     return;
   }
   const isCharlie = a.kind === "charlie";
@@ -5672,6 +5698,24 @@ function drawEmote(a: Actor, camX: number): void {
   const pop = t < 0.15 ? t / 0.15 * 1.25 : t < 0.25 ? 1.25 - (t - 0.15) * 2.5 : 1;
   const fade = t > 1.5 ? 1 - (t - 1.5) / 0.3 : 1;
   const cat2 = a.kind === "sam";
+  if (e.kind === "!") {
+    // 느낌표는 말풍선 없이 머리 바로 위에
+    const ex = a.x - camX;
+    const ey = a.y - headTop(a) - 7 - Math.min(t, 0.2) * 10;
+    g.save();
+    g.globalAlpha = fade;
+    g.translate(ex, ey);
+    g.scale(pop, pop);
+    g.font = "bold 16px Galmuri11";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillStyle = "#1a0e08";
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1]]) g.fillText("!", dx, dy);
+    g.fillStyle = "#ffd23a";
+    g.fillText("!", 0, 0);
+    g.restore();
+    return;
+  }
   // 말풍선과 겹치지 않게 머리 옆(바라보는 반대쪽)에 띄운다
   const x = a.x - camX + (cat2 ? a.facing * 6 : -a.facing * 14);
   const y = a.y - headTop(a) + (cat2 ? -4 : 8) - Math.min(t, 0.3) * 6;
@@ -5716,7 +5760,7 @@ function drawEmote(a: Actor, camX: number): void {
       g.stroke();
     }
   } else {
-    const col = e.kind === "!" ? "#e83a3a" : e.kind === "?" ? "#3a6ae8" : e.kind === "♪" ? "#3aa86a" : "#3a3a4a";
+    const col = e.kind === "?" ? "#3a6ae8" : e.kind === "♪" ? "#3aa86a" : "#3a3a4a";
     g.font = "bold 9px Galmuri11";
     g.textAlign = "center";
     g.textBaseline = "middle";
