@@ -71,6 +71,7 @@ import {
   FROG_KING,
   FROGMAN,
   HUMAN_ORIGIN,
+  HUMAN_W,
   catHead,
   lightTip,
   tintCat,
@@ -111,6 +112,12 @@ export interface Actor {
   hop?: number;
   /** 연출 중 반복 재생할 동작 (예: 계단 오르기) */
   anim?: { prefix: string; frames: number; fps: number } | null;
+  /** 엄폐물 뒤에 웅크려 숨은 모습으로 그린다 */
+  hideLook?: boolean;
+  /** 손전등을 들고 다니는 인물 (요원 등) */
+  torch?: boolean;
+  /** 이 인물을 그릴 때 잘라 낼 영역 (계단·문 안으로 사라질 때) */
+  clip?: { x0: number; y0: number; x1: number; y1: number } | null;
   /** 마지막으로 그린 자세 (손전등 빛 위치 계산용) */
   lastPose?: string;
   /** 머리 위 감정 아이콘 */
@@ -193,6 +200,8 @@ export const S = {
   /** 연출용 카메라: 초점 x, 확대 */
   cam: { focus: null as number | null, zoom: 1, zoomTarget: 1 },
   bars: 0,
+  /** 문 여닫기 연출 */
+  door: null as null | { x: number; kind: "in" | "down" | "up"; open: number; target: number; w: number; top: number; col: string; panel: boolean; fade: number },
   /** 찰리의 수첩 열림 */
   diary: false,
   /** 손전등을 켜고 끈 시각 (드는/내리는 동작용) */
@@ -203,6 +212,11 @@ export const S = {
 function lightOn(): boolean {
   const sc = S.scene;
   return !!sc?.useLight && !!S.flags.supplies && S.flags.light !== 0;
+}
+/** 다른 인물이 든 손전등의 빛 (손끝에서 나간다) */
+function actorCone(a: Actor, len: number, spread = 0.28): Light {
+  const tip = (a.lastPose && lightTip(a.lastPose, a.build ?? BUILD_3)) || lightTip("flashlight", BUILD_3) || [5, -8.5];
+  return { x: a.x + a.facing * tip[0], y: a.y + tip[1], r: 0, a: 0.95, cone: { dir: a.facing, len, spread } };
 }
 /** 손에 든 손전등 끝에서 뻗어 나가는 빛 */
 function flashCone(len = 160, spread = 0.3): Light | null {
@@ -340,6 +354,7 @@ export async function goScene(id: string, checkpoint = 0, fade = true): Promise<
   S.hidden = false;
   S.over = null;
   S.movie = null;
+  S.door = null;
   S.cam.focus = null;
   S.cam.zoom = S.cam.zoomTarget = 1;
   S.mode = "play";
@@ -1668,6 +1683,7 @@ SCENES.subwayGate = () => {
         use: async () => {
           if (!S.flags.tracks) await say(charlie, "어디로 간 거지...? 바닥에 뭔가 있는 것 같은데.");
           else {
+            charlie.clip = { x0: gateX - 40, y0: -200, x1: gateX + 40, y1: GROUND };
             charlie.anim = { prefix: "front", frames: 8, fps: 9 };
             for (let i = 0; i < 4; i++) {
               sfx.step();
@@ -1768,6 +1784,7 @@ SCENES.subway = (checkpoint) => {
       charlie.x = x;
       S.hidden = true;
       charlie.visible = false;
+      charlie.hideLook = true;
       sfx.step();
     },
   });
@@ -2354,6 +2371,7 @@ SCENES.roofs = (checkpoint) => {
           charlie.x = cv.x;
           S.hidden = true;
           charlie.visible = false;
+          charlie.hideLook = true;
           sfx.step();
         },
       }),
@@ -2503,7 +2521,7 @@ SCENES.church = (checkpoint) => {
     sfx.boom();
     shake(0.6);
     for (const [a, b] of [[110, 400], [330, 620]]) {
-      agents.push(Object.assign(mkActor("person", CHURCH.door + agents.length * 50, 1, { look: HAZMAT, lookId: "hazmat", role: "agent" as const }), { a, b, pause: 0, alert: 0 }));
+      agents.push(Object.assign(mkActor("person", CHURCH.door + agents.length * 50, 1, { look: HAZMAT, lookId: "hazmat", role: "agent" as const, torch: true }), { a, b, pause: 0, alert: 0 }));
     }
     await caption("쾅! 문이 부서지듯 열리고, 방호복 차림의 요원들이 들이닥쳤다.");
     await caption("손전등에 비치지 않게 의자 밑에 숨어 가며, 고해실까지 가자. 가까이에선 ↓(살금살금)로 걷자.");
@@ -2628,13 +2646,14 @@ SCENES.church = (checkpoint) => {
   const hideSpot = (x: number): Hotspot => ({
     x,
     iconY: 158,
-    label: "의자 밑에 숨기",
+    label: "의자 뒤에 웅크리기",
     range: 18,
     enabled: () => raid && !S.hidden,
     use: async () => {
       charlie.x = x;
       S.hidden = true;
       charlie.visible = false;
+      charlie.hideLook = true;
       sfx.step();
     },
   });
@@ -2670,7 +2689,7 @@ SCENES.church = (checkpoint) => {
       for (const f of agents) {
         if (!f.visible) continue;
         L.push({ x: f.x, y: f.y - 26, r: 34, a: 0.55 });
-        if (raid) L.push({ x: f.x + f.facing * 10, y: f.y - 32, r: 0, a: 0.95, cone: { dir: f.facing, len: 100, spread: 0.28 } });
+        if (raid) L.push(actorCone(f, 100));
       }
       return L;
     },
@@ -2719,8 +2738,8 @@ SCENES.church = (checkpoint) => {
         range: 22,
         enabled: () => !raid && !ending && !!F.c3ruth,
         use: async () => {
-          await walkTo(charlie, 905, 50);
-          await descend(4);
+          await walkTo(charlie, 880, 50);
+          await doorTransition(905, "down", { top: 170, w: 20, col: "#4a3020" });
           await goScene("crypt1", 60);
         },
       },
@@ -2936,7 +2955,7 @@ function patrolKit(o: { look: Look; lookId: string; range: number; quiet?: () =>
   let caught = false;
   let frozen = false;
   const add = (x: number, a: number, b: number, facing: 1 | -1 = 1): Guard => {
-    const gd = Object.assign(mkActor("person", x, facing, { look: o.look, lookId: o.lookId, role: "agent" as const }), { a, b, pause: 0, alert: 0 });
+    const gd = Object.assign(mkActor("person", x, facing, { look: o.look, lookId: o.lookId, role: "agent" as const, torch: o.look === HAZMAT }), { a, b, pause: 0, alert: 0 });
     guards.push(gd);
     return gd;
   };
@@ -2994,7 +3013,8 @@ function patrolKit(o: { look: Look; lookId: string; range: number; quiet?: () =>
       .filter((f) => f.visible)
       .flatMap((f): Light[] => [
         { x: f.x, y: f.y - 26, r: 34, a: 0.55 },
-        ...(frozen ? [] : [{ x: f.x + f.facing * 10, y: f.y - 32, r: 0, a: 0.95, cone: { dir: f.facing, len: o.range, spread: 0.28 } }]),
+        // 손전등을 든 요원은 손끝에서, 개구리는 눈에서 희미한 시선이 나간다
+        ...(frozen ? [] : [f.torch ? actorCone(f, o.range) : { x: f.x + f.facing * 6, y: f.y - 44, r: 0, a: 0.45, cone: { dir: f.facing, len: o.range, spread: 0.22 } }]),
       ]);
   return {
     guards,
@@ -3025,6 +3045,7 @@ function hideAt(x: number, label: string, iconY: number, when: () => boolean = (
       charlie.x = x;
       S.hidden = true;
       charlie.visible = false;
+      charlie.hideLook = true;
       sfx.step();
     },
   };
@@ -3299,7 +3320,7 @@ SCENES.center = (checkpoint) => {
           range: 18,
           enabled: () => !asCat(),
           use: async () => {
-            sfx.step();
+            await doorTransition(x, "in", { top: 152, w: 26, col: "#6a7480" });
             await goScene(id, 70);
           },
         }),
@@ -4321,8 +4342,120 @@ function updatePet(): void {
   if (canPet() && took("KeyC")) petSam();
 }
 
+
+// ── 문 여닫기 · 계단 오르내리기 ─────────────────────────────────
+/** 문틀 안쪽: 어두운 실내와 계단 */
+function drawDoorBack(camX: number): void {
+  const d = S.door;
+  if (!d || d.open <= 0.01) return;
+  const x0 = d.x - d.w / 2 - camX;
+  const h = GROUND - d.top;
+  const gr = g.createLinearGradient(0, d.top, 0, GROUND);
+  gr.addColorStop(0, "#07060a");
+  gr.addColorStop(1, "#16121a");
+  g.fillStyle = gr;
+  g.fillRect(x0, d.top, d.w, h);
+  if (d.kind === "up") {
+    // 위로 올라가는 계단 (안쪽으로 멀어질수록 어둡게)
+    for (let i = 0; i < 7; i++) {
+      const sy = GROUND - 4 - i * 7;
+      const k = 1 - i / 7;
+      g.fillStyle = `rgba(${Math.round(90 * k + 20)},${Math.round(80 * k + 18)},${Math.round(70 * k + 18)},1)`;
+      g.fillRect(x0 + 2 + i * 1.5, sy, d.w - 4 - i * 3, 3);
+      g.fillStyle = `rgba(0,0,0,${(0.35 + i * 0.07).toFixed(2)})`;
+      g.fillRect(x0 + 2 + i * 1.5, sy + 3, d.w - 4 - i * 3, 4);
+    }
+    g.fillStyle = "rgba(160,150,130,0.6)";
+    g.fillRect(x0 + d.w - 5, d.top + 10, 1, h - 12);
+  } else if (d.kind === "down") {
+    // 아래로 내려가는 계단: 문턱 바로 아래로 꺾여 내려가는 난간과 첫 계단들
+    for (let i = 0; i < 4; i++) {
+      const sy = GROUND - 2 - i * 3;
+      g.fillStyle = `rgba(${110 - i * 22},${100 - i * 20},${90 - i * 18},1)`;
+      g.fillRect(x0 + 3, sy, d.w - 6, 1.5);
+    }
+    g.strokeStyle = "rgba(170,160,140,0.7)";
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(x0 + 3, d.top + 18);
+    g.lineTo(x0 + d.w - 3, GROUND - 6);
+    g.stroke();
+    const dg2 = g.createLinearGradient(0, d.top, 0, GROUND);
+    dg2.addColorStop(0, "rgba(0,0,0,0.6)");
+    dg2.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = dg2;
+    g.fillRect(x0, d.top, d.w, h);
+  }
+}
+/** 문짝 (경첩 쪽으로 접히며 열린다) + 안으로 들어갈수록 어둠 */
+function drawDoorFront(camX: number): void {
+  const d = S.door;
+  if (!d) return;
+  const x0 = d.x - d.w / 2 - camX;
+  const h = GROUND - d.top;
+  if (d.fade > 0) {
+    g.fillStyle = `rgba(6,5,10,${Math.min(1, d.fade).toFixed(2)})`;
+    g.fillRect(x0, d.top, d.w, h);
+  }
+  if (!d.panel) return;
+  const pw = Math.max(2, d.w * (1 - d.open));
+  g.fillStyle = mix(d.col, -0.35);
+  g.fillRect(half(x0), d.top, pw, h);
+  g.fillStyle = d.col;
+  g.fillRect(half(x0 + 0.5), d.top + 1, Math.max(1, pw - 1.5), h - 1);
+  if (pw > 8) {
+    g.fillStyle = mix(d.col, -0.12);
+    g.fillRect(half(x0 + 3), d.top + 5, pw - 6, h * 0.35);
+    g.fillRect(half(x0 + 3), d.top + h * 0.5, pw - 6, h * 0.42);
+    g.fillStyle = "#d8b84a";
+    g.fillRect(half(x0 + pw - 4), d.top + h * 0.52, 1.5, 2.5);
+  }
+}
+/** 문을 열고 들어가서(또는 계단을 오르내려서) 사라진 뒤 문을 닫는다 */
+async function doorTransition(x: number, kind: "in" | "down" | "up", o: { top?: number; w?: number; col?: string; panel?: boolean } = {}): Promise<void> {
+  const top = o.top ?? 148;
+  const w = o.w ?? 26;
+  S.door = { x, kind, open: o.panel === false ? 1 : 0, target: 1, w, top, col: o.col ?? "#5a3828", panel: o.panel !== false, fade: 0 };
+  sfx.step();
+  await until(() => !S.door || S.door.open >= 0.99);
+  if (!S.door) return;
+  await walkTo(charlie, x, 42);
+  // 문틀 밖으로 삐져나오지 않게, 내려갈 땐 문턱 아래(다리)가 먼저 사라지게
+  charlie.clip = { x0: x - w / 2, y0: top, x1: x + w / 2, y1: GROUND + (kind === "down" ? 0 : 1) };
+  if (kind === "down") {
+    charlie.anim = { prefix: "front", frames: 8, fps: 9 };
+    for (let i = 0; i < 5; i++) {
+      sfx.step();
+      await tween(charlie, x, charlie.y + 8, 0.26, 0);
+      if (S.door) S.door.fade = i / 5;
+    }
+  } else if (kind === "up") {
+    charlie.anim = { prefix: "climb", frames: 8, fps: 8 };
+    for (let i = 0; i < 5; i++) {
+      sfx.step();
+      await tween(charlie, x + 1, charlie.y - 5, 0.26, 0);
+      if (S.door) S.door.fade = i / 4;
+    }
+  } else {
+    charlie.pose = "back";
+    for (let i = 0; i < 6; i++) {
+      await wait(0.08);
+      if (S.door) S.door.fade = i / 5;
+    }
+  }
+  charlie.anim = null;
+  charlie.visible = false;
+  if (!S.door) return;
+  S.door.fade = 0;
+  if (S.door.panel) {
+    S.door.target = 0;
+    await until(() => !S.door || S.door.open <= 0.01);
+    sfx.step();
+  }
+}
 /** 정면을 보고 계단을 내려간다 */
 async function descend(steps: number, dx = 0): Promise<void> {
+  charlie.clip = { x0: charlie.x - 40, y0: -200, x1: charlie.x + 40 + dx * steps, y1: GROUND };
   charlie.anim = { prefix: "front", frames: 8, fps: 9 };
   for (let i = 0; i < steps; i++) {
     sfx.step();
@@ -4393,6 +4526,10 @@ export function update(dt: number): void {
   if (!sc || S.mode !== "play") return;
   stepMovers(dt);
   updatePet();
+  if (S.door) {
+    const d = S.door;
+    d.open += Math.sign(d.target - d.open) * Math.min(Math.abs(d.target - d.open), dt * 3.2);
+  }
 
   if (sc.noPlayer) {
     if (S.control && !S.talk) {
@@ -4420,6 +4557,7 @@ export function update(dt: number): void {
       if (took("Space", "Enter", "KeyE", "click", "ArrowUp", "KeyW")) {
         S.hidden = false;
         charlie.visible = true;
+        charlie.hideLook = false;
         sfx.step();
       }
     } else {
@@ -4515,8 +4653,55 @@ function smoothDraw(img: HTMLCanvasElement, x: number, y: number, w: number, h: 
 const dark = makeCanvas(W, H);
 const dg = dark.getContext("2d")!;
 
+/** 그늘 속에 숨은 모습: 어둡게 물든 실루엣 */
+const shadeCache = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>();
+function shaded(src: HTMLCanvasElement): HTMLCanvasElement {
+  let c = shadeCache.get(src);
+  if (!c) {
+    c = makeCanvas(src.width, src.height);
+    const cg = c.getContext("2d")!;
+    cg.drawImage(src, 0, 0);
+    cg.globalCompositeOperation = "multiply";
+    cg.fillStyle = "#3a3648";
+    cg.fillRect(0, 0, c.width, c.height);
+    cg.globalCompositeOperation = "destination-in";
+    cg.drawImage(src, 0, 0);
+    shadeCache.set(src, c);
+  }
+  return c;
+}
+function drawHidden(a: Actor, camX: number): void {
+  const sx = half(a.x - camX);
+  const breathe = Math.sin(clock.t * 2.4) * 0.3;
+  g.save();
+  g.globalAlpha = 0.8;
+  if (a.kind === "sam") {
+    smoothDraw(shaded(cat("loaf", a.facing)), sx - 15, half(a.y + breathe) - 22, 32, 24);
+  } else {
+    const spr = shaded(human(a.look ?? CHARLIE, a.lookId ?? "charlie", "crouch0", S.build, a.facing));
+    const ox = a.facing === 1 ? HUMAN_ORIGIN.x : HUMAN_W - HUMAN_ORIGIN.x;
+    smoothDraw(spr, sx - ox, half(a.y + breathe) - HUMAN_ORIGIN.y, HUMAN_W, 54);
+  }
+  g.restore();
+}
+
 function drawActor(a: Actor, camX: number): void {
-  if (!a.visible) return;
+  if (!a.visible) {
+    if (a.hideLook && S.hidden && a === charlie) drawHidden(a, camX);
+    return;
+  }
+  if (a.clip) {
+    g.save();
+    g.beginPath();
+    g.rect(a.clip.x0 - camX, a.clip.y0, a.clip.x1 - a.clip.x0, a.clip.y1 - a.clip.y0);
+    g.clip();
+    const c = a.clip;
+    a.clip = null;
+    drawActor(a, camX);
+    a.clip = c;
+    g.restore();
+    return;
+  }
   const sx = half(a.x - camX);
   if (sx < -40 || sx > W + 40) return;
   const talking = S.talk && !S.talk.caption && S.talk.actor === a && S.talk.typed < S.talk.text.length;
@@ -4547,7 +4732,9 @@ function drawActor(a: Actor, camX: number): void {
   if (a.anim) pose = `${a.anim.prefix}${Math.floor(clock.t * a.anim.fps) % a.anim.frames}`;
   else if (a.pose === "stand") pose = breath;
   else if (a.pose) pose = a.pose as Pose;
-  else {
+  else if (!isCharlie && a.torch) {
+    pose = a.moving ? `walk${Math.floor(a.walkDist / 2) % 16}L` : "flashlight";
+  } else {
     const held = isCharlie && lightOn();
     const L = held ? "L" : "";
     const since = clock.t - S.lightT;
@@ -4559,13 +4746,13 @@ function drawActor(a: Actor, camX: number): void {
     else if (held) pose = "flashlight";
     else pose = breath;
   }
-  if (isCharlie) a.lastPose = pose;
+  a.lastPose = pose;
   const build = isCharlie ? S.build : (a.build ?? BUILD_3);
   const spr = human(look, id, pose, build, a.facing);
-  const ox = a.facing === 1 ? HUMAN_ORIGIN.x : 32 - HUMAN_ORIGIN.x;
+  const ox = a.facing === 1 ? HUMAN_ORIGIN.x : HUMAN_W - HUMAN_ORIGIN.x;
   g.fillStyle = "rgba(0,0,0,0.3)";
   g.fillRect(sx - 9, half(a.y) - 1, 18, 2);
-  smoothDraw(spr, sx - ox, half(a.y + bob) - HUMAN_ORIGIN.y, 32, 54);
+  smoothDraw(spr, sx - ox, half(a.y + bob) - HUMAN_ORIGIN.y, HUMAN_W, 54);
 }
 
 function drawLighting(sc: Scene, camX: number): void {
@@ -4726,10 +4913,12 @@ export function drawPlay(): void {
   }
   g.drawImage(sc.bg, camX * BG_SCALE, 0, W * BG_SCALE, H * BG_SCALE, 0, 0, W, H);
   sc.back?.(camX);
+  drawDoorBack(camX);
   if (!sc.noPlayer) {
     const all = [...sc.actors, charlie, sam].filter((a, i, arr) => arr.indexOf(a) === i);
     for (const a of all.sort((p, q) => (p.kind === "sam" ? 1 : 0) - (q.kind === "sam" ? 1 : 0))) drawActor(a, camX);
   }
+  drawDoorFront(camX);
   sc.front?.(camX);
   drawLighting(sc, camX);
   sc.overlay?.(camX);
@@ -4758,7 +4947,17 @@ export function drawPlay(): void {
       text(`← → 고르기   [Space] ${it.label}`, W / 2, H - 10, "#ffd36a", "center");
     }
   } else if (S.control) {
-    for (const h of sc.hotspots) if (h.enabled() && !(S.hidden && !h.label.includes("숨기"))) magnifier(h.x - camX, h.iconY, h === near);
+    // 돋보기는 가까이 다가갔을 때만 스르르 나타난다
+    for (const h of sc.hotspots) {
+      if (!h.enabled() || (S.hidden && !h.label.includes("숨기"))) continue;
+      const d = Math.abs(h.x - charlie.x) - (h.range ?? 26);
+      const vis = h === near ? 1 : Math.max(0, 1 - d / 24);
+      if (vis <= 0) continue;
+      g.save();
+      g.globalAlpha = vis;
+      magnifier(h.x - camX, h.iconY, h === near);
+      g.restore();
+    }
     if (S.hidden) text("[Space] 나오기", charlie.x - camX, 176, "#d8d0c0", "center");
     else if (near) text(`[Space] ${near.label}`, near.x - camX, near.iconY - 14, "#d8d0c0", "center");
   }
@@ -5105,7 +5304,7 @@ export function drawTitle(): void {
   g.fillStyle = "rgba(6,5,14,0.55)";
   g.fillRect(0, 0, W, H);
   const spr = human(CHARLIE, "charlie", `stand${Math.floor(clock.t / 0.55) % 4}`, S.build, 1);
-  g.drawImage(spr, W / 2 - 120, GROUND - 52, 32, 54);
+  g.drawImage(spr, W / 2 - 120, GROUND - 52, HUMAN_W, 54);
   const tpose = `sitT${Math.floor(clock.t * 6) % 8}`;
   g.drawImage(cat(tpose, -1), W / 2 - 92, GROUND - 22, 32, 24);
   drawCostume(W / 2 - 92, GROUND - 22, -1, tpose);
@@ -5208,7 +5407,7 @@ export function bakeIdle(deadline: number): void {
 }
 
 // stages.ts (추가 스테이지) 에서 쓰는 도구들
-export { SCENES, mkActor, flashCone, canSpot, tintedCat, credits, patrolKit as patrol, walkTo, tween, writeSave, emote, focusCam, gameOver, hideAt, patrolKit, choose, unlock, flameTongues, smokePuffs, half, smoothDraw, playMovie, has, give, take, openKeypad, playSimon, photoSpot, findPhoto, descend, ascend, charlie, sam, drawFires };
+export { SCENES, mkActor, doorTransition, flashCone, canSpot, tintedCat, credits, patrolKit as patrol, walkTo, tween, writeSave, emote, focusCam, gameOver, hideAt, patrolKit, choose, unlock, flameTongues, smokePuffs, half, smoothDraw, playMovie, has, give, take, openKeypad, playSimon, photoSpot, findPhoto, descend, ascend, charlie, sam, drawFires };
 export type { Scene, Hotspot, Light, Zone };
 
 /** 플레이어를 바꾼다 (샘으로 플레이하는 장면) */

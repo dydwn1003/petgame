@@ -4,17 +4,16 @@
 //  · 제3장: 교회 지하 납골당 (악보와 종 퍼즐, 릴리의 약)
 //  · 제4장: 격리 센터 보안실 · 기록 보관실 · 격리 구역
 import { GROUND, W, chapterCard, clock, fadeTo, flash, g, keys, sfx, shake, sneaking, text, wait } from "./core";
-import { ROOFS, buildInterior, buildRoofs, buildStreet, type DoorDef, type Theme } from "./bg";
+import { ROOFS, buildInterior, buildRoofs, buildStreet, type DoorDef, type PropKind, type Theme } from "./bg";
 import { FROGMAN, MINJI, SKELETON, STRANGERS, TONY, ZOMBIES } from "./sprites";
 import {
   ITEMS,
   S,
   SCENES,
-  ascend,
   caption,
   charlie,
-  descend,
   canSpot,
+  doorTransition,
   credits,
   patrol,
   setPlayer,
@@ -77,6 +76,8 @@ interface RoomOpts {
   seed: number;
   startX: number;
   doors: Door[];
+  /** 조사 지점에 그려 둘 소품 */
+  props?: Array<[PropKind, number]>;
   hotspots?: () => Hotspot[];
   actors?: () => Actor[];
   dark?: boolean;
@@ -102,7 +103,7 @@ function room(o: RoomOpts): void {
       id: o.id,
       label: o.label,
       width: o.width,
-      bg: buildInterior(o.theme, o.width, o.seed, doors),
+      bg: buildInterior(o.theme, o.width, o.seed, doors, o.props ?? []),
       ambient: o.ambient ?? (o.dark ? 0.86 : 0.45),
       tint: o.tint,
       useLight: o.dark && !!F().supplies,
@@ -141,10 +142,15 @@ function room(o: RoomOpts): void {
                 return;
               }
               if (!d.to) return;
-              await walkTo(charlie, d.x, 50);
-              if (d.dir === "down") await descend(4);
-              else if (d.dir === "up") await ascend(4);
-              else sfx.step();
+              // 문이 열리고, 안쪽 계단으로 오르내리거나 들어간 뒤 문이 닫힌다
+              const kind = d.dir === "down" ? "down" : d.dir === "up" ? "up" : "in";
+              const spec =
+                d.kind === "steel" ? { top: 144, w: 30, col: "#6a7480" } :
+                d.kind === "grate" ? { top: 152, w: 34, col: "#3a3028", panel: false } :
+                d.kind === "arch" ? { top: 158, w: 34, panel: false } :
+                d.kind === "stairs" ? { top: 148, w: 26, col: "#4a4a52" } :
+                { top: 148, w: 26, col: "#5a3828" };
+              await doorTransition(d.x, kind, spec);
               await goScene(d.to, d.toX ?? 60);
             },
           }),
@@ -211,6 +217,7 @@ const haze = (camX: number, n = 6) => {
 // ═════════════════════════════════════════════════════════
 room({
   id: "apt4",
+  props: [["board", 380], ["alarm", 600], ["plant", 540]],
   label: "4층 복도",
   theme: "hall",
   width: 760,
@@ -237,6 +244,7 @@ room({
 
 room({
   id: "flat4B",
+  props: [["cage", 200], ["sink", 330], ["fridge", 450], ["frame", 530], ["shelf", 270]],
   label: "4B호 · 가르시아 부인 집",
   theme: "flat",
   width: 600,
@@ -350,6 +358,7 @@ const extFoam: Array<{ x: number; y: number; vx: number; vy: number; t: number }
 const tv3B: Actor[] = [];
 room({
   id: "flat3B",
+  props: [["toolbox", 480], ["bed", 170], ["tv", 400]],
   label: "3B호",
   theme: "flat",
   width: 560,
@@ -399,6 +408,7 @@ room({
 
 room({
   id: "apt2",
+  props: [["fusebox", 560], ["debris", 80]],
   label: "2층 복도",
   theme: "hall",
   width: 760,
@@ -463,6 +473,7 @@ room({
 
 room({
   id: "flat2B",
+  props: [["fridge", 220], ["shelf", 330], ["safe", 450], ["frame", 140], ["boxes", 390]],
   label: "2B호 · 토니네",
   theme: "flat",
   width: 560,
@@ -494,6 +505,7 @@ room({
 const super1: Actor[] = [];
 room({
   id: "apt1",
+  props: [["sofa", 560], ["tallplant", 340], ["notice", 500], ["clock", 260]],
   label: "1층 로비",
   theme: "lobby",
   width: 720,
@@ -516,7 +528,7 @@ room({
           F().frontOpen = 1;
           await caption("삐리릭— 현관문이 열렸다!");
         }
-        await walkTo(charlie, 660, 50);
+        await doorTransition(660, "in", { top: 144, w: 30, col: "#6a7480" });
         await goScene("chapter1", 0);
       },
     },
@@ -540,6 +552,7 @@ room({
 
 room({
   id: "office1",
+  props: [["whiteboard", 200], ["lostbox", 430], ["toolbox", 370], ["chair", 250], ["clock", 330], ["rack", 120], ["bin", 470]],
   label: "관리실",
   theme: "staff",
   width: 520,
@@ -564,6 +577,7 @@ room({
 // ═════════════════════════════════════════════════════════
 room({
   id: "tun1",
+  props: [["prints", 560]],
   label: "점검 통로 입구",
   theme: "tunnel",
   width: 820,
@@ -599,6 +613,7 @@ room({
 const tonyHere: Actor[] = [];
 room({
   id: "staff2",
+  props: [["memo", 170], ["locker", 330], ["desk", 450], ["radio", 240], ["fridge", 400], ["microwave", 120], ["clock", 330], ["bench", 280]],
   label: "역무원 휴게실",
   theme: "staff",
   width: 540,
@@ -651,6 +666,7 @@ room({
 
 room({
   id: "tun2",
+  props: [["bag", 820]],
   label: "배수 터널",
   theme: "tunnel",
   width: 1000,
@@ -695,6 +711,7 @@ room({
 /** 밸브 퍼즐: 하나를 돌리면 양옆 밸브도 같이 돌아간다. 네 개를 모두 '열림'으로 */
 room({
   id: "pump2",
+  props: [["sign", 130]],
   label: "펌프실",
   theme: "pump",
   width: 520,
@@ -794,6 +811,7 @@ room({
 
 room({
   id: "crypt2",
+  props: [["lectern", 330], ["books", 500]],
   label: "유골 안치실",
   theme: "crypt",
   width: 620,
@@ -820,6 +838,7 @@ room({
 
 room({
   id: "vault3",
+  props: [["medbox", 300], ["glass", 420]],
   label: "성물실",
   theme: "vault",
   width: 500,
@@ -856,6 +875,7 @@ const CAMS = [
 const minjiSec: Actor[] = [];
 room({
   id: "sec4",
+  props: [["monitors", 260], ["logbook", 420], ["desk", 340], ["chair", 280], ["cooler", 140], ["clock", 260], ["notice", 420]],
   label: "보안실",
   actors: () => {
     minjiSec.length = 0;
@@ -901,6 +921,7 @@ room({
 
 room({
   id: "arch4",
+  props: [["filecab", 150], ["desk", 250], ["filecab", 370], ["diary", 480], ["boxes", 560], ["papers", 300], ["clock", 250], ["rack", 420]],
   label: "기록 보관실",
   theme: "archive",
   width: 600,
@@ -918,6 +939,7 @@ room({
 
 room({
   id: "cells4",
+  props: [["memo", 180]],
   label: "격리 구역",
   theme: "cells",
   width: 640,
@@ -989,6 +1011,7 @@ room({
 const lobbyGuard: Actor[] = [];
 room({
   id: "bcLobby",
+  props: [["reception", 200], ["gate", 300], ["plant", 520], ["flag", 120], ["clock", 200], ["motto", 330], ["sofa", 600], ["aquarium", 460], ["notice", 560], ["tallplant", 680]],
   label: "블랙컴퍼니 로비",
   theme: "lobby",
   width: 720,
@@ -1002,6 +1025,7 @@ room({
       lock: () => (has("badge") ? null : "사원증부터 찾자. 그게 있어야 격리 센터에 들어갈 수 있어."),
       use: async () => {
         await say(charlie, "사원증 챙겼다. 이제 허드슨 강변 격리 센터로!");
+        await doorTransition(60, "in", { top: 144, w: 30, col: "#6a7480" });
         await goScene("march5", 0);
       },
     },
@@ -1028,6 +1052,7 @@ room({
 const team7: Actor[] = [];
 room({
   id: "bc7",
+  props: [["workdesk", 360], ["chair", 386], ["cubicle", 600], ["cubicle", 690], ["cubicle", 770], ["printer", 470], ["cooler", 250], ["motto", 520], ["clock", 700], ["blinds", 360], ["blinds", 800], ["bin", 330], ["papers", 560], ["tallplant", 940]],
   label: "7층 · 영업2팀",
   theme: "staff",
   width: 980,
@@ -1075,6 +1100,7 @@ room({
 
 room({
   id: "bcPantry",
+  props: [["shelf", 130], ["cups", 220], ["coffee", 330], ["fridge", 440], ["microwave", 270], ["vending", 490], ["bin", 380], ["clock", 330], ["notice", 130]],
   label: "탕비실",
   theme: "flat",
   width: 520,
@@ -1118,6 +1144,7 @@ room({
 const intern: Actor[] = [];
 room({
   id: "bcCopy",
+  props: [["copier", 400], ["boxes", 470], ["printer", 230], ["papers", 300], ["rack", 140], ["notice", 250], ["bin", 350]],
   label: "복사실",
   theme: "staff",
   width: 520,
@@ -1182,6 +1209,7 @@ room({
 
 room({
   id: "bcBoss",
+  props: [["trophy", 170], ["safe", 230], ["diary", 300], ["books", 410], ["golfbag", 500], ["flag", 360], ["blinds", 300], ["motto", 450], ["sofa", 100], ["aquarium", 410], ["chair", 322]],
   label: "부장실",
   theme: "archive",
   width: 560,
@@ -1234,6 +1262,7 @@ room({
 type Zed = Actor & { a: number; b: number; lure: number; lureX: number; chase: boolean };
 room({
   id: "drug1",
+  props: [["display", 120], ["poster", 160], ["pharmshelf", 250], ["counter", 560], ["pharmshelf", 600], ["pharmshelf", 780], ["batteries", 860]],
   label: "24시 약국",
   theme: "staff",
   width: 960,
@@ -1370,6 +1399,7 @@ const zeds: Zed[] = [];
 
 room({
   id: "drug2",
+  props: [["desk", 200], ["boxes", 300], ["shelf", 420]],
   label: "약국 창고",
   theme: "archive",
   width: 520,
@@ -1411,7 +1441,7 @@ SCENES.march5 = () => {
     get actors() {
       return marchers;
     },
-    hotspots: MARCH_DOORS.map((x) => hideAt(x, "문틈에 숨기", 160)),
+    hotspots: MARCH_DOORS.map((x) => hideAt(x, "문간 그늘에 웅크리기", 160)),
     zones: [
       {
         x: 1050,
@@ -1455,12 +1485,29 @@ SCENES.march5 = () => {
       }
     },
     back: (camX) => {
+      // 움푹 들어간 건물 현관: 계단 두 칸 · 문 · 깊은 그늘
       for (const x of MARCH_DOORS) {
         const sx = x - camX;
-        g.fillStyle = "#0a0808";
-        g.fillRect(half(sx - 13), 160, 26, 54);
         g.fillStyle = "#3a2a22";
-        g.fillRect(half(sx - 15), 156, 30, 4);
+        g.fillRect(half(sx - 18), 150, 36, 6);
+        g.fillStyle = "#1a1210";
+        g.fillRect(half(sx - 16), 156, 32, 58);
+        g.fillStyle = "#4a3024";
+        g.fillRect(half(sx - 11), 160, 22, 46);
+        g.fillStyle = "#3a2418";
+        g.fillRect(half(sx - 9), 164, 8, 18);
+        g.fillRect(half(sx + 1), 164, 8, 18);
+        g.fillStyle = "#c8a83a";
+        g.fillRect(half(sx + 7), 184, 1.5, 2);
+        g.fillStyle = "#6a5a4a";
+        g.fillRect(half(sx - 18), 206, 36, 4);
+        g.fillRect(half(sx - 20), 210, 40, 4);
+        const sh = g.createLinearGradient(sx - 16, 0, sx + 16, 0);
+        sh.addColorStop(0, "rgba(0,0,0,0.55)");
+        sh.addColorStop(0.5, "rgba(0,0,0,0.15)");
+        sh.addColorStop(1, "rgba(0,0,0,0.55)");
+        g.fillStyle = sh;
+        g.fillRect(sx - 16, 156, 32, 58);
       }
     },
     front: (camX) => {

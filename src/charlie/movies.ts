@@ -348,7 +348,7 @@ export function memoryShots(): Shot[] {
         // 찰리가 다가와 우산을 씌운다
         const cx = lerp(420, 284, ease(Math.min(1, k * 1.8)));
         const pose = k < 0.55 ? `walk${Math.floor(t * 8) % 16}` : "crouch0";
-        g.drawImage(human(CHARLIE, "charlie", pose, BUILD_3, -1), cx - 16, 214 - 52, 32, 54);
+        g.drawImage(human(CHARLIE, "charlie", pose, BUILD_3, -1), cx - 21, 214 - 52, 36, 54);
         g.imageSmoothingEnabled = false;
         const ux = cx - 8 - (k > 0.55 ? ease((k - 0.55) / 0.45) * 22 : 0);
         g.strokeStyle = "#2a2a30";
@@ -460,7 +460,7 @@ export function farewellShots(stay: boolean): Shot[] {
             g.fillRect(60, 200, 70, 75);
             g.imageSmoothingEnabled = true;
             g.globalAlpha = 0.9;
-            g.drawImage(human(CHARLIE, "charlie", "back", BUILD_3, 1), 80, 150, 32, 54);
+            g.drawImage(human(CHARLIE, "charlie", "back", BUILD_3, 1), 80, 150, 36, 54);
             g.globalAlpha = 1;
             g.imageSmoothingEnabled = false;
           },

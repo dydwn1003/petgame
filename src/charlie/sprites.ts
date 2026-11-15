@@ -6,9 +6,9 @@
 // 땅에 닿은 발에 맞춰 저절로 정해진다.
 import { bakeVec, cached, ellipse, flip, makeCanvas, mix, type Px } from "./pixel";
 
-export const HUMAN_W = 32; // 화면 기준 크기
+export const HUMAN_W = 36; // 화면 기준 크기 (팔을 앞으로 뻗어도 잘리지 않게 넉넉히)
 export const HUMAN_H = 54;
-const SW = 128; // 실제 도트 크기
+const SW = 144; // 실제 도트 크기
 const SH = 216;
 const CX = 60;
 const FEET = 208;

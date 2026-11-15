@@ -2060,7 +2060,514 @@ function woodDoor(g: G, x: number, label: string | undefined, col = "#5a3828"): 
   }
 }
 
-export function buildInterior(theme: Theme, width: number, seed: number, doors: DoorDef[]): HTMLCanvasElement {
+export type PropKind =
+  | "reception" | "gate" | "plant" | "board" | "alarm" | "cage" | "sink" | "fridge" | "frame" | "toolbox" | "bed" | "fusebox"
+  | "debris" | "shelf" | "safe" | "whiteboard" | "lostbox" | "prints" | "locker" | "desk" | "radio" | "bag" | "sign" | "lectern"
+  | "books" | "medbox" | "glass" | "monitors" | "logbook" | "filecab" | "memo" | "workdesk" | "cups" | "coffee" | "copier" | "boxes"
+  | "trophy" | "diary" | "golfbag" | "pharmshelf" | "counter" | "batteries" | "poster" | "display" | "tv"
+  | "cooler" | "vending" | "clock" | "motto" | "chair" | "bin" | "sofa" | "blinds" | "printer" | "cubicle" | "microwave"
+  | "tallplant" | "sink2" | "notice" | "bench" | "rack" | "flag" | "aquarium" | "papers";
+
+/** 조사 지점에 놓이는 소품 (바닥 y=214 기준) */
+function drawProp(g: G, kind: PropKind, x: number, r: () => number): void {
+  const F = 214;
+  switch (kind) {
+    case "reception":
+      rect(g, x - 34, F - 30, 68, 30, "#5a3a28");
+      rect(g, x - 36, F - 33, 72, 4, "#8a6a4a");
+      rect(g, x - 36, F - 33, 72, 1, "#b8946a");
+      rect(g, x - 30, F - 24, 60, 18, "#4a2e20");
+      smallText(g, "안내 INFORMATION", x, F - 15, "#e8c84a", 6);
+      rect(g, x - 14, F - 44, 14, 11, "#1a1e24");
+      rect(g, x - 13, F - 43, 12, 9, "#2a4a5a");
+      rect(g, x + 10, F - 38, 8, 5, "#c8c0b0");
+      rect(g, x + 22, F - 36, 3, 3, "#e8d84a");
+      break;
+    case "gate":
+      for (const dx of [-16, 0, 16]) {
+        rect(g, x + dx - 3, F - 30, 6, 30, "#6a6e76");
+        rect(g, x + dx - 3, F - 30, 6, 2, "#9aa0a6");
+        rect(g, x + dx - 1, F - 26, 3, 2, "#3ae86a");
+      }
+      rect(g, x - 13, F - 20, 10, 2, "#c8ccd0");
+      rect(g, x + 3, F - 20, 10, 2, "#c8ccd0");
+      break;
+    case "plant":
+      rect(g, x - 8, F - 16, 16, 16, "#8a5a3a");
+      rect(g, x - 9, F - 17, 18, 3, "#a87a52");
+      for (let i = 0; i < 9; i++) {
+        g.fillStyle = i % 2 ? "#3a7a3a" : "#4a9a4a";
+        g.beginPath();
+        g.ellipse(x - 8 + i * 2, F - 22 - (i % 3) * 6, 3, 8, (i - 4) * 0.25, 0, Math.PI * 2);
+        g.fill();
+      }
+      break;
+    case "board":
+      rect(g, x - 20, 100, 40, 30, "#6a4a2a");
+      rect(g, x - 18, 102, 36, 26, "#a87a4a");
+      for (let i = 0; i < 4; i++) rect(g, x - 16 + i * 9, 104 + (i % 2) * 4, 7, 9, ["#f4f0e0", "#f8e888", "#e8c8c8", "#d8e8f8"][i]);
+      rect(g, x - 6, 118, 14, 8, "#f4f0e0");
+      for (let i = 0; i < 5; i++) rect(g, x - 14 + i * 7, 103 + (i % 2) * 4, 1, 1, "#c83a3a");
+      break;
+    case "alarm":
+      rect(g, x - 5, 104, 10, 12, "#c83a32");
+      rect(g, x - 5, 104, 10, 1, "#e85a4a");
+      rect(g, x - 3, 107, 6, 5, "#f4f0e8");
+      g.fillStyle = "#e83a3a";
+      g.beginPath();
+      g.arc(x, 99, 3, Math.PI, 0);
+      g.fill();
+      break;
+    case "cage":
+      rect(g, x - 2, 132, 4, 82, "#5a4a3a");
+      rect(g, x - 8, 130, 16, 2, "#5a4a3a");
+      g.strokeStyle = "#c8a83a";
+      g.lineWidth = 0.6;
+      g.beginPath();
+      g.arc(x, 112, 10, Math.PI, 0);
+      g.stroke();
+      for (let i = -9; i <= 9; i += 3) {
+        g.beginPath();
+        g.moveTo(x + i, 112 - Math.sqrt(Math.max(0, 100 - i * i)));
+        g.lineTo(x + i, 128);
+        g.stroke();
+      }
+      rect(g, x - 11, 128, 22, 2, "#c8a83a");
+      rect(g, x + 2, 116, 10, 1, "#c8a83a");
+      break;
+    case "sink":
+      rect(g, x - 30, F - 34, 60, 34, "#d8d0c0");
+      rect(g, x - 32, F - 36, 64, 4, "#8a8a92");
+      for (const dx of [-28, -2]) {
+        rect(g, x + dx, F - 30, 24, 26, "#c8beac");
+        rect(g, x + dx + 20, F - 18, 2, 4, "#5a5a5a");
+      }
+      rect(g, x - 6, F - 44, 2, 8, "#9aa0a6");
+      rect(g, x - 6, F - 44, 8, 2, "#9aa0a6");
+      break;
+    case "fridge":
+      rect(g, x - 14, F - 64, 28, 64, "#e8e8ec");
+      rect(g, x - 14, F - 64, 28, 1, "#ffffff");
+      rect(g, x - 14, F - 40, 28, 1, "#9aa0a6");
+      rect(g, x + 9, F - 58, 2, 12, "#9aa0a6");
+      rect(g, x + 9, F - 34, 2, 14, "#9aa0a6");
+      rect(g, x - 8, F - 56, 8, 10, "#f8e888");
+      rect(g, x + 1, F - 52, 4, 4, "#e85a6a");
+      break;
+    case "frame":
+      rect(g, x - 9, 96, 18, 22, "#8a6a3a");
+      rect(g, x - 7, 98, 14, 18, "#d8c8a8");
+      rect(g, x - 5, 104, 10, 9, "#a8b8c8");
+      g.fillStyle = "#f4f4f4";
+      g.beginPath();
+      g.ellipse(x, 110, 3, 2.5, 0, 0, Math.PI * 2);
+      g.fill();
+      break;
+    case "toolbox":
+      rect(g, x - 12, F - 12, 24, 12, "#c83a32");
+      rect(g, x - 12, F - 12, 24, 2, "#e85a4a");
+      rect(g, x - 4, F - 16, 8, 4, "#3a3a3a");
+      rect(g, x - 10, F - 7, 20, 1, "#8a2a24");
+      break;
+    case "bed":
+      rect(g, x - 30, F - 18, 60, 12, "#d8d0c0");
+      rect(g, x - 30, F - 20, 60, 3, "#4a6a9a");
+      rect(g, x - 30, F - 6, 4, 6, "#5a3a24");
+      rect(g, x + 26, F - 6, 4, 6, "#5a3a24");
+      rect(g, x - 32, F - 34, 4, 34, "#5a3a24");
+      rect(g, x - 26, F - 24, 14, 6, "#f4f0e8");
+      break;
+    case "fusebox":
+      rect(g, x - 10, 120, 20, 28, "#5a5e66");
+      rect(g, x - 10, 120, 20, 2, "#8a8e96");
+      for (let i = 0; i < 3; i++) rect(g, x - 6 + i * 5, 128, 3, 8, i === 1 ? "#1a1a1a" : "#c8a83a");
+      smallText(g, "⚡", x, 142, "#e8d84a", 7);
+      break;
+    case "debris":
+      for (let i = 0; i < 9; i++) rect(g, x - 24 + r() * 44, F - 8 - r() * 30, 6 + r() * 14, 3 + r() * 5, ["#6a6058", "#4a4038", "#8a7a68"][i % 3]);
+      rect(g, x - 26, F - 6, 52, 6, "#5a5048");
+      break;
+    case "shelf":
+      rect(g, x - 18, 120, 36, 3, "#6a4a2a");
+      rect(g, x - 18, 140, 36, 3, "#6a4a2a");
+      for (let i = 0; i < 5; i++) rect(g, x - 16 + i * 7, 108 + (i % 2) * 2, 5, 12 - (i % 2) * 2, ["#a83a3a", "#3a6aa8", "#e8c84a", "#5a8a4a", "#e8e0d0"][i]);
+      rect(g, x - 8, 130, 12, 10, "#f4e8c8");
+      rect(g, x - 8, 130, 12, 1, "#e85a6a");
+      break;
+    case "safe":
+      rect(g, x - 12, F - 26, 24, 26, "#3a3e46");
+      rect(g, x - 12, F - 26, 24, 2, "#6a6e76");
+      g.fillStyle = "#9aa0a6";
+      g.beginPath();
+      g.arc(x - 2, F - 14, 5, 0, Math.PI * 2);
+      g.fill();
+      rect(g, x + 6, F - 18, 3, 8, "#1a1e24");
+      break;
+    case "whiteboard":
+      rect(g, x - 26, 94, 52, 34, "#9aa0a6");
+      rect(g, x - 24, 96, 48, 30, "#f8f8fc");
+      smallText(g, "현관 0 4 □ 7", x, 106, "#3a5ab8", 7);
+      rect(g, x - 18, 114, 30, 0.75, "#c83a3a");
+      rect(g, x - 18, 119, 22, 0.75, "#3a5ab8");
+      rect(g, x - 24, 126, 48, 2, "#6a6e76");
+      break;
+    case "lostbox":
+      rect(g, x - 14, F - 18, 28, 18, "#a87a4a");
+      rect(g, x - 15, F - 20, 30, 3, "#8a5a32");
+      smallText(g, "분실물", x, F - 9, "#2a1a10", 6);
+      rect(g, x - 8, F - 24, 6, 5, "#e85a6a");
+      rect(g, x + 2, F - 23, 6, 4, "#3a6aa8");
+      break;
+    case "prints":
+      for (let i = 0; i < 6; i++) {
+        g.fillStyle = "rgba(60,120,80,0.45)";
+        g.beginPath();
+        g.ellipse(x - 30 + i * 12, F + 4 + (i % 2) * 4, 3, 1.5, 0, 0, Math.PI * 2);
+        g.fill();
+      }
+      break;
+    case "locker":
+      for (let i = 0; i < 3; i++) {
+        rect(g, x - 18 + i * 12, F - 70, 11, 70, i === 1 ? "#4a7a9a" : "#5a6a7a");
+        rect(g, x - 16 + i * 12, F - 62, 7, 1, "#3a4a5a");
+        rect(g, x - 16 + i * 12, F - 58, 7, 1, "#3a4a5a");
+      }
+      rect(g, x - 4, F - 40, 3, 5, "#1a1e24");
+      rect(g, x - 3, F - 39, 1, 1, "#3ae86a");
+      break;
+    case "desk":
+    case "workdesk":
+      rect(g, x - 26, F - 26, 52, 4, "#7a5a3a");
+      rect(g, x - 24, F - 22, 4, 22, "#5a3a24");
+      rect(g, x + 20, F - 22, 4, 22, "#5a3a24");
+      rect(g, x + 4, F - 22, 18, 14, "#6a4a2e");
+      rect(g, x + 10, F - 16, 6, 1, "#c8a83a");
+      if (kind === "workdesk") {
+        rect(g, x - 16, F - 44, 22, 16, "#1a1e24");
+        rect(g, x - 15, F - 43, 20, 13, "#2a3a4a");
+        rect(g, x - 7, F - 28, 4, 2, "#3a3e46");
+        rect(g, x + 8, F - 30, 6, 4, "#f4f0e8");
+        rect(g, x - 20, F - 40, 3, 3, "#f8e888");
+      } else {
+        rect(g, x - 18, F - 30, 12, 4, "#f4f0e8");
+        rect(g, x - 2, F - 31, 5, 5, "#e8e0d0");
+      }
+      break;
+    case "radio":
+      rect(g, x - 9, F - 40, 18, 10, "#3a3a40");
+      rect(g, x - 7, F - 38, 6, 6, "#1a1a1e");
+      rect(g, x + 2, F - 37, 5, 2, "#c8a03a");
+      rect(g, x + 6, F - 50, 0.75, 10, "#8a8a92");
+      rect(g, x - 14, F - 30, 28, 3, "#5a3828");
+      rect(g, x - 12, F - 27, 2, 27, "#3a2218");
+      rect(g, x + 10, F - 27, 2, 27, "#3a2218");
+      break;
+    case "bag":
+      rect(g, x - 10, F - 12, 20, 12, "#6a4a2a");
+      rect(g, x - 10, F - 12, 20, 2, "#8a6a4a");
+      g.strokeStyle = "#4a3020";
+      g.lineWidth = 1;
+      g.beginPath();
+      g.arc(x, F - 12, 5, Math.PI, 0);
+      g.stroke();
+      break;
+    case "sign":
+    case "memo":
+      rect(g, x - 16, 100, 32, 22, "#f4f0e0");
+      rect(g, x - 16, 100, 32, 3, kind === "sign" ? "#c83a32" : "#e8c84a");
+      for (let i = 0; i < 4; i++) rect(g, x - 12, 106 + i * 4, 22 - (i % 2) * 6, 0.75, "#3a3a3a");
+      break;
+    case "lectern":
+      rect(g, x - 3, F - 40, 6, 40, "#5a3a24");
+      rect(g, x - 12, F - 4, 24, 4, "#4a2e1e");
+      g.fillStyle = "#6a4a2e";
+      g.beginPath();
+      g.moveTo(x - 14, F - 40);
+      g.lineTo(x + 14, F - 46);
+      g.lineTo(x + 14, F - 42);
+      g.lineTo(x - 14, F - 36);
+      g.fill();
+      rect(g, x - 8, F - 46, 14, 5, "#f4ecd8");
+      break;
+    case "books":
+      for (let i = 0; i < 6; i++) rect(g, x - 14 + i * 5, F - 14 - (i % 3) * 2, 4, 14 + (i % 3) * 2, ["#5a2a2a", "#2a3a5a", "#3a4a2a", "#6a5a3a"][i % 4]);
+      break;
+    case "medbox":
+      rect(g, x - 14, F - 34, 28, 22, "#e8e4dc");
+      rect(g, x - 14, F - 34, 28, 2, "#ffffff");
+      rect(g, x - 3, F - 30, 6, 14, "#c83a32");
+      rect(g, x - 7, F - 26, 14, 6, "#c83a32");
+      rect(g, x - 16, F - 12, 32, 12, "#5a3a24");
+      break;
+    case "glass":
+      for (let i = 0; i < 5; i++) rect(g, x - 12 + i * 5, 118 + (i % 2) * 3, 5, 10, ["#5a9a6a", "#c8a03a", "#3a5aa8", "#a83a5a", "#5ae8a8"][i]);
+      rect(g, x - 13, 117, 27, 1, "#14121a");
+      rect(g, x - 13, 131, 27, 1, "#14121a");
+      break;
+    case "monitors":
+      rect(g, x - 34, F - 34, 68, 34, "#2a2e34");
+      for (let j = 0; j < 4; j++) {
+        rect(g, x - 32 + j * 17, F - 58, 15, 12, "#1a1e24");
+        rect(g, x - 31 + j * 17, F - 57, 13, 10, ["#2a4a3a", "#3a4a2a", "#2a3a4a", "#2a4a4a"][j]);
+        rect(g, x - 30 + j * 17, F - 55, 6, 1, "#6ae88a");
+      }
+      rect(g, x - 20, F - 38, 24, 4, "#4a4e56");
+      break;
+    case "logbook":
+      rect(g, x - 16, F - 26, 32, 4, "#5a5e66");
+      rect(g, x - 14, F - 22, 3, 22, "#3a3e46");
+      rect(g, x + 11, F - 22, 3, 22, "#3a3e46");
+      rect(g, x - 8, F - 30, 16, 4, "#2a4a8a");
+      rect(g, x - 7, F - 30, 14, 1, "#f4f0e8");
+      break;
+    case "filecab":
+      rect(g, x - 14, F - 56, 28, 56, "#5a5a62");
+      for (let y = F - 52; y < F - 4; y += 13) {
+        rect(g, x - 12, y, 24, 11, "#6a6a72");
+        rect(g, x - 3, y + 4, 6, 2, "#c8c8d0");
+      }
+      rect(g, x - 10, F - 62, 18, 6, "#f4f0e0");
+      break;
+    case "cups":
+      rect(g, x - 18, 124, 36, 2, "#6a4a2a");
+      for (let i = 0; i < 6; i++) rect(g, x - 16 + i * 6, 118, 4, 6, i === 3 ? "#f4f4f4" : "#3a5a8a");
+      rect(g, x + 2, 120, 2, 2, "#e85a6a");
+      break;
+    case "coffee":
+      rect(g, x - 10, F - 52, 20, 26, "#2a2a30");
+      rect(g, x - 10, F - 52, 20, 2, "#5a5a62");
+      rect(g, x - 6, F - 44, 12, 6, "#1a1a1e");
+      rect(g, x - 4, F - 36, 8, 4, "#5a3a24");
+      rect(g, x + 4, F - 50, 3, 2, "#e83a3a");
+      rect(g, x - 16, F - 26, 32, 4, "#8a8a92");
+      rect(g, x - 14, F - 22, 28, 22, "#6a6e76");
+      break;
+    case "copier":
+      rect(g, x - 18, F - 38, 36, 38, "#d8d8e0");
+      rect(g, x - 18, F - 40, 36, 4, "#a8a8b0");
+      rect(g, x - 14, F - 30, 20, 6, "#6a6e76");
+      rect(g, x + 8, F - 30, 6, 3, "#e83a3a");
+      rect(g, x - 16, F - 16, 32, 2, "#9a9aa2");
+      smallText(g, "용지 걸림", x - 4, F - 27, "#ffd36a", 5);
+      break;
+    case "boxes":
+      rect(g, x - 16, F - 14, 18, 14, "#a87a4a");
+      rect(g, x, F - 22, 16, 22, "#8a6a3a");
+      rect(g, x - 10, F - 26, 14, 12, "#b88a5a");
+      break;
+    case "trophy":
+      rect(g, x - 14, F - 40, 28, 40, "#4a2e1e");
+      rect(g, x - 4, F - 52, 8, 3, "#c8a03a");
+      g.fillStyle = "#e8c84a";
+      g.beginPath();
+      g.moveTo(x - 6, F - 64);
+      g.lineTo(x + 6, F - 64);
+      g.lineTo(x + 3, F - 54);
+      g.lineTo(x - 3, F - 54);
+      g.fill();
+      rect(g, x - 1, F - 54, 2, 3, "#c8a03a");
+      break;
+    case "diary":
+      rect(g, x - 22, F - 26, 44, 4, "#5a3a24");
+      rect(g, x - 20, F - 22, 4, 22, "#3a2218");
+      rect(g, x + 16, F - 22, 4, 22, "#3a2218");
+      rect(g, x - 8, F - 30, 14, 4, "#8a2a2a");
+      rect(g, x - 7, F - 29, 12, 1, "#f4ecd8");
+      rect(g, x + 10, F - 34, 2, 8, "#2a2a2a");
+      break;
+    case "golfbag":
+      rect(g, x - 6, F - 34, 12, 34, "#2a5a3a");
+      rect(g, x - 6, F - 34, 12, 3, "#c8c8d0");
+      for (let i = 0; i < 3; i++) rect(g, x - 4 + i * 3, F - 46 + i * 2, 1, 12, "#9aa0a6");
+      break;
+    case "pharmshelf":
+      rect(g, x - 26, F - 74, 52, 74, "#d8dce0");
+      for (let y = F - 70; y < F - 4; y += 16) {
+        rect(g, x - 24, y + 12, 48, 2, "#9aa0a6");
+        for (let i = 0; i < 8; i++) if (r() < 0.75) rect(g, x - 23 + i * 6, y + 4, 4, 8, ["#e85a5a", "#f4f4f4", "#5a9ae8", "#e8c84a"][Math.floor(r() * 4)]);
+      }
+      rect(g, x - 26, F - 78, 52, 5, "#3a8a5a");
+      smallText(g, "PHARMACY", x, F - 75.5, "#f4f4f4", 5);
+      break;
+    case "counter":
+      rect(g, x - 30, F - 30, 60, 30, "#e8e4dc");
+      rect(g, x - 32, F - 33, 64, 4, "#3a8a5a");
+      rect(g, x - 12, F - 42, 14, 9, "#2a2e34");
+      rect(g, x - 11, F - 41, 12, 6, "#3a5a4a");
+      rect(g, x + 8, F - 38, 10, 5, "#c8c0b0");
+      break;
+    case "batteries":
+      rect(g, x - 16, F - 50, 32, 50, "#3a3a44");
+      for (let y = F - 46; y < F - 6; y += 10) for (let i = 0; i < 5; i++) {
+        rect(g, x - 14 + i * 6, y, 4, 7, i % 2 ? "#e8c84a" : "#c83a32");
+        rect(g, x - 14 + i * 6, y, 4, 1.5, "#2a2a2a");
+      }
+      smallText(g, "건전지", x, F - 54, "#e8c84a", 6);
+      break;
+    case "poster":
+      rect(g, x - 14, 96, 28, 36, "#f4e8c8");
+      rect(g, x - 14, 96, 28, 6, "#c83a32");
+      smallText(g, "1+1", x, 112, "#c83a32", 9);
+      smallText(g, "SALE", x, 124, "#2a2a2a", 6);
+      break;
+    case "display":
+      g.save();
+      g.translate(x, F - 4);
+      g.rotate(-0.5);
+      rect(g, -20, -10, 40, 10, "#d8dce0");
+      g.restore();
+      for (let i = 0; i < 7; i++) rect(g, x - 20 + r() * 40, F - 3 - r() * 4, 3, 2, ["#e85a5a", "#f4f4f4", "#5a9ae8"][i % 3]);
+      break;
+    case "tv":
+      break;
+    case "cooler":
+      rect(g, x - 7, F - 30, 14, 30, "#d8dce0");
+      rect(g, x - 7, F - 30, 14, 2, "#f4f6f8");
+      rect(g, x - 6, F - 52, 12, 22, "rgba(140,190,230,0.75)");
+      rect(g, x - 5, F - 50, 2, 18, "rgba(255,255,255,0.5)");
+      rect(g, x - 3, F - 54, 6, 2, "#5a8ab8");
+      rect(g, x + 2, F - 24, 2, 3, "#3a6ab8");
+      rect(g, x - 4, F - 24, 2, 3, "#c83a3a");
+      break;
+    case "vending":
+      rect(g, x - 16, F - 64, 32, 64, "#c83a32");
+      rect(g, x - 16, F - 64, 32, 2, "#e85a4a");
+      rect(g, x - 13, F - 58, 20, 36, "#1a2a3a");
+      for (let yy = 0; yy < 4; yy++) for (let i = 0; i < 4; i++) rect(g, x - 12 + i * 5, F - 56 + yy * 9, 3, 6, ["#e8c84a", "#5ae88a", "#f4f4f4", "#e85a6a"][(i + yy) % 4]);
+      rect(g, x + 9, F - 54, 5, 14, "#2a2a2a");
+      rect(g, x - 12, F - 16, 20, 6, "#1a1a1a");
+      smallText(g, "COLA", x - 2, F - 61, "#ffffff", 5);
+      break;
+    case "clock":
+      g.fillStyle = "#2a2a2a";
+      g.beginPath();
+      g.arc(x, 62, 8, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "#f4f0e8";
+      g.beginPath();
+      g.arc(x, 62, 7, 0, Math.PI * 2);
+      g.fill();
+      rect(g, x - 0.4, 57, 0.8, 5, "#1a1a1a");
+      rect(g, x, 61.6, 4, 0.8, "#1a1a1a");
+      rect(g, x - 0.3, 62, 0.6, 4, "#c83a3a");
+      break;
+    case "motto":
+      rect(g, x - 26, 60, 52, 20, "#3a2a1a");
+      rect(g, x - 24, 62, 48, 16, "#f4ecd8");
+      smallText(g, ["야근은 열정이다", "고객은 왕, 직원은 노예", "웃으며 야근합시다", "칼퇴는 배신이다"][Math.floor(r() * 4)], x, 70, "#8a1a1a", 6);
+      break;
+    case "chair":
+      rect(g, x - 7, F - 22, 14, 3, "#2a2e3a");
+      rect(g, x + 4, F - 40, 4, 20, "#2a2e3a");
+      rect(g, x + 3, F - 42, 6, 6, "#3a3e4a");
+      rect(g, x - 1, F - 19, 2, 14, "#5a5e66");
+      rect(g, x - 8, F - 5, 16, 2, "#5a5e66");
+      rect(g, x - 8, F - 3, 2, 2, "#2a2a2a");
+      rect(g, x + 6, F - 3, 2, 2, "#2a2a2a");
+      break;
+    case "bin":
+      rect(g, x - 5, F - 12, 10, 12, "#6a6e76");
+      rect(g, x - 6, F - 13, 12, 2, "#8a8e96");
+      rect(g, x - 3, F - 16, 6, 4, "#f4f0e0");
+      break;
+    case "sofa":
+      rect(g, x - 30, F - 22, 60, 16, "#4a5a7a");
+      rect(g, x - 30, F - 34, 60, 14, "#3a4a6a");
+      rect(g, x - 34, F - 28, 8, 22, "#3a4a6a");
+      rect(g, x + 26, F - 28, 8, 22, "#3a4a6a");
+      rect(g, x - 28, F - 6, 3, 6, "#2a1e14");
+      rect(g, x + 25, F - 6, 3, 6, "#2a1e14");
+      rect(g, x - 20, F - 28, 12, 8, "#c8a83a");
+      break;
+    case "blinds":
+      rect(g, x - 22, 70, 44, 50, "#d8d8dc");
+      rect(g, x - 20, 72, 40, 46, "#2a3a5a");
+      for (let yy = 72; yy < 118; yy += 3) rect(g, x - 20, yy, 40, 1.6, "rgba(220,224,230,0.85)");
+      rect(g, x - 22, 120, 44, 3, "#c8c8cc");
+      break;
+    case "printer":
+      rect(g, x - 12, F - 40, 24, 12, "#e8e8ec");
+      rect(g, x - 10, F - 43, 20, 4, "#c8c8d0");
+      rect(g, x - 8, F - 33, 16, 2, "#5a5e66");
+      rect(g, x + 6, F - 38, 3, 2, "#3ae86a");
+      rect(g, x - 16, F - 28, 32, 28, "#6a6e76");
+      rect(g, x - 14, F - 24, 28, 10, "#5a5e66");
+      break;
+    case "cubicle":
+      rect(g, x - 34, F - 46, 3, 46, "#7a8290");
+      rect(g, x + 31, F - 46, 3, 46, "#7a8290");
+      rect(g, x - 34, F - 48, 68, 3, "#9aa2b0");
+      rect(g, x - 31, F - 45, 62, 20, "rgba(110,120,140,0.55)");
+      rect(g, x - 26, F - 26, 52, 3, "#a8a090");
+      rect(g, x - 12, F - 42, 18, 13, "#1a1e24");
+      rect(g, x - 11, F - 41, 16, 10, "#2a3a4a");
+      rect(g, x - 20, F - 40, 4, 4, "#f8e888");
+      rect(g, x + 14, F - 38, 3, 3, "#e88aa8");
+      rect(g, x + 10, F - 31, 7, 5, "#f4f0e8");
+      break;
+    case "microwave":
+      rect(g, x - 26, F - 32, 52, 4, "#a8a8b0");
+      rect(g, x - 24, F - 28, 48, 28, "#c8c8d0");
+      rect(g, x - 12, F - 46, 24, 14, "#e8e8ec");
+      rect(g, x - 10, F - 44, 14, 10, "#2a2a30");
+      rect(g, x + 6, F - 44, 4, 10, "#5a5a62");
+      rect(g, x + 7, F - 42, 2, 1, "#3ae86a");
+      break;
+    case "tallplant":
+      rect(g, x - 7, F - 14, 14, 14, "#3a3a3a");
+      rect(g, x - 1, F - 46, 2, 32, "#4a3a24");
+      for (let i = 0; i < 7; i++) {
+        g.fillStyle = i % 2 ? "#3a8a4a" : "#2a6a3a";
+        g.beginPath();
+        g.ellipse(x + (i % 2 ? 6 : -6), F - 44 + i * 4, 7, 3, (i % 2 ? 0.5 : -0.5), 0, Math.PI * 2);
+        g.fill();
+      }
+      break;
+    case "sink2":
+      rect(g, x - 20, F - 30, 40, 30, "#e8e4dc");
+      rect(g, x - 22, F - 32, 44, 4, "#9aa0a6");
+      rect(g, x - 2, F - 42, 2, 10, "#9aa0a6");
+      rect(g, x - 2, F - 42, 8, 2, "#9aa0a6");
+      rect(g, x + 10, F - 38, 6, 6, "#e8c84a");
+      break;
+    case "notice":
+      rect(g, x - 18, 92, 36, 26, "#3a5a3a");
+      rect(g, x - 16, 94, 32, 22, "#4a7a4a");
+      for (let i = 0; i < 3; i++) rect(g, x - 14 + i * 10, 96 + (i % 2) * 3, 8, 10, "#f4f0e0");
+      smallText(g, "공지", x, 112, "#f4f0e0", 6);
+      break;
+    case "bench":
+      rect(g, x - 26, F - 16, 52, 4, "#6a4a2a");
+      rect(g, x - 24, F - 12, 3, 12, "#3a2a1a");
+      rect(g, x + 21, F - 12, 3, 12, "#3a2a1a");
+      break;
+    case "rack":
+      rect(g, x - 2, F - 56, 2, 56, "#3a3a3a");
+      rect(g, x - 10, F - 56, 20, 2, "#3a3a3a");
+      rect(g, x - 9, F - 54, 8, 22, "#2a3a5a");
+      rect(g, x + 2, F - 54, 7, 18, "#5a2a2a");
+      rect(g, x - 8, F - 2, 16, 2, "#3a3a3a");
+      break;
+    case "flag":
+      rect(g, x - 1, F - 70, 2, 70, "#c8a83a");
+      rect(g, x + 1, F - 68, 22, 14, "#1a1a2a");
+      smallText(g, "BLACK", x + 12, F - 63, "#e8c84a", 5);
+      smallText(g, "CO.", x + 12, F - 58, "#e8c84a", 5);
+      break;
+    case "aquarium":
+      rect(g, x - 20, F - 30, 40, 30, "#3a2a1a");
+      rect(g, x - 18, F - 52, 36, 22, "rgba(80,150,200,0.7)");
+      rect(g, x - 18, F - 52, 36, 2, "#9aa0a6");
+      for (let i = 0; i < 3; i++) rect(g, x - 12 + i * 10, F - 44 + (i % 2) * 6, 4, 2, ["#f0a050", "#e85a6a", "#e8c84a"][i]);
+      rect(g, x - 14, F - 34, 2, 4, "#3a8a4a");
+      break;
+    case "papers":
+      for (let i = 0; i < 4; i++) rect(g, x - 10 + i * 2, F - 6 - i * 3, 18, 3, i % 2 ? "#f4f0e0" : "#e8e4d4");
+      break;
+  }
+}
+
+export function buildInterior(theme: Theme, width: number, seed: number, doors: DoorDef[], props: Array<[PropKind, number]> = []): HTMLCanvasElement {
   const c = makeDense(width, H, BG_SCALE);
   const g = c.getContext("2d")!;
   const r = rng(seed);
@@ -2172,7 +2679,7 @@ export function buildInterior(theme: Theme, width: number, seed: number, doors: 
   rect(g, 0, 214, width, 1, mix(pal.floor, 0.25));
   rect(g, 0, 210, width, 4, pal.trim);
   // 소품
-  const props = (x: number) => {
+  const randomProp = (x: number) => {
     const k = r();
     if (theme === "hall") {
       if (k < 0.35) {
@@ -2224,16 +2731,22 @@ export function buildInterior(theme: Theme, width: number, seed: number, doors: 
       g.ellipse(x, 116, 5, 6, 0, 0, Math.PI * 2);
       g.fill();
       rect(g, x - 7, 122, 14, 22, "rgba(30,40,50,0.6)");
-    } else if (theme === "staff") {
-      if (k < 0.5) for (let j = 0; j < 4; j++) {
+    } else if (theme === "staff" || theme === "lobby") {
+      // 사무실 장식: 화분 · 정수기 · 의자 · 휴지통 · 사훈 액자 · 블라인드 창 · 벽시계
+      const pick = Math.floor(r() * 7);
+      const kinds: PropKind[] = ["tallplant", "cooler", "chair", "bin", "motto", "blinds", "clock"];
+      drawProp(g, kinds[pick], x, r);
+      if (pick === 2) drawProp(g, "bin", x + 14, r);
+      if (theme === "staff" && k < 0.3) for (let j = 0; j < 4; j++) {
         rect(g, x - 24 + j * 12, 140, 11, 74, "#5a6a7a");
         rect(g, x - 22 + j * 12, 150, 7, 1, "#3a4a5a");
         rect(g, x - 22 + j * 12, 154, 7, 1, "#3a4a5a");
       }
     }
   };
-  const taken = doors.map((d) => d.x);
-  for (let x = 60; x < width - 40; x += 70 + r() * 40) if (taken.every((dx) => Math.abs(dx - x) > 40)) props(x);
+  const taken = [...doors.map((d) => d.x), ...props.map((q) => q[1])];
+  for (let x = 60; x < width - 40; x += 70 + r() * 40) if (taken.every((dx) => Math.abs(dx - x) > 40)) randomProp(x);
+  for (const [kind, px] of props) drawProp(g, kind, px, r);
   // 문
   for (const d of doors) {
     if (d.kind === "door") woodDoor(g, d.x, d.label, theme === "staff" || theme === "security" || theme === "archive" ? "#6a7a8a" : "#5a3828");
