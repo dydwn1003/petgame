@@ -145,72 +145,49 @@ function drawUfoAt(x: number, y: number, s: number): void {
 
 // ── 오프닝 ──────────────────────────────────────────────
 export function introShots(): Shot[] {
+  earthTexture();
   return [
     {
-      // 1. 은하수 저편에서 지구를 향해 다가오는 초록 운석
+      // 1. 우주: 미세하게 반짝이는 별, 지구를 향해 다가오는 초록 운석
       dur: 7,
-      text: "그날 밤, 은하수 저편에서 초록빛 하나가 지구를 향해 다가오고 있었다.",
+      text: "그날 밤, 아득한 우주 저편에서 초록빛 하나가 지구를 향해 다가오고 있었다.",
       draw: (t, k) => {
-        sky([[0, "#010108"], [1, "#05061a"]]);
-        milkyWay(t);
+        g.fillStyle = "#010208";
+        g.fillRect(0, 0, W, H);
+        starfield(t);
         const e = ease(k);
-        // 지구: 오른쪽 아래에서 천천히 커진다
-        const er = lerp(118, 132, e);
-        earth(392, 268, er, t);
-        // 운석: 왼쪽 위 → 지구 대기권 가장자리
-        const mx = lerp(40, 300, e);
-        const my = lerp(26, 168, e);
-        const sz = lerp(1.2, 2.6, e);
-        meteor(mx, my, Math.atan2(142, 260), lerp(40, 110, e), sz);
-        sparks(mx, my, Math.atan2(142, 260), t, sz);
-        if (k > 0.85) {
-          g.fillStyle = `rgba(160,255,190,${((k - 0.85) / 0.15) * 0.35})`;
+        const er = lerp(124, 136, e);
+        drawEarth(380, 262, er, t);
+        const ang = Math.atan2(150, 250);
+        const mx = lerp(40, 288, e);
+        const my = lerp(30, 178, e);
+        const sz = lerp(1.4, 3.2, e);
+        meteorRock(mx, my, ang, sz, t, lerp(50, 120, e));
+        sparks(mx, my, ang, t, sz);
+        if (k > 0.86) {
+          g.fillStyle = `rgba(160,255,190,${((k - 0.86) / 0.14) * 0.4})`;
           g.fillRect(0, 0, W, H);
         }
       },
     },
     {
-      // 2. 밤하늘을 가르는 운석 (아직 도시에 닿지 않는다)
-      dur: 6,
-      text: "초록빛 꼬리가 밤하늘을 길게 갈랐다.",
+      // 2. 뉴욕의 밤: 찰리네 브라운스톤 바깥, 불 켜진 3층 창에 샘의 그림자
+      dur: 7,
+      text: "뉴욕 브루클린의 밤. 오래된 브라운스톤 3층, 불 켜진 창가.",
       draw: (t, k) => {
-        sky([[0, "#03040e"], [0.6, "#0c1030"], [1, "#1e1c3c"]]);
-        milkyWay(t * 0.3, 0.55);
-        stars(41, 160, 200, 0);
-        // 엷은 구름
-        for (let i = 0; i < 4; i++) {
-          const cx = ((i * 157 + t * 6) % (W + 200)) - 100;
-          const gr = g.createRadialGradient(cx, 170 + i * 12, 0, cx, 170 + i * 12, 90);
-          gr.addColorStop(0, "rgba(60,60,100,0.28)");
-          gr.addColorStop(1, "rgba(60,60,100,0)");
-          g.fillStyle = gr;
-          g.fillRect(cx - 90, 80 + i * 12, 180, 180);
-        }
-        // 지평선 너머 아득한 도시 불빛
-        const hz = g.createLinearGradient(0, 220, 0, H);
-        hz.addColorStop(0, "rgba(255,190,120,0)");
-        hz.addColorStop(1, "rgba(255,190,120,0.28)");
-        g.fillStyle = hz;
-        g.fillRect(0, 220, W, H - 220);
-        skyline(42, H + 2, 6, 22, "#05060c", 0.25, 0, "#c89a5a");
-        const e = ease(k);
-        const ang = Math.atan2(70, 520);
-        const mx = lerp(-40, 520, e);
-        const my = lerp(40, 110, e);
-        meteor(mx, my, ang, 180, 2.2);
-        sparks(mx, my, ang, t, 2.2);
-        // 하늘이 잠깐 초록빛으로 물든다
-        const glow = g.createRadialGradient(mx, my, 0, mx, my, 160);
-        glow.addColorStop(0, "rgba(140,255,170,0.14)");
-        glow.addColorStop(1, "rgba(140,255,170,0)");
-        g.fillStyle = glow;
-        g.fillRect(0, 0, W, H);
+        const z = lerp(1, 1.7, ease(k));
+        g.save();
+        g.translate(WIN.x, WIN.y);
+        g.scale(z, z);
+        g.translate(-WIN.x, -WIN.y);
+        exteriorScene(t);
+        g.restore();
       },
     },
     {
-      // 3. 창가에서 야경을 바라보는 샘 (운석은 없다)
+      // 3. 창가에서 야경을 바라보는 샘 (뒷모습)
       dur: 7,
-      text: "뉴욕의 한 아파트 창가. 샘은 오늘도 도시의 불빛을 바라보고 있었다.",
+      text: "샘은 오늘도 창가에 앉아 도시의 불빛을 바라보고 있었다.",
       draw: (t, k) => {
         const z = lerp(1, 1.12, ease(k));
         g.save();
@@ -224,87 +201,347 @@ export function introShots(): Shot[] {
   ];
 }
 
-/** 은하수: 비스듬한 빛의 띠와 촘촘한 별 */
-function milkyWay(t: number, a = 1): void {
-  g.save();
-  g.translate(W / 2, H / 2);
-  g.rotate(-0.42);
-  for (const [w, c] of [[110, `rgba(120,110,190,${0.16 * a})`], [60, `rgba(200,170,220,${0.14 * a})`], [24, `rgba(255,230,210,${0.12 * a})`]] as Array<[number, string]>) {
-    const gr = g.createLinearGradient(0, -w, 0, w);
-    gr.addColorStop(0, "rgba(0,0,0,0)");
-    gr.addColorStop(0.5, c);
-    gr.addColorStop(1, "rgba(0,0,0,0)");
-    g.fillStyle = gr;
-    g.fillRect(-W, -w, W * 2, w * 2);
+/** 미세하게 반짝이는 별: 크기·색이 다양하고, 밝은 별엔 작은 십자 빛 */
+function starfield(t: number): void {
+  const r = rng(303);
+  for (let i = 0; i < 260; i++) {
+    const x = r() * W;
+    const y = r() * H;
+    const big = r();
+    const hue = r();
+    const sp = 0.6 + r() * 2.2;
+    const ph = r() * 6.28;
+    const tw = 0.82 + 0.18 * Math.sin(clock.t * sp + ph);
+    const col = hue < 0.2 ? "255,226,190" : hue < 0.35 ? "190,210,255" : "236,240,255";
+    const base = big < 0.06 ? 1 : big < 0.3 ? 0.75 : 0.45;
+    g.fillStyle = `rgba(${col},${(base * tw).toFixed(2)})`;
+    const s2 = big < 0.06 ? 1 : 0.5;
+    g.fillRect(x - t * 0.6 * (big + 0.2), y, s2, s2);
+    if (big < 0.025) {
+      g.fillStyle = `rgba(${col},${(0.35 * tw).toFixed(2)})`;
+      g.fillRect(x - t * 0.6 * (big + 0.2) - 1.5, y + 0.25, 4, 0.5);
+      g.fillRect(x - t * 0.6 * (big + 0.2) + 0.25, y - 1.5, 0.5, 4);
+    }
   }
-  // 어두운 먼지 띠
-  const dg = g.createLinearGradient(0, -10, 0, 14);
-  dg.addColorStop(0, "rgba(2,2,10,0)");
-  dg.addColorStop(0.5, `rgba(2,2,10,${0.45 * a})`);
-  dg.addColorStop(1, "rgba(2,2,10,0)");
-  g.fillStyle = dg;
-  g.fillRect(-W, -10, W * 2, 24);
-  const r = rng(77);
-  for (let i = 0; i < 520; i++) {
-    const x = (r() - 0.5) * W * 2;
-    const y = (r() + r() + r() - 1.5) * 60;
-    const tw = 0.6 + 0.4 * Math.sin(clock.t * (1 + r() * 2) + i);
-    g.fillStyle = `rgba(${r() < 0.3 ? "255,236,210" : "210,215,255"},${(tw * a * (r() < 0.1 ? 1 : 0.6)).toFixed(2)})`;
-    g.fillRect(x - t * 0.5, y, r() < 0.06 ? 1 : 0.5, r() < 0.06 ? 1 : 0.5);
-  }
-  g.restore();
-  stars(43, 140, H, t * 0.5);
 }
 
-/** 우주에서 본 지구: 바다·대륙·구름·밤의 도시 불빛·대기 */
-function earth(x: number, y: number, r: number, t: number): void {
-  const atm = g.createRadialGradient(x, y, r * 0.96, x, y, r * 1.14);
-  atm.addColorStop(0, "rgba(110,180,255,0.55)");
-  atm.addColorStop(1, "rgba(110,180,255,0)");
+// ── 지구: 3차원 잡음으로 대륙·구름을 만들고 햇빛·밤의 도시 불빛까지 구워 둔다 ──
+function hash3(x: number, y: number, z: number): number {
+  let h = (x * 374761393 + y * 668265263 + z * 2147483647) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function vnoise(x: number, y: number, z: number): number {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  const xf = x - xi, yf = y - yi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+  const l = (a: number, b: number, k: number) => a + (b - a) * k;
+  const c = (dx: number, dy: number, dz: number) => hash3(xi + dx, yi + dy, zi + dz);
+  return l(
+    l(l(c(0, 0, 0), c(1, 0, 0), u), l(c(0, 1, 0), c(1, 1, 0), u), v),
+    l(l(c(0, 0, 1), c(1, 0, 1), u), l(c(0, 1, 1), c(1, 1, 1), u), v),
+    w,
+  );
+}
+function fbm(x: number, y: number, z: number, oct: number): number {
+  let a = 0.5, f = 1, sum = 0, norm = 0;
+  for (let i = 0; i < oct; i++) {
+    sum += a * vnoise(x * f, y * f, z * f);
+    norm += a;
+    a *= 0.5;
+    f *= 2.03;
+  }
+  return sum / norm;
+}
+let earthTex: { surf: HTMLCanvasElement; cloud: HTMLCanvasElement } | null = null;
+export function earthTexture(): { surf: HTMLCanvasElement; cloud: HTMLCanvasElement } {
+  if (earthTex) return earthTex;
+  const N = 400;
+  const mk = () => {
+    const c = document.createElement("canvas");
+    c.width = c.height = N;
+    return c;
+  };
+  const surf = mk();
+  const cloud = mk();
+  const sg = surf.getContext("2d")!;
+  const cg = cloud.getContext("2d")!;
+  const si = sg.createImageData(N, N);
+  const ci = cg.createImageData(N, N);
+  const L = [-0.62, -0.5, 0.6];
+  const ln = Math.hypot(L[0], L[1], L[2]);
+  for (let py = 0; py < N; py++) {
+    for (let px = 0; px < N; px++) {
+      const nx = (px + 0.5) / (N / 2) - 1;
+      const ny = (py + 0.5) / (N / 2) - 1;
+      const d2 = nx * nx + ny * ny;
+      if (d2 > 1) continue;
+      const nz = Math.sqrt(1 - d2);
+      // 살짝 기운 자전축
+      const tx = nx * 0.96 - ny * 0.28;
+      const ty = nx * 0.28 + ny * 0.96;
+      const tz = nz;
+      const h = fbm(tx * 2.1 + 7, ty * 2.1 + 3, tz * 2.1 + 11, 6);
+      const lat = Math.abs(ty);
+      const diff = Math.max(0, (nx * L[0] + ny * L[1] + nz * L[2]) / ln);
+      const light = 0.08 + 0.92 * Math.pow(diff, 0.8);
+      let r: number, gg: number, b: number;
+      const sea = 0.53;
+      const iceEdge = 0.86 + (fbm(tx * 5 + 3, ty * 5, tz * 5 + 9, 3) - 0.5) * 0.22;
+      if (lat > iceEdge || (lat > iceEdge - 0.08 && h > 0.5)) {
+        [r, gg, b] = [232, 238, 246];
+      } else if (h > sea) {
+        const el = (h - sea) / (1 - sea);
+        const dry = fbm(tx * 4 + 20, ty * 4, tz * 4, 3);
+        if (el > 0.45) [r, gg, b] = [130, 112, 86];
+        else if (dry > 0.56 && lat < 0.5) [r, gg, b] = [196, 168, 112];
+        else [r, gg, b] = [64 + el * 60, 108 + el * 30, 52 + el * 20];
+        if (el < 0.04) [r, gg, b] = [176, 168, 124];
+      } else {
+        const depth = (sea - h) / sea;
+        [r, gg, b] = [12 + (1 - depth) * 30, 44 + (1 - depth) * 70, 98 + (1 - depth) * 80];
+        if (depth < 0.05) [r, gg, b] = [40, 120, 170];
+        // 바다의 햇빛 반짝임
+        const hx = nx - L[0] / ln * 0.4, hy = ny - L[1] / ln * 0.4;
+        const spec = Math.max(0, 1 - Math.hypot(hx + 0.18, hy + 0.14) * 3.2);
+        r += spec * 120;
+        gg += spec * 120;
+        b += spec * 110;
+      }
+      let R = r * light, G = gg * light, B = b * light;
+      // 밤 쪽 도시 불빛
+      if (diff < 0.12 && h > sea && lat < 0.75) {
+        const city = fbm(tx * 18, ty * 18, tz * 18, 2);
+        if (city > 0.62) {
+          const k = (city - 0.62) * 4 * (1 - diff / 0.12);
+          R += 255 * k;
+          G += 190 * k;
+          B += 90 * k;
+        }
+      }
+      // 가장자리로 갈수록 대기의 푸른빛
+      const rim = Math.pow(1 - nz, 2.2);
+      R = R * (1 - rim * 0.6) + 90 * rim * (0.3 + diff);
+      G = G * (1 - rim * 0.6) + 150 * rim * (0.3 + diff);
+      B = B * (1 - rim * 0.6) + 255 * rim * (0.3 + diff);
+      const o = (py * N + px) * 4;
+      si.data[o] = Math.min(255, R);
+      si.data[o + 1] = Math.min(255, G);
+      si.data[o + 2] = Math.min(255, B);
+      si.data[o + 3] = 255;
+      // 구름: 위도 방향으로 늘어진 소용돌이
+      const cl = fbm(tx * 3.2 + 40, ty * 7 + fbm(tx * 2, ty * 2, tz * 2, 2) * 2.2, tz * 3.2, 5);
+      const ca = Math.max(0, Math.min(1, (cl - 0.52) * 4.2));
+      const cLight = 0.1 + 0.9 * diff;
+      ci.data[o] = 250 * cLight;
+      ci.data[o + 1] = 252 * cLight;
+      ci.data[o + 2] = 255 * cLight;
+      ci.data[o + 3] = ca * 235 * (1 - rim * 0.5);
+    }
+  }
+  sg.putImageData(si, 0, 0);
+  cg.putImageData(ci, 0, 0);
+  earthTex = { surf, cloud };
+  return earthTex;
+}
+function drawEarth(x: number, y: number, r: number, t: number): void {
+  const tex = earthTexture();
+  // 바깥 대기 빛
+  const atm = g.createRadialGradient(x, y, r * 0.98, x, y, r * 1.12);
+  atm.addColorStop(0, "rgba(120,190,255,0.55)");
+  atm.addColorStop(0.4, "rgba(80,150,255,0.18)");
+  atm.addColorStop(1, "rgba(80,150,255,0)");
   g.fillStyle = atm;
   g.beginPath();
-  g.arc(x, y, r * 1.14, 0, Math.PI * 2);
+  g.arc(x, y, r * 1.12, 0, Math.PI * 2);
   g.fill();
+  g.imageSmoothingEnabled = true;
+  g.drawImage(tex.surf, x - r, y - r, r * 2, r * 2);
+  // 구름은 천천히 흘러간다
   g.save();
   g.beginPath();
   g.arc(x, y, r, 0, Math.PI * 2);
   g.clip();
-  const sea = g.createRadialGradient(x - r * 0.4, y - r * 0.5, r * 0.1, x, y, r);
-  sea.addColorStop(0, "#3a7ac8");
-  sea.addColorStop(1, "#0c2a5a");
-  g.fillStyle = sea;
-  g.fillRect(x - r, y - r, r * 2, r * 2);
-  const rr = rng(91);
-  const rot = t * 2;
-  for (let i = 0; i < 14; i++) {
-    const cx = x - r + ((rr() * r * 2 + rot) % (r * 2));
-    const cy = y - r + rr() * r * 1.2;
-    g.fillStyle = rr() < 0.5 ? "#4a7a3a" : "#7a7a4a";
-    g.beginPath();
-    g.ellipse(cx, cy, 8 + rr() * 22, 5 + rr() * 12, rr() * 3, 0, Math.PI * 2);
-    g.fill();
-  }
-  for (let i = 0; i < 16; i++) {
-    const cx = x - r + ((rr() * r * 2 + rot * 1.6) % (r * 2));
-    const cy = y - r + rr() * r * 1.3;
-    g.fillStyle = "rgba(240,246,255,0.55)";
-    g.beginPath();
-    g.ellipse(cx, cy, 10 + rr() * 26, 2 + rr() * 4, -0.2, 0, Math.PI * 2);
-    g.fill();
-  }
-  // 밤 쪽 그림자와 도시 불빛
-  const sh = g.createLinearGradient(x - r * 0.2, 0, x + r * 0.7, 0);
-  sh.addColorStop(0, "rgba(2,4,14,0)");
-  sh.addColorStop(1, "rgba(2,4,14,0.88)");
-  g.fillStyle = sh;
-  g.fillRect(x - r, y - r, r * 2, r * 2);
-  for (let i = 0; i < 70; i++) {
-    const px = x + r * 0.2 + rr() * r * 0.8;
-    const py = y - r + rr() * r * 1.1;
-    g.fillStyle = `rgba(255,210,130,${(0.4 + rr() * 0.5).toFixed(2)})`;
-    g.fillRect(px, py, 0.5, 0.5);
-  }
+  g.drawImage(tex.cloud, x - r + t * 0.8, y - r, r * 2, r * 2);
   g.restore();
+  g.imageSmoothingEnabled = false;
+}
+
+/** 운석: 울퉁불퉁한 바위 + 초록빛 균열, 겹겹의 꼬리와 불꽃 */
+function meteorRock(x: number, y: number, ang: number, size: number, t: number, len: number): void {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  // 꼬리: 넓고 옅은 초록 → 좁고 밝은 속심
+  for (const [w, l, c0] of [[size * 5, len * 1.5, "rgba(80,220,140,0.08)"], [size * 3.4, len * 1.2, "rgba(110,240,160,0.14)"], [size * 2, len, "rgba(150,255,190,0.28)"], [size * 1, len * 0.6, "rgba(240,255,235,0.7)"]] as Array<[number, number, string]>) {
+    const gr = g.createLinearGradient(x, y, x - ca * l, y - sa * l);
+    gr.addColorStop(0, c0);
+    gr.addColorStop(1, "rgba(80,220,140,0)");
+    g.fillStyle = gr;
+    g.beginPath();
+    g.moveTo(x + sa * w, y - ca * w);
+    g.lineTo(x - ca * l, y - sa * l);
+    g.lineTo(x - sa * w, y + ca * w);
+    g.closePath();
+    g.fill();
+  }
+  // 둘레의 플라스마 빛
+  const glow = g.createRadialGradient(x, y, 0, x, y, size * 7);
+  glow.addColorStop(0, "rgba(200,255,210,0.75)");
+  glow.addColorStop(0.4, "rgba(110,255,160,0.25)");
+  glow.addColorStop(1, "rgba(110,255,160,0)");
+  g.fillStyle = glow;
+  g.beginPath();
+  g.arc(x, y, size * 7, 0, Math.PI * 2);
+  g.fill();
+  // 바위
+  g.save();
+  g.translate(x, y);
+  g.rotate(t * 1.6);
+  const rr = rng(808);
+  g.fillStyle = "#2a2e2a";
+  g.beginPath();
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    const d = size * (1.6 + rr() * 0.7);
+    if (i === 0) g.moveTo(Math.cos(a) * d, Math.sin(a) * d);
+    else g.lineTo(Math.cos(a) * d, Math.sin(a) * d);
+  }
+  g.closePath();
+  g.fill();
+  g.strokeStyle = `rgba(150,255,180,${(0.7 + 0.3 * Math.sin(t * 9)).toFixed(2)})`;
+  g.lineWidth = Math.max(0.5, size * 0.3);
+  g.beginPath();
+  g.moveTo(-size, -size * 0.3);
+  g.lineTo(0, size * 0.2);
+  g.lineTo(size * 0.9, -size * 0.6);
+  g.moveTo(0, size * 0.2);
+  g.lineTo(size * 0.2, size * 1.1);
+  g.stroke();
+  g.fillStyle = "rgba(255,255,240,0.6)";
+  g.beginPath();
+  g.arc(size * 0.7, size * 0.6, size * 0.6, 0, Math.PI * 2);
+  g.fill();
+  g.restore();
+}
+
+/** 바깥에서 본 찰리네 창 (화면 좌표) */
+const WIN = { x: 252, y: 118, w: 26, h: 34 };
+function exteriorScene(t: number): void {
+  // 밤하늘과 멀리 맨해튼
+  sky([[0, "#05071a"], [0.65, "#141836"], [1, "#2a2440"]]);
+  stars(61, 90, 120, 0);
+  g.fillStyle = "#efe6cc";
+  g.beginPath();
+  g.arc(420, 40, 9, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "rgba(239,230,204,0.12)";
+  g.beginPath();
+  g.arc(420, 40, 18, 0, Math.PI * 2);
+  g.fill();
+  skyline(71, 205, 60, 150, "#151a34", 0.18, 0);
+  skyline(72, 222, 40, 100, "#0e1226", 0.24, 30);
+  // 찰리네 브라운스톤 (가운데) + 양옆 이웃 건물
+  const r = rng(9);
+  const bldg = (x0: number, w: number, top: number, col: string, mortar: string) => {
+    g.fillStyle = col;
+    g.fillRect(x0, top, w, H - top);
+    for (let y = top; y < H; y += 3) {
+      g.fillStyle = mortar;
+      g.fillRect(x0, y, w, 0.5);
+    }
+    g.fillStyle = "#c8b89a";
+    g.fillRect(x0 - 2, top - 4, w + 4, 4);
+  };
+  bldg(70, 120, 70, "#3e2a2a", "#33221f");
+  bldg(330, 130, 60, "#2e3440", "#262b35");
+  bldg(190, 140, 50, "#5a3a2c", "#4a2e22");
+  // 이웃 창문들 (드문드문 불)
+  for (const [x0, w, top] of [[70, 120, 70], [330, 130, 60]] as Array<[number, number, number]>) {
+    for (let fy = top + 14; fy < 240; fy += 40) {
+      for (let fx = x0 + 12; fx < x0 + w - 20; fx += 30) {
+        const lit = r() < 0.3;
+        g.fillStyle = "#c8b89a";
+        g.fillRect(fx - 2, fy - 2, 22, 30);
+        g.fillStyle = lit ? "#e8b860" : "#141a2a";
+        g.fillRect(fx, fy, 18, 26);
+        g.fillStyle = "#c8b89a";
+        g.fillRect(fx + 8.5, fy, 1, 26);
+        g.fillRect(fx, fy + 12.5, 18, 1);
+      }
+    }
+  }
+  // 찰리네 창문 줄: 3층 가운데 창만 따뜻하게 켜져 있다
+  for (let fl = 0; fl < 4; fl++) {
+    for (let i = 0; i < 3; i++) {
+      const fx = 206 + i * 46;
+      const fy = 64 + fl * 54;
+      const isHome = fl === 1 && i === 1;
+      g.fillStyle = "#d8c8a8";
+      g.fillRect(fx - 3, fy - 5, WIN.w + 6, 5);
+      g.fillRect(fx - 2, fy + WIN.h, WIN.w + 4, 3);
+      if (isHome) {
+        const lg = g.createLinearGradient(0, fy, 0, fy + WIN.h);
+        lg.addColorStop(0, "#ffe2a8");
+        lg.addColorStop(1, "#d8904a");
+        g.fillStyle = lg;
+      } else g.fillStyle = r() < 0.2 ? "#a8783a" : "#121828";
+      g.fillRect(fx, fy, WIN.w, WIN.h);
+      if (isHome) {
+        // 커튼 자락
+        g.fillStyle = "rgba(140,40,40,0.75)";
+        g.fillRect(fx, fy, 4, WIN.h);
+        g.fillRect(fx + WIN.w - 4, fy, 4, WIN.h);
+        // 창턱에 앉은 샘의 그림자 (옅게, 꼬리 살랑)
+        const cx = fx + WIN.w / 2 + 2;
+        const cy = fy + WIN.h - 1;
+        g.fillStyle = "rgba(60,30,20,0.32)";
+        g.beginPath();
+        g.ellipse(cx, cy - 4, 4, 4.5, 0, 0, Math.PI * 2);
+        g.ellipse(cx, cy - 10, 3, 2.8, 0, 0, Math.PI * 2);
+        g.fill();
+        g.beginPath();
+        g.moveTo(cx - 2.6, cy - 11);
+        g.lineTo(cx - 2, cy - 14.5);
+        g.lineTo(cx - 0.6, cy - 12.4);
+        g.moveTo(cx + 2.6, cy - 11);
+        g.lineTo(cx + 2, cy - 14.5);
+        g.lineTo(cx + 0.6, cy - 12.4);
+        g.fill();
+        g.strokeStyle = "rgba(60,30,20,0.32)";
+        g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(cx, cy);
+        g.quadraticCurveTo(cx + 3 + Math.sin(t * 1.8) * 2, cy + 1, cx + 5 + Math.sin(t * 1.8) * 3, cy - 3);
+        g.stroke();
+        // 창밖으로 번지는 불빛
+        const halo = g.createRadialGradient(fx + WIN.w / 2, fy + WIN.h / 2, 4, fx + WIN.w / 2, fy + WIN.h / 2, 40);
+        halo.addColorStop(0, "rgba(255,210,140,0.18)");
+        halo.addColorStop(1, "rgba(255,210,140,0)");
+        g.fillStyle = halo;
+        g.fillRect(fx - 40, fy - 40, WIN.w + 80, WIN.h + 80);
+      }
+      g.fillStyle = "#d8c8a8";
+      g.fillRect(fx + WIN.w / 2 - 0.5, fy, 1, WIN.h);
+      g.fillRect(fx, fy + WIN.h / 2 - 0.5, WIN.w, 1);
+    }
+  }
+  // 비상계단
+  g.fillStyle = "#101014";
+  for (let fl = 0; fl < 3; fl++) {
+    const y = 104 + fl * 54;
+    g.fillRect(186, y, 4, 1.5);
+    for (let k2 = 0; k2 < 3; k2++) g.fillRect(186 + k2 * 1.5, y - 6, 0.5, 6);
+  }
+  // 거리: 가로등 불빛
+  const lamp = g.createRadialGradient(150, 250, 0, 150, 250, 70);
+  lamp.addColorStop(0, "rgba(255,220,150,0.22)");
+  lamp.addColorStop(1, "rgba(255,220,150,0)");
+  g.fillStyle = lamp;
+  g.fillRect(80, 180, 140, 90);
+  g.fillStyle = "#0c0c12";
+  g.fillRect(149, 200, 2, 70);
+  g.fillRect(144, 198, 10, 2);
+  g.fillStyle = "#fff0c0";
+  g.fillRect(145, 200, 4, 2);
 }
 
 /** 운석 꼬리에서 흩날리는 불티 */
@@ -457,26 +694,11 @@ export function cuteCatBack(x: number, y: number, s: number, t: number): void {
   g.save();
   g.translate(x, y);
   g.scale(s, s);
-  const sway = Math.sin(t * 1.6);
   const tilt = Math.sin(t * 0.7) * 0.08;
   const fur = g.createLinearGradient(-14, -44, 14, 0);
   fur.addColorStop(0, "#ffffff");
   fur.addColorStop(1, "#d6dae6");
-  // 꼬리: 창턱 아래로 늘어뜨려 끝만 살랑
-  g.strokeStyle = "#e8ebf2";
-  g.lineCap = "round";
-  g.lineWidth = 5;
-  g.beginPath();
-  g.moveTo(8, -3);
-  g.bezierCurveTo(18, -2, 22, 4, 20 + sway * 2, 14);
-  g.stroke();
-  g.strokeStyle = "#ffffff";
-  g.lineWidth = 3;
-  g.beginPath();
-  g.moveTo(8, -4);
-  g.bezierCurveTo(17, -3, 21, 3, 19 + sway * 2, 12);
-  g.stroke();
-  // 몸통: 아래가 넓은 물방울
+  // 몸통: 아래가 넓은 물방울 (등을 보이고 앉음)
   g.fillStyle = fur;
   g.beginPath();
   g.moveTo(0, -30);
@@ -485,35 +707,50 @@ export function cuteCatBack(x: number, y: number, s: number, t: number): void {
   g.bezierCurveTo(-9, 1, -15, 0, -15, -6);
   g.bezierCurveTo(-15, -16, -10, -30, 0, -30);
   g.fill();
-  // 등줄기 그림자와 달빛 테두리
-  g.fillStyle = "rgba(150,160,190,0.18)";
+  // 부드러운 명암: 아래쪽 그늘, 오른쪽 위 달빛
+  const sh = g.createLinearGradient(0, -14, 0, 1);
+  sh.addColorStop(0, "rgba(150,160,190,0)");
+  sh.addColorStop(1, "rgba(150,160,190,0.22)");
+  g.fillStyle = sh;
   g.beginPath();
-  g.ellipse(0, -10, 4, 13, 0, 0, Math.PI * 2);
+  g.ellipse(0, -5, 14.5, 6, 0, 0, Math.PI * 2);
   g.fill();
-  g.fillStyle = "rgba(190,210,255,0.35)";
+  g.fillStyle = "rgba(190,210,255,0.3)";
   g.beginPath();
   g.ellipse(9, -18, 3, 9, 0.3, 0, Math.PI * 2);
   g.fill();
-  // 머리 (살짝 갸웃)
+  // 꼬리: 엉덩이 한가운데에서 나와 창턱 위를 좌우로 살랑
+  const sw = Math.sin(t * 1.8);
+  const tip = Math.sin(t * 1.8 - 0.7);
+  g.lineCap = "round";
+  for (const [w, c] of [[5, "#dfe3ec"], [3.4, "#ffffff"]] as Array<[number, string]>) {
+    g.strokeStyle = c;
+    g.lineWidth = w;
+    g.beginPath();
+    g.moveTo(0, -1);
+    g.bezierCurveTo(sw * 6, 1.5, sw * 14, 1.5, sw * 18 + tip * 2, -3 - Math.abs(tip) * 4);
+    g.stroke();
+  }
+  // 머리 (살짝 갸웃): 뒤에서는 귀의 바깥쪽 털만 보인다
   g.save();
   g.translate(0, -32);
   g.rotate(tilt);
-  // 귀: 둥근 끝의 삼각형, 안쪽 분홍이 살짝
   const ear = (dir: number, twitch: number) => {
     g.save();
     g.translate(dir * 6, -6);
     g.rotate(dir * (0.25 + twitch));
-    g.fillStyle = "#f4f5fa";
+    g.fillStyle = "#eef0f6";
     g.beginPath();
     g.moveTo(-4.5, 2);
     g.quadraticCurveTo(-1.5, -9, 0, -10);
     g.quadraticCurveTo(1.5, -9, 4.5, 2);
     g.fill();
-    g.fillStyle = "#f2b8c6";
+    // 귀 뒷면의 옅은 결 (분홍 안쪽은 보이지 않음)
+    g.fillStyle = "rgba(170,178,200,0.35)";
     g.beginPath();
-    g.moveTo(dir * 1.2 - 1.5, 0);
-    g.quadraticCurveTo(dir * 1.2, -6, dir * 1.2 + 0.6, -7);
-    g.quadraticCurveTo(dir * 1.2 + 1.5, -4, dir * 1.2 + 1.5, 0);
+    g.moveTo(-1, 1);
+    g.quadraticCurveTo(0, -6, 0.3, -7);
+    g.quadraticCurveTo(0.8, -5, 1, 1);
     g.fill();
     g.restore();
   };
@@ -524,7 +761,6 @@ export function cuteCatBack(x: number, y: number, s: number, t: number): void {
   g.beginPath();
   g.ellipse(0, 0, 10, 8.5, 0, 0, Math.PI * 2);
   g.fill();
-  // 볼살 (뒤에서 보이는 동글한 뺨)
   g.beginPath();
   g.ellipse(-6.5, 3, 5, 4, 0, 0, Math.PI * 2);
   g.ellipse(6.5, 3, 5, 4, 0, 0, Math.PI * 2);

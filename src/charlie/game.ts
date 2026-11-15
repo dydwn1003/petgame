@@ -84,7 +84,7 @@ import {
   type Pose,
 } from "./sprites";
 import { PIX, makeCanvas, mix } from "./pixel";
-import { catsRiseShots, farewellShots, introShots, memoryShots, type Shot } from "./movies";
+import { catsRiseShots, earthTexture, farewellShots, introShots, memoryShots, type Shot } from "./movies";
 
 // ── 타입 ─────────────────────────────────────────────────
 type Kind = "charlie" | "sam" | "person";
@@ -4147,6 +4147,7 @@ SCENES.epiB = () => {
 
 /** 오프닝 애니메이션 */
 SCENES.intro = () => {
+  earthTexture(); // 지구 그림은 로딩 중에 미리 굽는다
   const c = makeCanvas(W * PIX, H * PIX);
   const sc: Scene = {
     id: "intro",
