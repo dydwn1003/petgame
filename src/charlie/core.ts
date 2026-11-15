@@ -197,6 +197,54 @@ export const sfx = {
     tone(1100, 600, 0.25, 0.05, "triangle", 0.17);
   },
   purr: () => noise(0.6, 0.04, 200),
+  /** 진짜 같은 골골송: 낮은 잡음을 초당 25번 떨리게, 들숨·날숨 박자로 */
+  purrSong: (dur = 4) => {
+    if (!actx || !noiseBuf) return;
+    const t0 = actx.currentTime;
+    const src = actx.createBufferSource();
+    src.buffer = noiseBuf;
+    src.loop = true;
+    const lp = actx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 420;
+    const hp = actx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 45;
+    const am = actx.createGain();
+    am.gain.value = 0.5;
+    const lfo = actx.createOscillator();
+    lfo.type = "triangle";
+    lfo.frequency.value = 25;
+    const lfoAmt = actx.createGain();
+    lfoAmt.gain.value = 0.5;
+    lfo.connect(lfoAmt).connect(am.gain);
+    const body = actx.createOscillator();
+    body.type = "sine";
+    body.frequency.value = 50;
+    const bodyGain = actx.createGain();
+    bodyGain.gain.value = 0.25;
+    body.connect(bodyGain).connect(am);
+    const env = actx.createGain();
+    env.gain.setValueAtTime(0.0001, t0);
+    // 날숨(크게) 0.9초 · 들숨(작게) 0.6초 반복
+    for (let t = 0; t < dur; t += 1.5) {
+      env.gain.exponentialRampToValueAtTime(0.16, t0 + t + 0.12);
+      env.gain.setValueAtTime(0.16, t0 + t + 0.8);
+      env.gain.exponentialRampToValueAtTime(0.06, t0 + t + 0.95);
+      env.gain.setValueAtTime(0.06, t0 + t + 1.4);
+    }
+    env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 0.3);
+    src.connect(lp).connect(hp).connect(am).connect(env).connect(actx.destination);
+    lfo.frequency.setValueAtTime(25, t0);
+    for (let t = 0; t < dur; t += 1.5) lfo.frequency.setValueAtTime(t % 3 < 1.5 ? 25 : 23, t0 + t + 0.95);
+    for (const n of [src, lfo, body]) {
+      n.start(t0);
+      n.stop(t0 + dur + 0.4);
+    }
+  },
+  sparkle: () => {
+    for (let i = 0; i < 4; i++) tone(1400 + i * 380, 2200 + i * 300, 0.12, 0.025, "sine", i * 0.05);
+  },
   boom: () => {
     noise(1.8, 0.6, 1200);
     tone(80, 30, 1.5, 0.4, "sine");

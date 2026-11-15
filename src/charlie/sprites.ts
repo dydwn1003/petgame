@@ -1859,6 +1859,60 @@ function paintCat(p: Px, pose: string): void {
     paintCatHead(g, 95, 44, { wide: true, hiss: true, earsBack: true }, 33);
     return;
   }
+  if (pose.startsWith("stretch")) {
+    // 기지개: 앞발을 쭉 뻗고 엉덩이를 치켜든다 (0 → 3 으로 점점 깊게)
+    const k = Math.min(1, Number(pose.slice(7)) / 3);
+    const lerpN = (a: number, b: number) => a + (b - a) * k;
+    const probe = hindLegParts(42, 0, -0.05, 0);
+    const hipY = GROUND_Y - 2 - probe.foot[1];
+    const chestY = lerpN(70, 77);
+    const fAng = lerpN(0.7, 1.42);
+    catTail(g, [34, hipY - 2], [lerpN(20, 18), hipY - lerpN(14, 26)], [lerpN(16, 28), hipY - lerpN(24, 40)], 3.4, 25);
+    const hf = hindLegParts(40, hipY, -0.08, 0);
+    furMass(g, hf.parts, { flow: Math.PI * 0.6, seed: 51, far: true, strands: 80 });
+    paw(g, hf.foot[0], hf.foot[1], true);
+    const ff = frontLegParts(76, chestY + 3, fAng - 0.1, -0.15);
+    furMass(g, ff.parts, { flow: 0.2, seed: 52, far: true, strands: 50 });
+    paw(g, ff.foot[0], Math.min(GROUND_Y - 2, ff.foot[1]), true);
+    const hn = hindLegParts(45, hipY + 1, 0.04, 0);
+    const fn = frontLegParts(80, chestY + 4, fAng, -0.2);
+    furMass(g, [{ kind: "e", x: 45, y: hipY - 1, rx: 13, ry: 11 }, { kind: "e", x: 60, y: (hipY + chestY) / 2, rx: 14, ry: 9.5, rot: 0.32 * k + 0.1 }, { kind: "e", x: 74, y: chestY, rx: 11, ry: 8.5 }, ...hn.parts, ...fn.parts], { flow: Math.PI * 1.1, seed: 53 });
+    paw(g, hn.foot[0], hn.foot[1], false);
+    paw(g, fn.foot[0], Math.min(GROUND_Y - 2, fn.foot[1]), false);
+    paintCatHead(g, lerpN(90, 94), chestY - lerpN(10, 6), { closed: k > 0.6, happy: k > 0.6, tilt: lerpN(0.05, 0.25) }, 34);
+    return;
+  }
+  if (pose.startsWith("roll")) {
+    // 바닥에 등을 대고 뒹굴: 몸을 좌우로 흔들며 발을 꼼지락
+    const f = Number(pose.slice(4));
+    const ph = (f / 8) * Math.PI * 2;
+    g.save();
+    g.translate(64, 80);
+    g.rotate(Math.sin(ph) * 0.18);
+    g.translate(-64, -80);
+    catTail(g, [36, 80], [20, 84 + Math.sin(ph) * 2], [10, 76 - Math.cos(ph) * 4], 3.4, 25);
+    // 하늘을 향한 발 (뒤쪽 두 개)
+    const wig = (o: number) => Math.sin(ph * 2 + o) * 0.3;
+    const hf = hindLegParts(42, 70, 2.9 + wig(0), 0.1);
+    furMass(g, hf.parts, { flow: -Math.PI / 2, seed: 61, far: true, strands: 60 });
+    paw(g, hf.foot[0], hf.foot[1], true);
+    const ff = frontLegParts(78, 72, 3.25 + wig(1), -0.5);
+    furMass(g, ff.parts, { flow: -Math.PI / 2, seed: 62, far: true, strands: 50 });
+    paw(g, ff.foot[0], ff.foot[1], true);
+    // 누운 몸통 + 하얀 배
+    furMass(g, [{ kind: "e", x: 46, y: 78, rx: 14, ry: 10 }, { kind: "e", x: 62, y: 79, rx: 17, ry: 9 }, { kind: "e", x: 78, y: 77, rx: 12, ry: 9.5 }], { flow: Math.PI, seed: 63, light: [60, 72] });
+    furMass(g, [{ kind: "e", x: 62, y: 72, rx: 14, ry: 4 }], { flow: 0, seed: 64, tone: -0.04, strands: 40, edge: 1 });
+    const hn = hindLegParts(48, 72, 2.7 + wig(2), 0.1);
+    furMass(g, hn.parts, { flow: -Math.PI / 2, seed: 65, strands: 60 });
+    paw(g, hn.foot[0], hn.foot[1], false);
+    const fn = frontLegParts(84, 74, 3.45 + wig(3), -0.5);
+    furMass(g, fn.parts, { flow: -Math.PI / 2, seed: 66, strands: 50 });
+    paw(g, fn.foot[0], fn.foot[1], false);
+    // 거꾸로 뒤집힌 얼굴 (행복)
+    paintCatHead(g, 94, 80, { happy: true, closed: f % 4 === 0, tilt: 2.5 + Math.sin(ph) * 0.2 }, 34);
+    g.restore();
+    return;
+  }
   // 걷기 16프레임 (+ 박치기)
   const butt = pose === "butt";
   const ph = butt ? 0 : (Number(pose.slice(4)) / 16) * Math.PI * 2;

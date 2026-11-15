@@ -117,6 +117,8 @@ export interface Actor {
   torch?: boolean;
   /** 이 인물을 그릴 때 잘라 낼 영역 (계단·문 안으로 사라질 때) */
   clip?: { x0: number; y0: number; x1: number; y1: number } | null;
+  /** 연출 중 다른 로직이 바꾸지 못하게 고정한 자세 */
+  poseLock?: string | null;
   /** 마지막으로 그린 자세 (손전등 빛 위치 계산용) */
   lastPose?: string;
   /** 머리 위 감정 아이콘 */
@@ -168,6 +170,8 @@ interface Scene {
   front?: (camX: number) => void;
   start: () => Promise<void>;
   noPlayer?: boolean;
+  /** 실내처럼 천장이 낮은 곳에서 인물을 키워 그리는 배율 */
+  scale?: number;
   useLight?: boolean;
   overlay?: (camX: number) => void;
   /** 화면 왼쪽 위에 보여 줄 장소 이름 (미로 방) */
@@ -367,6 +371,8 @@ export async function goScene(id: string, checkpoint = 0, fade = true): Promise<
   fx.card = null;
   charlie = mkActor("charlie", 0);
   sam = mkActor("sam", 0, 1, { visible: false });
+  petBusy = false;
+  petFx.length = 0;
   S.backpack = id === "street1" || (id === "room" && !S.flags.bagDown);
   const sc = SCENES[id](checkpoint);
   S.loading = false;
@@ -816,12 +822,23 @@ SCENES.room = () => {
 
   const findSam = async () => {
     F.found = 1;
-    sam.visible = true;
-    sam.x = 470;
-    sam.facing = -1;
+    // 침대 밑에서 하얀 꼬리가... 기어 나와 기지개
     sfx.meow();
-    await wait(0.4);
-    await walkTo(sam, charlie.x + 40 * (charlie.x < 470 ? 1 : -1), 40);
+    await caption("침대 밑에서 작은 소리가 난다. 「냐아...」");
+    charlie.facing = charlie.x < 366 ? 1 : -1;
+    sam.visible = true;
+    sam.x = 398;
+    sam.facing = -1;
+    sam.clip = { x0: -9999, y0: 0, x1: 368, y1: H };
+    focusCam(360, 1.15);
+    await walkTo(sam, 344, 14);
+    sam.clip = null;
+    await wait(0.3);
+    await stretchSam();
+    sfx.meow();
+    await wait(0.3);
+    focusCam(null, 1);
+    await walkTo(sam, charlie.x + 40 * (charlie.x < 344 ? 1 : -1), 40);
     charlie.facing = sam.x > charlie.x ? 1 : -1;
     await walkTo(charlie, sam.x - 22 * charlie.facing, 45);
     // 머리 박치기 + 다리 사이 빙글빙글
@@ -915,7 +932,7 @@ SCENES.room = () => {
     emote(charlie, "?");
     await say(charlie, "샘...? 왜 그래?");
     sam.pose = "jump";
-    await tween(sam, ROOM.desk + 14, 168, 0.4, 16);
+    await tween(sam, ROOM.desk + 14, 181, 0.4, 16);
     sam.pose = "sit";
     await wait(0.5);
     sam.pose = "jump";
@@ -942,6 +959,7 @@ SCENES.room = () => {
 
   const sc: Scene = {
     id: "room",
+    scale: 1.45,
     width: ROOM.width,
     bg: buildRoom(),
     ambient: 0.55,
@@ -953,9 +971,9 @@ SCENES.room = () => {
           : meteor >= 0
             ? { x: 210, y: 92, r: 70 + (meteor / IMPACT) * 80, a: 0.5 + (meteor / IMPACT) * 0.45, warm: `rgba(120,255,170,${(0.05 + (meteor / IMPACT) * 0.2).toFixed(2)})` }
             : { x: 210, y: 92, r: 70, a: 0.5, warm: "rgba(120,150,255,0.05)" },
-        { x: 203, y: 154, r: 34, a: 0.7, warm: "rgba(90,150,255,0.10)" },
+        { x: 203, y: 167, r: 34, a: 0.7, warm: "rgba(90,150,255,0.10)" },
         { x: 470, y: 30, r: 110, a: 0.4 },
-        { x: ROOM.lamp + 1, y: 124, r: zzz ? 70 : 95, a: 0.85, warm: "rgba(255,200,130,0.12)" },
+        { x: ROOM.lamp + 1, y: 146, r: zzz ? 70 : 95, a: 0.85, warm: "rgba(255,200,130,0.12)" },
       ];
       return L;
     },
@@ -967,7 +985,7 @@ SCENES.room = () => {
       search("desk", ROOM.desk, ["책상 밑... 없다.", "모니터에 회사 메일 알림이 37개 떠 있다. 보지 말자."]),
       search("bed", ROOM.bed, ["침대 위엔 하얀 털만 잔뜩 묻어 있다.", "여기엔 없는 것 같다."]),
       search("wardrobe", ROOM.wardrobe, ["옷장 안에는 똑같은 체크 셔츠만 일곱 벌.", "샘은 없다."]),
-      photoSpot("p12", ROOM.bed + 44, 176, "침대 옆 협탁"),
+      photoSpot("p12", ROOM.bed + 44, 186, "침대 옆 협탁"),
       {
         x: ROOM.door,
         iconY: 100,
@@ -4596,28 +4614,144 @@ function canPet(): boolean {
   const sc = S.scene;
   return !!sc && !sc.noPlayer && S.control && !S.talk && !S.hidden && sam.visible && charlie.kind === "charlie" && Math.abs(sam.x - charlie.x) < 34 && Math.abs(sam.y - charlie.y) < 20;
 }
+/** 쓰다듬을 때 뾰로롱 퍼졌다 사라지는 하트들 */
+const petFx: Array<{ x: number; y: number; vx: number; vy: number; t: number; life: number; s: number }> = [];
+let petLabel: { text: string; x: number; until: number } | null = null;
+const timedBubbles: Array<{ a: Actor; until: number }> = [];
+function bubbleFor(a: Actor, text: string, sec: number): void {
+  a.bubble = text;
+  timedBubbles.push({ a, until: clock.t + sec });
+}
+function heartBurst(x: number, y: number, n = 6): void {
+  for (let i = 0; i < n; i++) {
+    const ang = -Math.PI / 2 + (i / (n - 1) - 0.5) * 2.2 + (Math.random() - 0.5) * 0.3;
+    const sp = 22 + Math.random() * 18;
+    petFx.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, t: 0, life: 0.8 + Math.random() * 0.35, s: Math.random() < 0.3 ? 0.75 : 1 });
+  }
+}
+function drawPetFx(camX: number): void {
+  const dt = 1 / 60;
+  for (let i = petFx.length - 1; i >= 0; i--) {
+    const h = petFx[i];
+    h.t += dt;
+    h.x += h.vx * dt;
+    h.y += h.vy * dt;
+    h.vx *= 0.92;
+    h.vy = h.vy * 0.92 - 6 * dt;
+    const k = h.t / h.life;
+    if (k >= 1) {
+      petFx.splice(i, 1);
+      continue;
+    }
+    // 처음엔 톡 커졌다가 작아지며 사라진다
+    const pop = k < 0.15 ? 0.6 + (k / 0.15) * 0.6 : 1.2 - (k - 0.15) * 0.5;
+    pixelHeart(h.x - camX, h.y, Math.max(0, 1 - Math.max(0, k - 0.5) * 2), Math.max(0.4, pop * h.s));
+    if (k < 0.3 && Math.floor(h.t * 20) % 2 === 0) {
+      g.fillStyle = "#fff4f8";
+      g.fillRect(h.x - camX + 4, h.y - 2, 1, 1);
+    }
+  }
+  if (petLabel && clock.t < petLabel.until) {
+    const a = Math.min(1, (petLabel.until - clock.t) * 3);
+    g.globalAlpha = a;
+    text(petLabel.text, petLabel.x - camX, half(sam.y) - headTop(sam) - 8, "#ffd6e6", "center");
+    g.globalAlpha = 1;
+  }
+  for (let i = timedBubbles.length - 1; i >= 0; i--) {
+    if (clock.t > timedBubbles[i].until) {
+      timedBubbles[i].a.bubble = null;
+      timedBubbles.splice(i, 1);
+    }
+  }
+}
+
+const PET_GOAL = 30;
+const PET_THOUGHTS: Record<number, string> = {
+  1: "(샘은 여러 번 쓰다듬어 줘야 좋아하지...)",
+  4: "(그래그래, 착하다 우리 샘.)",
+  8: "(조금만 더... 골골거릴 것 같은데.)",
+  14: "(이 털... 이 따끈함... 3일 야근이 녹는다.)",
+  17: "(더 쓰다듬으면 뭔가 보여 줄 것 같아.)",
+  25: "(이제 거의 다 왔어. 샘의 필살기가 나올 차례야.)",
+};
+let petBusy = false;
 function petSam(): void {
   S.flags.pets = (S.flags.pets ?? 0) + 1;
-  const n = petCount() + 1;
+  const n = S.flags.pets;
   try {
-    localStorage.setItem("charlie_cat_pets", String(n));
+    localStorage.setItem("charlie_cat_pets", String(petCount() + 1));
   } catch {
     /* 무시 */
   }
-  if (clock.t > petUntil) petPrev = sam.pose;
-  petUntil = clock.t + 1.1;
-  sam.pose = "butt";
   sam.facing = charlie.x > sam.x ? 1 : -1;
-  emote(sam, n % 7 === 0 ? "♪" : "♥");
-  sfx.purr();
-  if ([10, 30, 77].includes(n)) void cutscene(() => caption(n === 10 ? "샘이 찰리 다리에 몸을 비빈다. (쓰다듬은 횟수 10회)" : n === 30 ? "샘이 배를 보여 준다! 최고의 신뢰 표시다. (30회)" : "골골골골... 샘의 골골송이 멈추질 않는다. (77회 달성!)"));
+  const hy = sam.y - headTop(sam) + 4;
+  heartBurst(sam.x + sam.facing * 6, hy, n % 10 === 0 ? 10 : 6);
+  sfx.sparkle();
+  petLabel = { text: n <= PET_GOAL ? `쓰담 ${n}/${PET_GOAL}` : `쓰담 ${n}회 ♥`, x: sam.x, until: clock.t + 1.2 };
+  const thought = PET_THOUGHTS[n];
+  if (thought) bubbleFor(charlie, thought, 2.6);
+  if (petBusy) return;
+  if (n === 10) void petPerform("purr");
+  else if (n === 20) void petPerform("stretch");
+  else if (n === 30) void petPerform("roll");
+  else {
+    if (clock.t > petUntil) petPrev = sam.pose;
+    petUntil = clock.t + 1.1;
+    sam.pose = "butt";
+    sfx.purr();
+  }
+}
+/** 쓰다듬은 횟수에 따른 샘의 퍼포먼스 (10 골골송 · 20 기지개 · 30 뒹굴) */
+async function petPerform(kind: "purr" | "stretch" | "roll"): Promise<void> {
+  petBusy = true;
+  petUntil = 0;
+  const prev = sam.pose;
+  if (kind === "purr") {
+    sam.poseLock = "loaf";
+    sfx.purrSong(4.5);
+    bubbleFor(sam, "골골골골골~ ♪", 4);
+    await wait(0.6);
+    bubbleFor(charlie, "(골골송이다...! 10번 만에 나왔어.)", 3);
+    await wait(3.9);
+  } else if (kind === "stretch") {
+    bubbleFor(charlie, "(오, 기지개?)", 2.4);
+    await stretchSam();
+    sfx.meow();
+  } else {
+    sam.anim = { prefix: "roll", frames: 8, fps: 6 };
+    sfx.purrSong(3.5);
+    bubbleFor(sam, "냐아앙~ ♥", 2.6);
+    heartBurst(sam.x, sam.y - 16, 12);
+    await wait(0.8);
+    bubbleFor(charlie, "(배를 보여 줬어! 최고의 신뢰 표시야. 30번 쓰담 달성!)", 3.2);
+    await wait(2.6);
+    sam.anim = null;
+  }
+  sam.poseLock = null;
+  sam.pose = prev === "butt" ? "sit" : prev ?? "sit";
+  petBusy = false;
+}
+/** 앞발을 쭉 뻗는 기지개 (나왔다 들어가기) */
+async function stretchSam(): Promise<void> {
+  sam.anim = null;
+  for (const f of [0, 1, 2, 3]) {
+    sam.poseLock = `stretch${f}`;
+    await wait(0.18);
+  }
+  await wait(1.1);
+  for (const f of [2, 1, 0]) {
+    sam.poseLock = `stretch${f}`;
+    await wait(0.16);
+  }
+  sam.poseLock = null;
+  sam.pose = "sit";
 }
 function updatePet(): void {
-  if (petUntil > 0 && clock.t > petUntil) {
+  if (petUntil > 0 && clock.t > petUntil && !petBusy) {
     petUntil = 0;
     sam.pose = petPrev ?? "sit";
   }
-  if (canPet() && took("KeyC")) petSam();
+  if (canPet() && took("KeyC") && !petBusy) petSam();
 }
 
 
@@ -4929,6 +5063,9 @@ const dg = dark.getContext("2d")!;
 
 /** 인물 머리 꼭대기의 높이 (발 기준, 화면 칸). 말풍선 · 감정 아이콘을 머리 바로 위에 붙이기 위해 */
 function headTop(a: Actor): number {
+  return headTop0(a) * (S.scene?.scale ?? 1);
+}
+function headTop0(a: Actor): number {
   if (a.kind === "sam") {
     if (a.pose === "loaf" || a.pose === "butt") return 15;
     return a.pose === "sit" || (a.pose ?? "").startsWith("sitT") || !a.moving ? 22 : 19;
@@ -4975,6 +5112,7 @@ function drawHidden(a: Actor, camX: number): void {
   g.restore();
 }
 
+let scaling = false;
 function drawActor(a: Actor, camX: number): void {
   if (!a.visible) {
     if (a.hideLook && S.hidden && a === charlie) drawHidden(a, camX);
@@ -4992,6 +5130,19 @@ function drawActor(a: Actor, camX: number): void {
     g.restore();
     return;
   }
+  const sk = S.scene?.scale ?? 1;
+  if (sk !== 1 && !scaling) {
+    scaling = true;
+    const ax = half(a.x - camX);
+    g.save();
+    g.translate(ax, a.y);
+    g.scale(sk, sk);
+    g.translate(-ax, -a.y);
+    drawActor(a, camX);
+    g.restore();
+    scaling = false;
+    return;
+  }
   const sx = half(a.x - camX);
   if (sx < -40 || sx > W + 40) return;
   const talking = S.talk && !S.talk.caption && S.talk.actor === a && S.talk.typed < S.talk.text.length;
@@ -5003,14 +5154,15 @@ function drawActor(a: Actor, camX: number): void {
       if (t > 3.82) return "blink";
       return `sitT${Math.floor(clock.t * 6) % 8}`;
     };
-    if (a.anim) pose = `${a.anim.prefix}${Math.floor(clock.t * a.anim.fps) % a.anim.frames}`;
+    if (a.poseLock) pose = a.poseLock;
+    else if (a.anim) pose = `${a.anim.prefix}${Math.floor(clock.t * a.anim.fps) % a.anim.frames}`;
     else if (a.pose === "sit") pose = idle();
     else if (a.pose) pose = a.pose as CatPose;
-    else pose = a.moving ? `walk${Math.floor(a.walkDist / 1.5) % 16}` : idle();
+    else pose = a.moving ? `walk${Math.floor(a.walkDist / (1.5 * sk)) % 16}` : idle();
     const spr = cat(pose, a.facing, !!a.silhouette);
     smoothDraw(spr, sx - 15, half(a.y + bob) - 22, 32, 24);
     if (!a.silhouette && a === sam) drawCostume(sx - 15, half(a.y + bob) - 22, a.facing, pose);
-    if (a === sam && canPet()) text("[C] 쓰담쓰담", sx, half(a.y) - headTop(a) - 6, "#ffd6e6", "center");
+    if (a === sam && canPet() && !petBusy && !(petLabel && clock.t < petLabel.until)) text("[C] 쓰담쓰담", sx, half(a.y) - headTop0(a) - 6, "#ffd6e6", "center");
     return;
   }
   const isCharlie = a.kind === "charlie";
@@ -5028,7 +5180,7 @@ function drawActor(a: Actor, camX: number): void {
     const held = isCharlie && lightOn();
     const L = held ? "L" : "";
     const since = clock.t - S.lightT;
-    if (a.moving) pose = (sneakNow ? `crouch${Math.floor(a.walkDist / 2.5) % 8}` : `walk${Math.floor(a.walkDist / 2) % 16}`) + L;
+    if (a.moving) pose = (sneakNow ? `crouch${Math.floor(a.walkDist / (2.5 * sk)) % 8}` : `walk${Math.floor(a.walkDist / (2 * sk)) % 16}`) + L;
     else if (isCharlie && since < 0.28 && !!S.flags.supplies && S.scene?.useLight) {
       const f = Math.min(3, Math.floor(since / 0.07));
       pose = `raise${held ? f : 3 - f}`;
@@ -5277,11 +5429,12 @@ export function drawPlay(): void {
   drawLighting(sc, camX);
   sc.overlay?.(camX);
   if (!sc.noPlayer) for (const a of [...sc.actors, charlie, sam]) drawEmote(a, camX);
+  drawPetFx(camX);
   g.restore();
 
   // 말풍선
   if (!sc.noPlayer) {
-    for (const a of [...sc.actors, charlie]) {
+    for (const a of [...sc.actors, charlie, sam]) {
       if (a.bubble && a.visible && !S.talk) bubble(a.bubble, ...toScreen(a.x - camX, a.y - headTop(a) - 2));
     }
   }

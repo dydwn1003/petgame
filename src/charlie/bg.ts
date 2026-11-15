@@ -656,6 +656,10 @@ export function buildRoom(): HTMLCanvasElement {
   rect(g, 32, 129, 10, 1, "#8a8a7a");
   // 창문 1 + 라디에이터
   roomWindow(g, 82, 58, 60, 88, r);
+  g.save();
+  g.translate(0, GROUND);
+  g.scale(1, 0.7);
+  g.translate(0, -GROUND);
   box(g, 84, 166, 56, 40, "#8a8a92");
   for (let k = 0; k < 52; k += 5) {
     rect(g, 86 + k, 170, 3, 32, "#a4a4ac");
@@ -663,8 +667,13 @@ export function buildRoom(): HTMLCanvasElement {
     rect(g, 88 + k, 170, 1, 32, "#76767e");
   }
   rect(g, 132, 160, 4, 6, "#6a6a72");
+  g.restore();
   // 창문 2 (책상 위, 샘이 나가는 창)
   roomWindow(g, 178, 52, 64, 82, r);
+  g.save();
+  g.translate(0, GROUND);
+  g.scale(1, 0.72);
+  g.translate(0, -GROUND);
   // 책상
   box(g, 166, 166, 90, 6, "#7a5430");
   for (let i = 0; i < 90; i += 11) rect(g, 168 + i, 168, 6, 1, "#8a6038");
@@ -674,6 +683,9 @@ export function buildRoom(): HTMLCanvasElement {
   rect(g, 226, 184, 20, 1, "#3a2818");
   rect(g, 234, 178, 4, 2, "#c8a83a");
   rect(g, 234, 190, 4, 2, "#c8a83a");
+  g.restore();
+  g.save();
+  g.translate(0, 13.5);
   // 모니터
   box(g, 186, 142, 34, 22, "#1a1a20");
   vgrad(g, 188, 144, 30, 162, [[0, "#3a6a9a"], [1, "#1a3a5a"]]);
@@ -693,6 +705,11 @@ export function buildRoom(): HTMLCanvasElement {
   rect(g, 244, 160, 6, 6, "#e8e0d8");
   rect(g, 250, 162, 2, 3, "#e8e0d8");
   rect(g, 245, 161, 4, 1, "#5a3a24");
+  g.restore();
+  g.save();
+  g.translate(0, GROUND);
+  g.scale(1, 0.8);
+  g.translate(0, -GROUND);
   // 의자
   box(g, 192, 180, 26, 5, "#2a2a32");
   box(g, 212, 156, 5, 26, "#2a2a32");
@@ -700,6 +717,7 @@ export function buildRoom(): HTMLCanvasElement {
   rect(g, 194, 206, 22, 2, "#18181e");
   rect(g, 194, 208, 2, 2, "#18181e");
   rect(g, 214, 208, 2, 2, "#18181e");
+  g.restore();
   // 책장 (벽)
   box(g, 266, 78, 74, 4, "#5a3a22");
   rect(g, 268, 82, 3, 6, "#3a2414");
@@ -717,6 +735,10 @@ export function buildRoom(): HTMLCanvasElement {
   rect(g, bxp + 2, 70, 10, 8, "#c8c0b0");
   // 안락의자
   armchair(g, ROOM.armchair);
+  g.save();
+  g.translate(0, GROUND);
+  g.scale(1, 0.76);
+  g.translate(0, -GROUND);
   // 스탠드 조명
   rect(g, ROOM.lamp, 124, 2, 90, "#1a1a20");
   rect(g, ROOM.lamp, 124, 1, 90, "#3a3a44");
@@ -726,6 +748,7 @@ export function buildRoom(): HTMLCanvasElement {
     rect(g, ROOM.lamp + 1 - half, 114 + row, half * 2, 1, row % 4 === 3 ? "#c8b880" : "#e0d0a0");
   }
   rect(g, ROOM.lamp - 10, 127, 22, 1, "#a89870");
+  g.restore();
   // 샹들리에
   rect(g, 470, 14, 1, 16, "#2a2a30");
   rect(g, 456, 30, 30, 2, "#3a3a40");
@@ -742,6 +765,10 @@ export function buildRoom(): HTMLCanvasElement {
   rect(g, 389, 86, 34, 11, "#6a8a5a");
   rect(g, 400, 82, 10, 4, "#4a6a4a");
   rect(g, 412, 84, 8, 2, "#4a6a4a");
+  g.save();
+  g.translate(0, GROUND);
+  g.scale(1, 0.62);
+  g.translate(0, -GROUND);
   // 침대
   box(g, 366, 146, 8, 68, "#4a2c18");
   rect(g, 366, 146, 8, 3, "#6a4428");
@@ -772,6 +799,11 @@ export function buildRoom(): HTMLCanvasElement {
   rect(g, 452, 180, 18, 1, "#e8c860");
   box(g, 370, 204, 5, 10, "#3a2414");
   box(g, 479, 204, 5, 10, "#3a2414");
+  g.restore();
+  g.save();
+  g.translate(0, GROUND);
+  g.scale(1, 0.74);
+  g.translate(0, -GROUND);
   // 옷장
   box(g, 502, 88, 58, 126, "#3a2416");
   rect(g, 500, 86, 62, 4, "#4e3220");
@@ -792,8 +824,18 @@ export function buildRoom(): HTMLCanvasElement {
   rect(g, 536, 70, 16, 16, "#a8845a");
   rect(g, 536, 70, 16, 1, "#c8a47a");
   rect(g, 536, 77, 16, 1, "#7a5a3a");
+  g.restore();
+  g.save();
+  g.translate(0, GROUND);
+  g.scale(1, 0.78);
+  g.translate(0, -GROUND);
   // 냉장고 (레트로 2도어)
   fridgeOutside(g, 582, 104);
+  g.restore();
+  g.save();
+  g.translate(0, GROUND);
+  g.scale(1, 0.86);
+  g.translate(0, -GROUND);
   // 코트걸이
   rect(g, ROOM.coat, 118, 3, 96, "#2a1a12");
   rect(g, ROOM.coat, 118, 1, 96, "#4a3020");
@@ -803,6 +845,7 @@ export function buildRoom(): HTMLCanvasElement {
   rect(g, ROOM.coat - 8, 126, 1, 30, "#4a3a2c");
   box(g, ROOM.coat + 3, 124, 10, 30, "#3a4a5a");
   rect(g, ROOM.coat + 5, 126, 1, 24, "#2e3c4a");
+  g.restore();
   // 어질러진 것들: 고양이 화장실, 옷 더미, 피자 박스, 고양이 밥그릇, 가방
   box(g, 64, 202, 26, 12, "#9a9a8a");
   rect(g, 66, 202, 22, 3, "#c8c0a8");

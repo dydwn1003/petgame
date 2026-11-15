@@ -1,7 +1,7 @@
 import "../fonts.css";
 import "./style.css";
 import { FONT, H, W, canvas, clock, fx, g, keys, mouse, pressed, render, tickScripts, unlockAudio, updateFx } from "./core";
-import { setSpriteDensity } from "./sprites";
+import { cat as catSprite, setSpriteDensity } from "./sprites";
 import { PIX } from "./pixel";
 import { S, bakeIdle, debug, drawPlay, drawTitle, goScene, prewarm, update, updateTitle } from "./game";
 import "./stages";
@@ -165,4 +165,4 @@ function boot(): void {
 }
 
 // 테스트용
-(window as unknown as { __game: unknown }).__game = { S, debug, goScene, cost };
+(window as unknown as { __game: unknown }).__game = { S, debug, goScene, cost, catSprite };
